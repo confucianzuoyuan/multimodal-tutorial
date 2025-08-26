@@ -1,0 +1,202 @@
+{
+  "main": {
+    "id": "7dfe916a9175249b",
+    "type": "split",
+    "children": [
+      {
+        "id": "cbb09dd31fd7ab2f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1da83ce6ccb73864",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "2. CLIP.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2. CLIP"
+            }
+          },
+          {
+            "id": "57086a79925766d8",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "1. Vision Transformer.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "1. Vision Transformer"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "6f15d6971e4361bf",
+    "type": "split",
+    "children": [
+      {
+        "id": "a2441b0f3940cca7",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "177f788107f0dc4f",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "660fd466490d2733",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "c598727a3c65ae8b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "bdae7aa9fbda93f3",
+    "type": "split",
+    "children": [
+      {
+        "id": "837ef4dac958dc94",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bcfd56bfcaddbacf",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "2. CLIP.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "2. CLIP 的反向链接列表"
+            }
+          },
+          {
+            "id": "8b29c07871980486",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "2. CLIP.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "2. CLIP 的出链列表"
+            }
+          },
+          {
+            "id": "4027a0b81461a975",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "154191497394c512",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "2. CLIP.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "2. CLIP 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:创建新数据库": false
+    }
+  },
+  "active": "1da83ce6ccb73864",
+  "lastOpenFiles": [
+    "1. Vision Transformer.md",
+    "2. CLIP.md",
+    "Pasted image 20250826185937.png",
+    "Pasted image 20250826185601.png",
+    "Pasted image 20250826184405.png",
+    "Pasted image 20250826184344.png",
+    "Pasted image 20250826183646.png",
+    "Pasted image 20250826183538.png",
+    "Pasted image 20250826183421.png",
+    "Pasted image 20250826182650.png",
+    "Pasted image 20250826180807.png",
+    "Pasted image 20250826180251.png",
+    "欢迎.md"
+  ]
+}
