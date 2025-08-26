@@ -35,7 +35,8 @@
               "title": "1. Vision Transformer"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -108,7 +109,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "1. Vision Transformer.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +119,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "2. CLIP 的反向链接列表"
+              "title": "1. Vision Transformer 的反向链接列表"
             }
           },
           {
@@ -127,12 +128,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "1. Vision Transformer.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "2. CLIP 的出链列表"
+              "title": "1. Vision Transformer 的出链列表"
             }
           },
           {
@@ -156,13 +157,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "1. Vision Transformer.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "2. CLIP 的大纲"
+              "title": "1. Vision Transformer 的大纲"
             }
           }
         ]
@@ -183,20 +184,20 @@
       "bases:创建新数据库": false
     }
   },
-  "active": "1da83ce6ccb73864",
+  "active": "57086a79925766d8",
   "lastOpenFiles": [
-    "1. Vision Transformer.md",
     "2. CLIP.md",
+    "1. Vision Transformer.md",
+    "Pasted image 20250826211257.png",
+    "Pasted image 20250826210756.png",
+    "Pasted image 20250826202113.png",
+    "Pasted image 20250826201754.png",
+    "Pasted image 20250826201657.png",
+    "Pasted image 20250826201558.png",
+    "Pasted image 20250826200536.png",
     "Pasted image 20250826185937.png",
     "Pasted image 20250826185601.png",
     "Pasted image 20250826184405.png",
-    "Pasted image 20250826184344.png",
-    "Pasted image 20250826183646.png",
-    "Pasted image 20250826183538.png",
-    "Pasted image 20250826183421.png",
-    "Pasted image 20250826182650.png",
-    "Pasted image 20250826180807.png",
-    "Pasted image 20250826180251.png",
     "欢迎.md"
   ]
 }
