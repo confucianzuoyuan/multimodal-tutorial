@@ -186,6 +186,19 @@
   },
   "active": "57086a79925766d8",
   "lastOpenFiles": [
+    "codes/chapter03/generated_image.png",
+    "codes/chapter03/README.md",
+    "codes/chapter03/image.jpg",
+    "codes/chapter03/train_diffusion.py",
+    "codes/chapter03",
+    "codes/chapter02/clip.pt",
+    "codes/chapter02/train_clip.py",
+    "codes/chapter02",
+    "codes/datasets/MNIST/raw/t10k-labels-idx1-ubyte",
+    "codes/datasets/MNIST/raw/t10k-labels-idx1-ubyte.gz",
+    "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte",
+    "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte.gz",
+    "codes/datasets/MNIST/raw/train-labels-idx1-ubyte",
     "2. CLIP.md",
     "1. Vision Transformer.md",
     "Pasted image 20250826211257.png",
@@ -197,7 +210,6 @@
     "Pasted image 20250826200536.png",
     "Pasted image 20250826185937.png",
     "Pasted image 20250826185601.png",
-    "Pasted image 20250826184405.png",
     "欢迎.md"
   ]
 }
