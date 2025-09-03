@@ -8,35 +8,81 @@
         "type": "tabs",
         "children": [
           {
-            "id": "1da83ce6ccb73864",
+            "id": "303bab4150afb7c9",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "excalidraw",
               "state": {
-                "file": "2. CLIP.md",
-                "mode": "source",
-                "source": false
+                "file": "Excalidraw/3.4.excalidraw.md"
               },
-              "icon": "lucide-file",
-              "title": "2. CLIP"
+              "icon": "excalidraw-icon",
+              "title": "3.4.excalidraw"
             }
           },
           {
-            "id": "57086a79925766d8",
+            "id": "e53e167156029492",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.5.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.5.excalidraw"
+            }
+          },
+          {
+            "id": "c4da378b5e76a56f",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "1. Vision Transformer.md",
+                "file": "3. 扩散模型（diffusion model）.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "1. Vision Transformer"
+              "title": "3. 扩散模型（diffusion model）"
+            }
+          },
+          {
+            "id": "5fd9cdda76113842",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.1.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.1.excalidraw"
+            }
+          },
+          {
+            "id": "76ab2fd4ea5ebf07",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.2.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.2.excalidraw"
+            }
+          },
+          {
+            "id": "c34335d869d45f9b",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.3.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.3.excalidraw"
             }
           }
         ],
-        "currentTab": 1
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -181,14 +227,35 @@
       "daily-notes:打开/创建今天的日记": false,
       "templates:插入模板": false,
       "command-palette:打开命令面板": false,
-      "bases:创建新数据库": false
+      "bases:创建新数据库": false,
+      "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "57086a79925766d8",
+  "active": "c4da378b5e76a56f",
   "lastOpenFiles": [
-    "codes/chapter03/generated_image.png",
+    "Pasted image 20250903184722.png",
+    "Pasted image 20250903184424.png",
+    "Pasted image 20250903184406.png",
+    "Pasted image 20250903184307.png",
+    "Pasted image 20250903184217.png",
+    "Pasted image 20250903184137.png",
+    "Pasted image 20250903183903.png",
+    "Pasted image 20250903183650.png",
+    "Pasted image 20250903183630.png",
+    "Pasted image 20250903183013.png",
+    "Excalidraw/3.6.excalidraw.md",
+    "Pasted Image 20250903182014_134.png",
+    "Excalidraw/3.5.excalidraw.md",
+    "3. 扩散模型（diffusion model）.md",
+    "Excalidraw/3.4.excalidraw.md",
+    "Excalidraw/3.3.excalidraw.md",
+    "2. CLIP.md",
+    "1. Vision Transformer.md",
+    "Excalidraw/3.1.excalidraw.md",
+    "Excalidraw/3.2.excalidraw.md",
+    "Excalidraw",
+    "0. 理解图像的补丁嵌入.md",
     "codes/chapter03/README.md",
-    "codes/chapter03/image.jpg",
     "codes/chapter03/train_diffusion.py",
     "codes/chapter03",
     "codes/chapter02/clip.pt",
@@ -198,18 +265,6 @@
     "codes/datasets/MNIST/raw/t10k-labels-idx1-ubyte.gz",
     "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte",
     "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte.gz",
-    "codes/datasets/MNIST/raw/train-labels-idx1-ubyte",
-    "2. CLIP.md",
-    "1. Vision Transformer.md",
-    "Pasted image 20250826211257.png",
-    "Pasted image 20250826210756.png",
-    "Pasted image 20250826202113.png",
-    "Pasted image 20250826201754.png",
-    "Pasted image 20250826201657.png",
-    "Pasted image 20250826201558.png",
-    "Pasted image 20250826200536.png",
-    "Pasted image 20250826185937.png",
-    "Pasted image 20250826185601.png",
     "欢迎.md"
   ]
 }
