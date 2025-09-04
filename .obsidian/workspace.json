@@ -222,8 +222,16 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "499e8812f5715176",
+  "active": "adfe1ccdc25ce7bb",
   "lastOpenFiles": [
+    "codes/appendix-a/t6.py",
+    "codes/appendix-a/t5.py",
+    "codes/appendix-a/t4.py",
+    "codes/appendix-a/t3.py",
+    "codes/appendix-a/t2.py",
+    "codes/appendix-a/t1.py",
+    "codes/appendix-a/README.md",
+    "codes/appendix-a",
     "Excalidraw/3.1.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
     "3. 扩散模型（diffusion model）.md",
@@ -254,12 +262,6 @@
     "codes/chapter03/train_diffusion.py",
     "codes/chapter03",
     "codes/chapter02/clip.pt",
-    "codes/chapter02/train_clip.py",
-    "codes/chapter02",
-    "codes/datasets/MNIST/raw/t10k-labels-idx1-ubyte",
-    "codes/datasets/MNIST/raw/t10k-labels-idx1-ubyte.gz",
-    "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte",
-    "codes/datasets/MNIST/raw/t10k-images-idx3-ubyte.gz",
     "欢迎.md"
   ]
 }
