@@ -4,58 +4,8 @@
     "type": "split",
     "children": [
       {
-        "id": "cbb09dd31fd7ab2f",
-        "type": "tabs",
-        "dimension": 70.93908629441624,
-        "children": [
-          {
-            "id": "3e7011ffbeda5940",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "3. 扩散模型（diffusion model）.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "3. 扩散模型（diffusion model）"
-            }
-          },
-          {
-            "id": "adfe1ccdc25ce7bb",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "3. 扩散模型（diffusion model）.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "3. 扩散模型（diffusion model）"
-            },
-            "group": "21ee8f7994377095"
-          },
-          {
-            "id": "f70b2e70c2a3a309",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/3.1.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "3.1.excalidraw"
-            }
-          }
-        ],
-        "currentTab": 1
-      },
-      {
         "id": "8e9e115fb942438c",
         "type": "tabs",
-        "dimension": 29.060913705583758,
         "children": [
           {
             "id": "499e8812f5715176",
@@ -63,17 +13,45 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "3. 扩散模型（diffusion model）.md",
+                "file": "4. 文生图.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "3. 扩散模型（diffusion model） 的大纲"
-            },
-            "group": "21ee8f7994377095"
+              "title": "4. 文生图 的大纲"
+            }
+          },
+          {
+            "id": "f458bc8e3e07d087",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "3. 扩散模型（diffusion model）.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "3. 扩散模型（diffusion model）"
+            }
+          },
+          {
+            "id": "e3c5dabe0b9311f8",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "4. 文生图.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "4. 文生图"
+            }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -222,8 +200,22 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "adfe1ccdc25ce7bb",
+  "active": "e3c5dabe0b9311f8",
   "lastOpenFiles": [
+    "Pasted image 20250906143451.png",
+    "Pasted image 20250906142959.png",
+    "Pasted image 20250906141826.png",
+    "Pasted image 20250906141410.png",
+    "Pasted image 20250906141222.png",
+    "Pasted image 20250906135725.png",
+    "Pasted image 20250906135403.png",
+    "Pasted image 20250906135316.png",
+    "Pasted image 20250906135233.png",
+    "Pasted image 20250906135110.png",
+    "2. CLIP.md",
+    "4. 文生图.md",
+    "Pasted image 20250906134643.png",
+    "3. 扩散模型（diffusion model）.md",
     "codes/appendix-a/t6.py",
     "codes/appendix-a/t5.py",
     "codes/appendix-a/t4.py",
@@ -234,34 +226,21 @@
     "codes/appendix-a",
     "Excalidraw/3.1.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
-    "3. 扩散模型（diffusion model）.md",
     "0. 理解图像的补丁嵌入.md",
-    "Pasted image 20250904143526.png",
-    "Pasted image 20250904143230.png",
     "Excalidraw/3.10.excalidraw.md",
-    "Pasted Image 20250904141713_204.png",
     "Excalidraw/3.9.excalidraw.md",
-    "Pasted Image 20250904141027_245.png",
     "Excalidraw/3.8.excalidraw.md",
-    "Pasted Image 20250904140539_679.png",
     "Excalidraw/3.7.excalidraw.md",
-    "Pasted Image 20250904140047_516.png",
-    "Pasted image 20250903184722.png",
-    "Pasted image 20250903184424.png",
-    "Pasted image 20250903184406.png",
-    "Pasted image 20250903184307.png",
     "Excalidraw/3.6.excalidraw.md",
     "Excalidraw/3.5.excalidraw.md",
     "Excalidraw/3.4.excalidraw.md",
     "Excalidraw/3.3.excalidraw.md",
-    "2. CLIP.md",
     "1. Vision Transformer.md",
     "Excalidraw/3.2.excalidraw.md",
     "Excalidraw",
     "codes/chapter03/README.md",
     "codes/chapter03/train_diffusion.py",
     "codes/chapter03",
-    "codes/chapter02/clip.pt",
     "欢迎.md"
   ]
 }
