@@ -13,13 +13,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "4. 文生图.md",
+                "file": "codes/chapter03/README.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "4. 文生图 的大纲"
+              "title": "README 的大纲"
             }
           },
           {
@@ -42,16 +42,66 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "4. 文生图.md",
+                "file": "3. 扩散模型（diffusion model）.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "4. 文生图"
+              "title": "3. 扩散模型（diffusion model）"
+            }
+          },
+          {
+            "id": "e407f0cfefe5c9e2",
+            "type": "leaf",
+            "state": {
+              "type": "image",
+              "state": {
+                "file": "Pasted Image 20250904141713_204.png"
+              },
+              "icon": "lucide-image",
+              "title": "Pasted Image 20250904141713_204"
+            }
+          },
+          {
+            "id": "9583f6d929cf8a1b",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.1.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.1.excalidraw"
+            }
+          },
+          {
+            "id": "209e936f0b370390",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/简单损失函数.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "简单损失函数.excalidraw"
+            }
+          },
+          {
+            "id": "1fcc976d3fb9c7fe",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "2. CLIP.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2. CLIP"
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 3
       }
     ],
     "direction": "vertical"
@@ -200,33 +250,37 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "e3c5dabe0b9311f8",
+  "active": "e407f0cfefe5c9e2",
   "lastOpenFiles": [
-    "Pasted image 20250906143451.png",
-    "Pasted image 20250906142959.png",
-    "Pasted image 20250906141826.png",
-    "Pasted image 20250906141410.png",
-    "Pasted image 20250906141222.png",
-    "Pasted image 20250906135725.png",
-    "Pasted image 20250906135403.png",
-    "Pasted image 20250906135316.png",
+    "Pasted image 20250906134643.png",
     "Pasted image 20250906135233.png",
-    "Pasted image 20250906135110.png",
+    "Pasted image 20250903104757.png",
+    "Pasted image 20250826211257.png",
+    "Pasted image 20250826201657.png",
+    "Pasted image 20250826202113.png",
+    "0. 理解图像的补丁嵌入.md",
+    "附录A：交叉熵.md",
+    "1. Vision Transformer.md",
     "2. CLIP.md",
     "4. 文生图.md",
-    "Pasted image 20250906134643.png",
+    "deleted.png",
+    "Pasted image 20250906135110.png",
+    "Pasted Image 20250903182014_134.png",
+    "Pasted Image 20250903173004_878.png",
+    "Pasted image 20250903105817.png",
     "3. 扩散模型（diffusion model）.md",
+    "Excalidraw/简单损失函数.excalidraw.md",
+    "Excalidraw/3.1.excalidraw.md",
+    "codes/chapter03/README.md",
+    "codes/appendix-a/README.md",
     "codes/appendix-a/t6.py",
     "codes/appendix-a/t5.py",
     "codes/appendix-a/t4.py",
     "codes/appendix-a/t3.py",
     "codes/appendix-a/t2.py",
     "codes/appendix-a/t1.py",
-    "codes/appendix-a/README.md",
     "codes/appendix-a",
-    "Excalidraw/3.1.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
-    "0. 理解图像的补丁嵌入.md",
     "Excalidraw/3.10.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
@@ -235,10 +289,8 @@
     "Excalidraw/3.5.excalidraw.md",
     "Excalidraw/3.4.excalidraw.md",
     "Excalidraw/3.3.excalidraw.md",
-    "1. Vision Transformer.md",
     "Excalidraw/3.2.excalidraw.md",
     "Excalidraw",
-    "codes/chapter03/README.md",
     "codes/chapter03/train_diffusion.py",
     "codes/chapter03",
     "欢迎.md"
