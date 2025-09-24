@@ -1,5 +1,7 @@
 [
   "obsidian-excalidraw-plugin",
   "obsidian-admonition",
-  "unicode-search"
+  "obsidian-minimal-settings",
+  "obsidian-latex-suite",
+  "obsidian-style-settings"
 ]
