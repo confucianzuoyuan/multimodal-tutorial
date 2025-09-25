@@ -6,37 +6,83 @@
       {
         "id": "8e9e115fb942438c",
         "type": "tabs",
-        "dimension": 83.23798627002287,
+        "dimension": 99.99999999999999,
         "children": [
           {
-            "id": "499e8812f5715176",
+            "id": "10b81ce419da417c",
             "type": "leaf",
             "state": {
-              "type": "outline",
+              "type": "excalidraw",
               "state": {
-                "file": "codes/chapter03/README.md",
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
+                "file": "Excalidraw/扩散模型训练步骤示意图.excalidraw.md"
               },
-              "icon": "lucide-list",
-              "title": "README 的大纲"
+              "icon": "excalidraw-icon",
+              "title": "扩散模型训练步骤示意图.excalidraw"
             }
           },
           {
-            "id": "f458bc8e3e07d087",
+            "id": "7f877b91b166b535",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "1. Vision Transformer.md",
+                "file": "3. 扩散模型（diffusion model）.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "1. Vision Transformer"
-            },
-            "group": "432fd0c799df25c5"
+              "title": "3. 扩散模型（diffusion model）"
+            }
+          },
+          {
+            "id": "baf0f9c29f5e83e8",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "附录A：扩散模型数学推导.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "附录A：扩散模型数学推导"
+            }
+          },
+          {
+            "id": "cf78447d2899d5d2",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.1.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.1.excalidraw"
+            }
+          },
+          {
+            "id": "f311e321581161c7",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/扩散模型训练步骤示意图.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "扩散模型训练步骤示意图.excalidraw"
+            }
+          },
+          {
+            "id": "3f6080def2bf07d8",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.2.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.2.excalidraw"
+            }
           },
           {
             "id": "7ce900cd01e51285",
@@ -125,30 +171,7 @@
             }
           }
         ],
-        "currentTab": 1
-      },
-      {
-        "id": "a84f378d3c617380",
-        "type": "tabs",
-        "dimension": 16.762013729977117,
-        "children": [
-          {
-            "id": "abfcf395042b3c02",
-            "type": "leaf",
-            "state": {
-              "type": "outline",
-              "state": {
-                "file": "1. Vision Transformer.md",
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-list",
-              "title": "1. Vision Transformer 的大纲"
-            },
-            "group": "432fd0c799df25c5"
-          }
-        ]
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -297,32 +320,37 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "f458bc8e3e07d087",
+  "active": "baf0f9c29f5e83e8",
   "lastOpenFiles": [
-    "2. CLIP.md",
     "3. 扩散模型（diffusion model）.md",
+    "附录A：扩散模型数学推导.md",
+    "Excalidraw/扩散模型采样示意图.excalidraw.md",
+    "Pasted Image 20250924185335_728.png",
+    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
+    "Pasted Image 20250924182938_427.png",
+    "Excalidraw/3.1.excalidraw.md",
+    "扩散模型训练步骤示意图.png",
+    "Excalidraw/3.6.excalidraw.md",
+    "Excalidraw/3.11.excalidraw.md",
+    "逐步去噪项公式推导.png",
+    "Excalidraw/3.2.excalidraw.md",
+    "4. 文生图.md",
+    "1. Vision Transformer.md",
+    "2. CLIP.md",
     "Pasted Image 20250903182014_134.png",
     "Pasted image 20250903184406.png",
     "Pasted image 20250906143451.png",
     "Pasted image 20250906142959.png",
     "Pasted image 20250906135725.png",
     "Pasted Image 20250904141713_204.png",
-    "Pasted Image 20250904140539_679.png",
-    "Pasted image 20250903184217.png",
-    "Pasted image 20250903184137.png",
-    "方差计划的不同.png",
     "Excalidraw/3.3.excalidraw.md",
-    "4. 文生图.md",
     "Excalidraw/3.10.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
     "Excalidraw/3.7.excalidraw.md",
-    "1. Vision Transformer.md",
-    "Excalidraw/3.6.excalidraw.md",
     "0. 理解图像的补丁嵌入.md",
     "附录A：交叉熵.md",
     "Excalidraw/简单损失函数.excalidraw.md",
-    "Excalidraw/3.1.excalidraw.md",
     "codes/chapter03/README.md",
     "codes/appendix-a/README.md",
     "codes/appendix-a/t6.py",
@@ -332,10 +360,8 @@
     "codes/appendix-a/t2.py",
     "codes/appendix-a/t1.py",
     "codes/appendix-a",
-    "Excalidraw/3.11.excalidraw.md",
     "Excalidraw/3.5.excalidraw.md",
     "Excalidraw/3.4.excalidraw.md",
-    "Excalidraw/3.2.excalidraw.md",
     "Excalidraw",
     "codes/chapter03/train_diffusion.py",
     "codes/chapter03",
