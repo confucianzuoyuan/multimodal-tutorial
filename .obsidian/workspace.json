@@ -6,6 +6,7 @@
       {
         "id": "105023991ed6ab94",
         "type": "tabs",
+        "dimension": 87.18274111675127,
         "children": [
           {
             "id": "0fa4cb0dd668c900",
@@ -19,6 +20,19 @@
               },
               "icon": "lucide-file",
               "title": "2. CLIP"
+            },
+            "group": "d9b082555d5a4525"
+          },
+          {
+            "id": "de56ab33959e3456",
+            "type": "leaf",
+            "state": {
+              "type": "image",
+              "state": {
+                "file": "img/因果注意力.png"
+              },
+              "icon": "lucide-image",
+              "title": "因果注意力"
             }
           },
           {
@@ -32,6 +46,29 @@
               "icon": "excalidraw-icon",
               "title": "Drawing 2025-09-27 08.52.43.excalidraw"
             }
+          }
+        ]
+      },
+      {
+        "id": "222383d342c1f34d",
+        "type": "tabs",
+        "dimension": 12.81725888324873,
+        "children": [
+          {
+            "id": "afad73d329cca5bd",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "2. CLIP.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "2. CLIP 的大纲"
+            },
+            "group": "d9b082555d5a4525"
           }
         ]
       }
@@ -184,17 +221,18 @@
   },
   "active": "0fa4cb0dd668c900",
   "lastOpenFiles": [
-    "1. Vision Transformer.md",
-    "Drawing 2025-09-27 08.52.43.excalidraw.md",
-    "附录A：扩散模型数学推导.md",
-    "尚硅谷大模型项目之智图文通v1.0.pdf",
     "3. 扩散模型（diffusion model）.md",
+    "附录A：扩散模型数学推导.md",
     "4. 条件扩散模型.md",
+    "2. CLIP.md",
+    "img/因果注意力.png",
+    "Drawing 2025-09-27 08.52.43.excalidraw.md",
+    "1. Vision Transformer.md",
+    "尚硅谷大模型项目之智图文通v1.0.pdf",
     "codes/chapter04/CondDiffusionModel.ipynb",
     "codes/chapter04/Untitled.ipynb",
     "codes/chapter04",
     "codes/Untitled Folder",
-    "2. CLIP.md",
     "codes/chapter03/diffusion_model.ipynb",
     "codes/chapter03/Untitled.ipynb",
     "codes/chapter02/clip.ipynb",
@@ -217,10 +255,8 @@
     "img/嵌入到4维和2500维的比较.png",
     "去噪过程公式示意图.png",
     "clip+decoder.png",
-    "因果注意力.png",
     "条件编码.png",
     "img/unet训练步骤.png",
-    "前后向扩散示意图.png",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
@@ -228,7 +264,6 @@
     "附录A：交叉熵.md",
     "codes/chapter03/README.md",
     "codes/appendix-a/README.md",
-    "Excalidraw/3.5.excalidraw.md",
-    "Excalidraw/3.4.excalidraw.md"
+    "Excalidraw/3.5.excalidraw.md"
   ]
 }
