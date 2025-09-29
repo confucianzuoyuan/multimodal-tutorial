@@ -6,38 +6,22 @@
       {
         "id": "105023991ed6ab94",
         "type": "tabs",
-        "dimension": 86.99238578680203,
+        "dimension": 84.96192893401016,
         "children": [
           {
             "id": "0fa4cb0dd668c900",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "excalidraw",
               "state": {
-                "file": "4. 条件扩散模型.md",
-                "mode": "source",
-                "source": false
+                "file": "Drawing 2025-09-27 08.52.43.excalidraw.md"
               },
-              "icon": "lucide-file",
-              "title": "4. 条件扩散模型"
+              "icon": "excalidraw-icon",
+              "title": "Drawing 2025-09-27 08.52.43.excalidraw"
             }
           },
           {
-            "id": "4538ab3ceab45804",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "附录A：扩散模型数学推导.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "附录A：扩散模型数学推导"
-            }
-          },
-          {
-            "id": "738f5abc6d5b1451",
+            "id": "ca6e958ce6e588b5",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -49,30 +33,18 @@
               "icon": "lucide-file",
               "title": "5. DALL-E 2（文生图）"
             },
-            "group": "a5ae8402ced910b4"
-          },
-          {
-            "id": "48f5eddbf6851178",
-            "type": "leaf",
-            "state": {
-              "type": "image",
-              "state": {
-                "file": "img/训练结果.png"
-              },
-              "icon": "lucide-image",
-              "title": "训练结果"
-            }
+            "group": "7ea2ce96b0e52820"
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       },
       {
-        "id": "602163bac5150228",
+        "id": "70f784faf02e4226",
         "type": "tabs",
-        "dimension": 13.007614213197968,
+        "dimension": 15.038071065989847,
         "children": [
           {
-            "id": "103ac49cefa6d905",
+            "id": "6ecca9bbdacd5544",
             "type": "leaf",
             "state": {
               "type": "outline",
@@ -85,7 +57,7 @@
               "icon": "lucide-list",
               "title": "5. DALL-E 2（文生图） 的大纲"
             },
-            "group": "a5ae8402ced910b4"
+            "group": "7ea2ce96b0e52820"
           }
         ]
       }
@@ -236,15 +208,22 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "738f5abc6d5b1451",
+  "active": "ca6e958ce6e588b5",
   "lastOpenFiles": [
-    "img/训练结果.png",
+    "Drawing 2025-09-27 08.52.43.excalidraw.md",
+    "img/图片token和文本token.excalidraw.md",
+    "img/条件扩散模型.excalidraw.md",
+    "附录A：扩散模型数学推导.md",
     "5. DALL-E 2（文生图）.md",
+    "5. 图生文（ClipCap）.md",
+    "4. 条件扩散模型.md",
+    "img/训练结果.png",
+    "3. 扩散模型（diffusion model）.md",
+    "2. CLIP.md",
     "img/采样算法.png",
     "img/注意力块.png",
     "img/残差块.png",
     "img/unet-decoder.png",
-    "Drawing 2025-09-27 08.52.43.excalidraw.md",
     "img/因果注意力.png",
     "Excalidraw/模型的设计要点.excalidraw.md",
     "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
@@ -252,11 +231,6 @@
     "img/先验模型架构图.png",
     "Pasted image 20250929075024.png",
     "Pasted image 20250929074838.png",
-    "附录A：扩散模型数学推导.md",
-    "5. 图生文（ClipCap）.md",
-    "4. 条件扩散模型.md",
-    "3. 扩散模型（diffusion model）.md",
-    "2. CLIP.md",
     "1. Vision Transformer.md",
     "尚硅谷大模型项目之智图文通v1.0.pdf",
     "codes/chapter04/CondDiffusionModel.ipynb",
@@ -281,7 +255,6 @@
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
-    "Excalidraw/3.8.excalidraw.md",
-    "Excalidraw/3.7.excalidraw.md"
+    "Excalidraw/3.8.excalidraw.md"
   ]
 }
