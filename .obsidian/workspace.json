@@ -6,7 +6,7 @@
       {
         "id": "105023991ed6ab94",
         "type": "tabs",
-        "dimension": 87.18274111675127,
+        "dimension": 86.99238578680203,
         "children": [
           {
             "id": "0fa4cb0dd668c900",
@@ -14,61 +14,78 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "4. 条件扩散模型.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2. CLIP"
-            },
-            "group": "d9b082555d5a4525"
+              "title": "4. 条件扩散模型"
+            }
           },
           {
-            "id": "de56ab33959e3456",
+            "id": "4538ab3ceab45804",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "附录A：扩散模型数学推导.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "附录A：扩散模型数学推导"
+            }
+          },
+          {
+            "id": "738f5abc6d5b1451",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "5. DALL-E 2（文生图）.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "5. DALL-E 2（文生图）"
+            },
+            "group": "a5ae8402ced910b4"
+          },
+          {
+            "id": "48f5eddbf6851178",
             "type": "leaf",
             "state": {
               "type": "image",
               "state": {
-                "file": "img/因果注意力.png"
+                "file": "img/训练结果.png"
               },
               "icon": "lucide-image",
-              "title": "因果注意力"
-            }
-          },
-          {
-            "id": "5fc3e0eb69d49e68",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Drawing 2025-09-27 08.52.43.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2025-09-27 08.52.43.excalidraw"
+              "title": "训练结果"
             }
           }
-        ]
+        ],
+        "currentTab": 2
       },
       {
-        "id": "222383d342c1f34d",
+        "id": "602163bac5150228",
         "type": "tabs",
-        "dimension": 12.81725888324873,
+        "dimension": 13.007614213197968,
         "children": [
           {
-            "id": "afad73d329cca5bd",
+            "id": "103ac49cefa6d905",
             "type": "leaf",
             "state": {
               "type": "outline",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "5. DALL-E 2（文生图）.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "2. CLIP 的大纲"
+              "title": "5. DALL-E 2（文生图） 的大纲"
             },
-            "group": "d9b082555d5a4525"
+            "group": "a5ae8402ced910b4"
           }
         ]
       }
@@ -219,14 +236,27 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "0fa4cb0dd668c900",
+  "active": "738f5abc6d5b1451",
   "lastOpenFiles": [
-    "3. 扩散模型（diffusion model）.md",
-    "附录A：扩散模型数学推导.md",
-    "4. 条件扩散模型.md",
-    "2. CLIP.md",
-    "img/因果注意力.png",
+    "img/训练结果.png",
+    "5. DALL-E 2（文生图）.md",
+    "img/采样算法.png",
+    "img/注意力块.png",
+    "img/残差块.png",
+    "img/unet-decoder.png",
     "Drawing 2025-09-27 08.52.43.excalidraw.md",
+    "img/因果注意力.png",
+    "Excalidraw/模型的设计要点.excalidraw.md",
+    "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
+    "img/线性调度方差和余弦调度方差的对比.png",
+    "img/先验模型架构图.png",
+    "Pasted image 20250929075024.png",
+    "Pasted image 20250929074838.png",
+    "附录A：扩散模型数学推导.md",
+    "5. 图生文（ClipCap）.md",
+    "4. 条件扩散模型.md",
+    "3. 扩散模型（diffusion model）.md",
+    "2. CLIP.md",
     "1. Vision Transformer.md",
     "尚硅谷大模型项目之智图文通v1.0.pdf",
     "codes/chapter04/CondDiffusionModel.ipynb",
@@ -240,7 +270,6 @@
     "codes/datasets/clip-mnist/mnist/train-00000-of-00001.parquet",
     "codes/datasets/clip-mnist/README.md",
     "codes/datasets/mnist/README.md",
-    "img/补丁示例.png",
     "0. 理解图像的补丁嵌入.md",
     "Excalidraw/简单损失函数.excalidraw.md",
     "Excalidraw/3.1.excalidraw.md",
@@ -250,20 +279,9 @@
     "Excalidraw/3.6.excalidraw.md",
     "Excalidraw/3.2.excalidraw.md",
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
-    "img/补丁经过线性变换.png",
-    "img/使用二维卷积和线性变换创建补丁.png",
-    "img/嵌入到4维和2500维的比较.png",
-    "去噪过程公式示意图.png",
-    "clip+decoder.png",
-    "条件编码.png",
-    "img/unet训练步骤.png",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/3.11.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
-    "Excalidraw/3.7.excalidraw.md",
-    "附录A：交叉熵.md",
-    "codes/chapter03/README.md",
-    "codes/appendix-a/README.md",
-    "Excalidraw/3.5.excalidraw.md"
+    "Excalidraw/3.7.excalidraw.md"
   ]
 }
