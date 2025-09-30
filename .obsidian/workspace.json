@@ -6,7 +6,7 @@
       {
         "id": "105023991ed6ab94",
         "type": "tabs",
-        "dimension": 84.96192893401016,
+        "dimension": 86.16751269035532,
         "children": [
           {
             "id": "0fa4cb0dd668c900",
@@ -14,12 +14,27 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "6. DALL-E 2（文生图）.md",
+                "file": "2. CLIP.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "6. DALL-E 2（文生图）"
+              "title": "2. CLIP"
+            },
+            "group": "226c9c84e910bdea"
+          },
+          {
+            "id": "f13050a0060d6ec5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "附录B：梯度下降习题.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "附录B：梯度下降习题"
             }
           },
           {
@@ -38,35 +53,39 @@
             "id": "c61ce398606b94e0",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
+              "type": "markdown",
               "state": {
-                "file": "文生图扩散解码器.excalidraw.md"
+                "file": "6. DALL-E 2（文生图）.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "excalidraw-icon",
-              "title": "文生图扩散解码器.excalidraw"
+              "icon": "lucide-file",
+              "title": "6. DALL-E 2（文生图）"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       },
       {
-        "id": "70f784faf02e4226",
+        "id": "93b7a2ba372e2a38",
         "type": "tabs",
-        "dimension": 15.038071065989847,
+        "dimension": 13.83248730964467,
         "children": [
           {
-            "id": "6ecca9bbdacd5544",
+            "id": "a5bbfd6ba61974ba",
             "type": "leaf",
             "state": {
               "type": "outline",
               "state": {
-                "file": "6. DALL-E 2（文生图）.md",
+                "file": "2. CLIP.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "6. DALL-E 2（文生图） 的大纲"
-            }
+              "title": "2. CLIP 的大纲"
+            },
+            "group": "226c9c84e910bdea"
           }
         ]
       }
@@ -217,13 +236,16 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "0fa4cb0dd668c900",
+  "active": "f13050a0060d6ec5",
   "lastOpenFiles": [
-    "文生图扩散解码器.excalidraw.md",
+    "2. CLIP.md",
+    "附录B：梯度下降习题.md",
+    "3. 扩散模型（diffusion model）.md",
     "6. DALL-E 2（文生图）.md",
-    "4. 条件扩散模型.md",
+    "文生图扩散解码器.excalidraw.md",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "条件扩散模型.excalidraw.md",
+    "4. 条件扩散模型.md",
     "papers/groupnorm.pdf",
     "papers/未确认 730328.crdownload",
     "papers/unclip.pdf",
@@ -239,8 +261,6 @@
     "附录A：扩散模型数学推导.md",
     "5. 图生文（ClipCap）.md",
     "img/训练结果.png",
-    "3. 扩散模型（diffusion model）.md",
-    "2. CLIP.md",
     "img/采样算法.png",
     "img/注意力块.png",
     "img/残差块.png",
@@ -263,7 +283,6 @@
     "Excalidraw/3.3.excalidraw.md",
     "Excalidraw/3.6.excalidraw.md",
     "Excalidraw/3.2.excalidraw.md",
-    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
-    "Excalidraw/扩散模型采样示意图.excalidraw.md"
+    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md"
   ]
 }
