@@ -6,7 +6,7 @@
       {
         "id": "105023991ed6ab94",
         "type": "tabs",
-        "dimension": 87.30964467005076,
+        "dimension": 79.44162436548223,
         "children": [
           {
             "id": "0fa4cb0dd668c900",
@@ -20,8 +20,7 @@
               },
               "icon": "lucide-file",
               "title": "2. CLIP"
-            },
-            "group": "226c9c84e910bdea"
+            }
           },
           {
             "id": "f13050a0060d6ec5",
@@ -29,26 +28,121 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "附录B：梯度下降习题.md",
+                "file": "4. 条件扩散模型.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "附录B：梯度下降习题"
+              "title": "4. 条件扩散模型"
+            }
+          },
+          {
+            "id": "fb83ea79fcd12520",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/扩散模型采样示意图.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "扩散模型采样示意图.excalidraw"
+            }
+          },
+          {
+            "id": "bccfcacc8a864770",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/扩散模型训练步骤示意图.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "扩散模型训练步骤示意图.excalidraw"
             }
           },
           {
             "id": "0237afa7588e3431",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "excalidraw",
               "state": {
-                "file": "7. 项目总结.md",
-                "mode": "source",
-                "source": false
+                "file": "Excalidraw/简单损失函数.excalidraw.md"
               },
-              "icon": "lucide-file",
-              "title": "7. 项目总结"
+              "icon": "excalidraw-icon",
+              "title": "简单损失函数.excalidraw"
+            },
+            "group": "e88393cdf42f64a3"
+          },
+          {
+            "id": "e1c545832102f9ef",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.1.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.1.excalidraw"
+            }
+          },
+          {
+            "id": "d4c207035c04a43d",
+            "type": "leaf",
+            "state": {
+              "type": "image",
+              "state": {
+                "file": "img/正向扩散和逆向扩散.png"
+              },
+              "icon": "lucide-image",
+              "title": "正向扩散和逆向扩散"
+            }
+          },
+          {
+            "id": "183a97b769f7500e",
+            "type": "leaf",
+            "state": {
+              "type": "image",
+              "state": {
+                "file": "img/共享模型.png"
+              },
+              "icon": "lucide-image",
+              "title": "共享模型"
+            }
+          },
+          {
+            "id": "e3f016b33cc58ad3",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.10.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.10.excalidraw"
+            }
+          },
+          {
+            "id": "f05394236322d106",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.9.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.9.excalidraw"
+            }
+          },
+          {
+            "id": "1e3b61ee14646538",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/3.8.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "3.8.excalidraw"
             }
           },
           {
@@ -78,28 +172,28 @@
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       },
       {
-        "id": "93b7a2ba372e2a38",
+        "id": "30736ef8db227549",
         "type": "tabs",
-        "dimension": 12.690355329949238,
+        "dimension": 20.558375634517766,
         "children": [
           {
-            "id": "a5bbfd6ba61974ba",
+            "id": "83b3454e745ab56f",
             "type": "leaf",
             "state": {
               "type": "outline",
               "state": {
-                "file": "2. CLIP.md",
+                "file": "Excalidraw/简单损失函数.excalidraw.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "2. CLIP 的大纲"
+              "title": "简单损失函数.excalidraw 的大纲"
             },
-            "group": "226c9c84e910bdea"
+            "group": "e88393cdf42f64a3"
           }
         ]
       }
@@ -250,53 +344,53 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "0237afa7588e3431",
+  "active": "f13050a0060d6ec5",
   "lastOpenFiles": [
+    "orange-book/预测图像与实际图像之间的差异使用损失函数计算.svg",
+    "orange-book/预测噪声.svg",
+    "orange-book/补丁示例.png",
+    "orange-book/添加类别token.png",
+    "orange-book/注意力机制.svg",
+    "orange-book/注意力分数的掩码.svg",
+    "orange-book/注意力分数的掩码.png",
+    "orange-book/水滴的扩散过程.svg",
+    "orange-book/正向扩散和逆向扩散.png",
+    "orange-book/正向扩散公式图解.svg",
+    "orange-book/扩散模型采样示意图.svg",
+    "orange-book/u-net-illustration-correct-scale2.pdf",
+    "orange-book/t.typ",
+    "orange-book/sample.bib",
+    "orange-book/main.typ",
+    "orange-book/main.pdf",
+    "orange-book/main-diagrams.pdf",
+    "orange-book",
+    "5. 图生文（ClipCap）.md",
+    "4. 条件扩散模型.md",
+    "3. 扩散模型（diffusion model）.md",
+    "Excalidraw/扩散模型采样示意图.excalidraw.md",
+    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
     "附录B：梯度下降习题.md",
+    "Excalidraw/简单损失函数.excalidraw.md",
+    "Excalidraw/3.1.excalidraw.md",
+    "Excalidraw/3.11.excalidraw.md",
+    "Excalidraw/3.10.excalidraw.md",
+    "Excalidraw/3.9.excalidraw.md",
+    "Excalidraw/3.8.excalidraw.md",
+    "Excalidraw/3.7.excalidraw.md",
+    "1. Vision Transformer.md",
+    "2. CLIP.md",
+    "6. DALL-E 2（文生图）.md",
+    "附录A：扩散模型数学推导.md",
+    "条件扩散模型.excalidraw.md",
     "7. 项目总结.md",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
-    "2. CLIP.md",
-    "3. 扩散模型（diffusion model）.md",
-    "6. DALL-E 2（文生图）.md",
     "文生图扩散解码器.excalidraw.md",
-    "条件扩散模型.excalidraw.md",
-    "4. 条件扩散模型.md",
     "papers/groupnorm.pdf",
     "papers/未确认 730328.crdownload",
     "papers/unclip.pdf",
-    "papers/未确认 429994.crdownload",
-    "papers/clipcap.pdf",
-    "papers/未确认 241751.crdownload",
-    "papers/clip.pdf",
-    "papers/未确认 776827.crdownload",
-    "papers/ddpm.pdf",
-    "papers/未确认 492511.crdownload",
     "img/图片token和文本token.excalidraw.md",
     "img/条件扩散模型.excalidraw.md",
-    "附录A：扩散模型数学推导.md",
-    "5. 图生文（ClipCap）.md",
-    "img/训练结果.png",
-    "img/采样算法.png",
-    "img/注意力块.png",
-    "img/残差块.png",
-    "img/unet-decoder.png",
-    "img/因果注意力.png",
     "Excalidraw/模型的设计要点.excalidraw.md",
-    "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
-    "img/线性调度方差和余弦调度方差的对比.png",
-    "img/先验模型架构图.png",
-    "Pasted image 20250929075024.png",
-    "Pasted image 20250929074838.png",
-    "1. Vision Transformer.md",
-    "codes/datasets/clip-mnist/README.md",
-    "codes/datasets/mnist/README.md",
-    "0. 理解图像的补丁嵌入.md",
-    "Excalidraw/简单损失函数.excalidraw.md",
-    "Excalidraw/3.1.excalidraw.md",
-    "Excalidraw/3.9.excalidraw.md",
-    "Excalidraw/3.10.excalidraw.md",
-    "Excalidraw/3.3.excalidraw.md",
-    "Excalidraw/3.6.excalidraw.md",
-    "Excalidraw/3.2.excalidraw.md"
+    "Excalidraw/clip接生成模型的训练目标.excalidraw.md"
   ]
 }
