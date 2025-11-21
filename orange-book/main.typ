@@ -2091,7 +2091,7 @@ class UNet(nn.Module):
 
     def forward(self, x, timesteps):
         """unet的输入：图片x_t和时间步t"""
-        
+
         # 时间步的位置编码嵌入
         v = pos_encoding(timesteps, self.time_embed_dim, x.device)
 
@@ -2133,7 +2133,7 @@ batch_size = 128
 num_timesteps = 1000
 epochs = 10
 lr = 1e-3
-device = 'cuda'
+device = "cuda"
 
 
 def show_images(images, rows=2, cols=10):
@@ -2388,7 +2388,195 @@ show_images(images)
 
 本节将以$y$作为标签的例子进行说明。具体来说，我们将创建一个模型，在给定MNIST数据的数字标签后，该模型能够生成与该标签相对应的图像。
 
+#figure(
+  image("将要实现的条件扩散模型.svg"),
+  caption: [本章将要实现的条件扩散模型],
+)
 
+== 向扩散模型添加条件
+
+首先，我们从复习开始。在扩散模型中，我们可以选择在何处使用神经网络。例如，可以考虑使用神经网络对$bold(mu)_theta (x_t,t)$和$bold(epsilon)_theta (x_t,t)$进行建模。
+
+下面思考使用神经网络对$bold(mu)_theta (x_t,t)$建模的情况。在这种情祝下，$p_theta (x_(t-1)|x_t)$的数学式如下所示。
+
+$
+  p_theta (x_(t-1)|x_t) = cal(N) (x_(t-1);bold(mu) (x_t,t),sigma^2_q (t)bold(I))
+$
+
+数据$x_0$的概率$p_theta (x_0)$的数学式如下所示：
+
+$
+  p_theta (x_0) & = integral p_theta (x_0,x_1,dots.c,x_T)"d" x_1 dots.c "d" x_T & "  （概率的边际化）" \
+  & = integral p_theta (x_0|x_1) dots.c p_theta (x_(T-1)|x_T)p(x_T) "d" x_1 dots.c "d" x_T & "（马尔可夫性质）"
+$
+
+这里有 $p(x_T)=cal(N) (x_T;bold(0),bold(I))$。
+
+为了得到条件扩散模型，我们要建模的对象是$p_theta (x_0|y)$，而不是$p_theta (x_0)$。实现这个目标的最简单的方法是在每个时刻的$p_theta (x_(t-1)|x_t)$中添加条件$y$。具体的数学式如下所示：
+
+#let colred(x) = text(fill: red, $#x$)
+
+$
+  p_theta (x_0|colred(y))=integral p_theta (x_0|x_1,colred(y)) dots.c p_theta (x_(T-1)|x_T,colred(y)) p(x_T) upright(d)x_1 upright(d)x_T
+$
+
+此时的 $p_theta (x_(t-1)|x_t,colred(y))$ 的数学式如下所示：
+
+$
+  p_theta (x_(t-1)|x_t,colred(y)) = cal(N) (x_(t-1);bold(mu)_theta (x_t,t,colred(y)),sigma^2_q (t)bold(I))
+$
+
+在常规的扩散模型中，$bold(mu)_theta (x_t,t)$通常由神经网络进行建模。而在条件扩散模型中，如$bold(mu)_theta (x_t,t,colred(y))$所示，会额外添加参数$y$。换言之，通过向神经网络中添加$y$，可以使模型"进化"为条件扩散模型。同样，对于预测噪声的神经网络，也可以通过将参数$y$添加到$epsilon_theta (x_t,t)$中，使其变为$epsilon_theta (x_t,t,y)$来实现相应的功能。
+
+== 条件扩散模型的实现
+
+我们已经使用神经网络实现了$epsilon_theta (x_t,t)$。$epsilon_theta (x_t,t)$的参数$t$是整数，可以通过正弦位置编码变换为向量。而新添加的条件$y$是标签，也是整数。这个整数$y$可以通过嵌入层（embedding layer）变换为向量。具体来说，$y$被变换成向量，然后与变换后的$t$向量相加。
+
+#tip[
+  嵌入层的初始值被设置为随机值，然后通过训练进行忧化。这样就可以训练得到与每个标签相对应的匹配任务的向量。而由于与时刻ｔ相关的特定任务的训练要素很少，因此我们使用了一种称为正弦位置编码的固定向量变换的方法。
+]
+
+以下是代码示例。这里我们在上一章中实现的UNet类中添加了名为UNetCond类的代码，类名中的Cond是Conditional（条件）的缩写。
+
+```python
+class UNetCond(nn.Module):
+    def __init__(self, in_ch=1, time_embed_dim=100, num_labels=None):
+        super().__init__()
+        self.time_embed_dim = time_embed_dim
+
+        self.down1 = ConvBlock(in_ch, 64, time_embed_dim)
+        self.down2 = ConvBlock(64, 128, time_embed_dim)
+        self.bot1 = ConvBlock(128, 256, time_embed_dim)
+        self.up2 = ConvBlock(128 + 256, 128, time_embed_dim)
+        self.up1 = ConvBlock(128 + 64, 64, time_embed_dim)
+        self.out = nn.Conv2d(64, in_ch, 1)
+
+        self.maxpool = nn.MaxPool2d(2)
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear")
+
+        # ❶ 处理标签的嵌入层
+        if num_labels is not None:
+            self.label_emb = nn.Embedding(num_labels, time_embed_dim)
+
+    def forward(self, x, timesteps, labels=None):
+        t = pos_encoding(timesteps, self.time_embed_dim)
+
+        # ❷ 标签的处理
+        if labels is not None:
+            t += self.label_emb(labels)
+
+        x1 = self.down1(x, t)
+        x = self.maxpool(x1)
+        x2 = self.down2(x, t)
+        x = self.maxpool(x2)
+
+        x = self.bot1(x, t)
+
+        x = self.upsample(x)
+        x = torch.cat([x, x2], dim=1)
+        x = self.up2(x, t)
+        x = self.upsample(x)
+        x = torch.cat([x, x1], dim=1)
+        x = self.up1(x, t)
+        x = self.out(x)
+        return x
+```
+
+代码的主要修改有两处。在代码❶处，我们准备了处理标签的嵌人层（`nn.Embedding`）。具体来说，就是通过`nn.Embedding(num_labels, time_embed_dim)`将共计`num_labels`个不同整数变换为`time_embed_dim`维的向量。在代码❷处，通过`nn.Embedding`层处理标签，然后再加到变换后的时间数据的向量中。
+
+接下来是`Diffuser`类。对于`Diffuser`类，修改生成数据的方法。下面只展示了修改部分的代码。
+
+```python
+class Diffuser:
+    def denoise(self, model, x, t, labels):
+        # ...（省略）
+        with torch.no_grad():
+            eps = model(x, t, labels) # 同时提供labels
+            # ...
+
+    def sample(self, model, x_shape=(20, 1, 28, 28), labels=None):
+        #...
+        if labels is None:
+            labels = torch.randint(0, 10, (len(x),), device=self.device)
+        #...
+        for i in tqdm(range(self.num_timesteps, 0, -1)):
+            t = torch.tensor([i] * batch_size, device=self.device,
+                             dtype=torch.long)
+            x = self.denoise(model, x, t, labels) # 还提供labels
+        #...
+        return images, labels
+```
+
+修改的部分还向模型提供了标签。具体来说，标签是在生成数据和去噪过程中提供的。最后是训练的代码。
+
+```python
+diffuser = Diffuser(num_timesteps, device=device)
+model = UNetCond(num_labels=10) ❶
+model.to(device)
+optimizer = Adam(model.parameters(), lr=lr)
+
+losses = []
+for epoch in range(epochs):
+    loss_sum = 0.0
+    cnt = 0
+
+    for images, labels in tqdm(dataloader):
+        optimizer.zero_grad()
+        x = images.to(device) ❷
+        t = torch.randint(1, num_timesteps+1, (len(x),), device=device)
+
+        x_noisy, noise = diffuser.add_noise(x, t)
+        noise_pred = model(x_noisy, t, labels) ❸
+        loss = F.mse_loss(noise, noise_pred)
+
+        loss.backward()
+        optimizer.step()
+
+        loss_sum += loss.item()
+        cnt += 1
+```
+
+训练代码的修改内容如下所示。
+
+❶ `UNetCond(num_labels=10)`
+
+创建一个具有10个分类的条件扩散模型。
+
+❷ `labels.to(device`
+
+在device上准备标签数据。
+
+❸ `model(x_noisy, t, labels)`
+
+向模型提供labels进行训练。
+
+以上就是条件扩散模型的实现。现在运行代码。经过10轮训练后，最终生成了下图所示的图像。
+
+虽然仍有改进的余地，但生成的图像是符合条件的。在下一节中，我们将探讨进一步改进这个条件扩散模型的方法。
+
+== 得分函数
+
+在上面的内容里面，我们实现了一个简单的条件扩散模型。这个"简单"的意思是我们只是向模型提供了条件而已。因此，模型有可能会轻视我们提供的条件，甚至在最坏的情况下有可能会忽略我们提供的条件。接下来，我们将介绍一种称为"指引"的方法。指引是一种将给定条件纳入模型并给予更多重视的机制。
+
+要理解指引机制，首先需要了解得分函数。
+
+=== 什么是得分函数
+
+在实现扩散模型时，我们使用神经网络对$epsilon_theta (x_t,t)$进行了建模。$epsilon_theta (x_t,t)$基于$x_t$和$t$来推断噪声$epsilon$。下图是这个过程的示意图。
+
+此时有以下与$epsilon$相关的数学式成立（稍后将给出证明）。
+
+$
+  epsilon approx - sqrt(1-overline(alpha)_t) nabla_(x_t) log p(x_t)
+$ <epsilon近似>
+
+$nabla$是表示梯度的符号，读作"那勃乐"（Nabla）。$nabla_(x_t) log p(x_t)$是对数似然$log p (x_t)$对输入数据$x_t$的梯度，称为"得分函数"或"得分"。
+
+#tip[
+  $p(x_t)$是表示数据$x_t$为"真"的随机密度函数。而$p_theta (x_t)$表示使用参数对真的概率密度函数进行近似的概率密度函数。由于$nabla_(x_t) log p (x_t)$和$nabla_(x_t) log p_theta (x_t)$表示关于输入$x_t$的梯度，因此称为"得分"。另外，在某些领域，关于参数的梯度（$nabla_theta log p_theta (x_t)$）也称为"得分"。在本书中，我们将对输入的梯度称为"得分"。
+]
+
+根据式 @epsilon近似 ，$epsilon$可以近似表示为 $nabla_(x_t) log p(x_t)$。值得注意的是，$epsilon$ 与 $nabla_(x_t) log p(x_t)$之间只相差负常数倍（$-sqrt(1-overline(alpha)_t)$）。
 
 #part("Part Two Title")
 
