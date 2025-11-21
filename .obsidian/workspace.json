@@ -28,12 +28,36 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "4. 条件扩散模型.md",
+                "file": "3. 扩散模型（diffusion model）.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "4. 条件扩散模型"
+              "title": "3. 扩散模型（diffusion model）"
+            }
+          },
+          {
+            "id": "3331265c0108b65e",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Drawing 2025-09-29 16.50.38.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "Drawing 2025-09-29 16.50.38.excalidraw"
+            }
+          },
+          {
+            "id": "621ae327e1dc5956",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Drawing 2025-11-21 16.22.48.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "Drawing 2025-11-21 16.22.48.excalidraw"
             }
           },
           {
@@ -172,7 +196,7 @@
             }
           }
         ],
-        "currentTab": 1
+        "currentTab": 3
       },
       {
         "id": "30736ef8db227549",
@@ -344,29 +368,35 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "f13050a0060d6ec5",
+  "active": "621ae327e1dc5956",
   "lastOpenFiles": [
-    "orange-book/将要实现的条件扩散模型.svg.crswap",
-    "orange-book/将要实现的条件扩散模型.svg",
-    "orange-book/预测图像与实际图像之间的差异使用损失函数计算.svg",
-    "orange-book/预测噪声.svg",
-    "orange-book/补丁示例.png",
-    "orange-book/添加类别token.png",
-    "orange-book/注意力机制.svg",
-    "orange-book/注意力分数的掩码.svg",
-    "orange-book/注意力分数的掩码.png",
-    "orange-book/水滴的扩散过程.svg",
-    "orange-book/正向扩散和逆向扩散.png",
-    "orange-book/u-net-illustration-correct-scale2.pdf",
-    "orange-book/t.typ",
-    "orange-book/sample.bib",
-    "orange-book/main.typ",
-    "orange-book/main.pdf",
-    "orange-book/main-diagrams.pdf",
-    "orange-book",
-    "5. 图生文（ClipCap）.md",
-    "4. 条件扩散模型.md",
+    "orange-book/式子的可视化.svg",
+    "Pasted Image 20251121162426_433.png",
+    "未命名.md",
+    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "3. 扩散模型（diffusion model）.md",
+    "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
+    "orange-book/使用了推断得分的神经网络的分类器指引.svg",
+    "orange-book/通过反向传播可以求出logp.svg.crswap",
+    "orange-book/通过反向传播可以求出logp.svg",
+    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap",
+    "orange-book/使用预训练神经网络进行分类的示例.svg",
+    "orange-book/用于推断得分的神经网络.svg.crswap",
+    "orange-book/用于推断得分的神经网络.svg",
+    "orange-book/扩散模型中使用的推断噪声的神经网络.svg.crswap",
+    "orange-book/扩散模型中使用的推断噪声的神经网络.svg",
+    "orange-book/在扩散模型中添加嵌入层.svg.crswap",
+    "orange-book/在扩散模型中添加嵌入层.svg",
+    "orange-book/条件扩散模型的神经网络.svg.crswap",
+    "orange-book/条件扩散模型的神经网络.svg",
+    "orange-book/预测图像和预测噪声.svg.crswap",
+    "orange-book/预测图像和预测噪声.svg",
+    "orange-book/flower-noise-100.png",
+    "4. 条件扩散模型.md",
+    "orange-book/未确认 906937.crdownload",
+    "orange-book/将要实现的条件扩散模型.svg.crswap",
+    "5. 图生文（ClipCap）.md",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
     "附录B：梯度下降习题.md",
@@ -383,14 +413,8 @@
     "附录A：扩散模型数学推导.md",
     "条件扩散模型.excalidraw.md",
     "7. 项目总结.md",
-    "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "文生图扩散解码器.excalidraw.md",
-    "papers/groupnorm.pdf",
-    "papers/未确认 730328.crdownload",
-    "papers/unclip.pdf",
     "img/图片token和文本token.excalidraw.md",
-    "img/条件扩散模型.excalidraw.md",
-    "Excalidraw/模型的设计要点.excalidraw.md",
-    "Excalidraw/clip接生成模型的训练目标.excalidraw.md"
+    "img/条件扩散模型.excalidraw.md"
   ]
 }

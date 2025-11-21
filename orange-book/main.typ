@@ -2397,6 +2397,11 @@ show_images(images)
 
 首先，我们从复习开始。在扩散模型中，我们可以选择在何处使用神经网络。例如，可以考虑使用神经网络对$bold(mu)_theta (x_t,t)$和$bold(epsilon)_theta (x_t,t)$进行建模。
 
+#figure(
+  image("预测图像和预测噪声.svg"),
+  caption: [预测时刻$t-1$的图像（正态分布的均值向量）的横型（上）和预测添加到$x_t$中的噪声的模型（下）],
+)
+
 下面思考使用神经网络对$bold(mu)_theta (x_t,t)$建模的情况。在这种情祝下，$p_theta (x_(t-1)|x_t)$的数学式如下所示。
 
 $
@@ -2426,11 +2431,21 @@ $
   p_theta (x_(t-1)|x_t,colred(y)) = cal(N) (x_(t-1);bold(mu)_theta (x_t,t,colred(y)),sigma^2_q (t)bold(I))
 $
 
-在常规的扩散模型中，$bold(mu)_theta (x_t,t)$通常由神经网络进行建模。而在条件扩散模型中，如$bold(mu)_theta (x_t,t,colred(y))$所示，会额外添加参数$y$。换言之，通过向神经网络中添加$y$，可以使模型"进化"为条件扩散模型。同样，对于预测噪声的神经网络，也可以通过将参数$y$添加到$epsilon_theta (x_t,t)$中，使其变为$epsilon_theta (x_t,t,y)$来实现相应的功能。
+在常规的扩散模型中，$bold(mu)_theta (x_t,t)$通常由神经网络进行建模。而在条件扩散模型中，如$bold(mu)_theta (x_t,t,colred(y))$所示，会额外添加参数$y$。换言之，通过向神经网络中添加$y$，可以使模型"进化"为条件扩散模型。同样，对于预测噪声的神经网络，也可以通过将参数$y$添加到$epsilon_theta (x_t,t)$中，使其变为$epsilon_theta (x_t,t,y)$来实现相应的功能（参见 @条件扩散模型的神经网络 ）。
+
+#figure(
+  image("条件扩散模型的神经网络.svg"),
+  caption: [条件扩散模型的神经网络],
+) <条件扩散模型的神经网络>
 
 == 条件扩散模型的实现
 
 我们已经使用神经网络实现了$epsilon_theta (x_t,t)$。$epsilon_theta (x_t,t)$的参数$t$是整数，可以通过正弦位置编码变换为向量。而新添加的条件$y$是标签，也是整数。这个整数$y$可以通过嵌入层（embedding layer）变换为向量。具体来说，$y$被变换成向量，然后与变换后的$t$向量相加。
+
+#figure(
+  image("在扩散模型中添加嵌入层.svg"),
+  caption: [在扩散模型中添加嵌入层],
+)
 
 #tip[
   嵌入层的初始值被设置为随机值，然后通过训练进行忧化。这样就可以训练得到与每个标签相对应的匹配任务的向量。而由于与时刻ｔ相关的特定任务的训练要素很少，因此我们使用了一种称为正弦位置编码的固定向量变换的方法。
@@ -2564,6 +2579,11 @@ for epoch in range(epochs):
 
 在实现扩散模型时，我们使用神经网络对$epsilon_theta (x_t,t)$进行了建模。$epsilon_theta (x_t,t)$基于$x_t$和$t$来推断噪声$epsilon$。下图是这个过程的示意图。
 
+#figure(
+  image("扩散模型中使用的推断噪声的神经网络.svg"),
+  caption: [扩散模型中使用的推断噪声$epsilon$的神经网络],
+)
+
 此时有以下与$epsilon$相关的数学式成立（稍后将给出证明）。
 
 $
@@ -2576,194 +2596,220 @@ $nabla$是表示梯度的符号，读作"那勃乐"（Nabla）。$nabla_(x_t) lo
   $p(x_t)$是表示数据$x_t$为"真"的随机密度函数。而$p_theta (x_t)$表示使用参数对真的概率密度函数进行近似的概率密度函数。由于$nabla_(x_t) log p (x_t)$和$nabla_(x_t) log p_theta (x_t)$表示关于输入$x_t$的梯度，因此称为"得分"。另外，在某些领域，关于参数的梯度（$nabla_theta log p_theta (x_t)$）也称为"得分"。在本书中，我们将对输入的梯度称为"得分"。
 ]
 
-根据式 @epsilon近似 ，$epsilon$可以近似表示为 $nabla_(x_t) log p(x_t)$。值得注意的是，$epsilon$ 与 $nabla_(x_t) log p(x_t)$之间只相差负常数倍（$-sqrt(1-overline(alpha)_t)$）。
+根据式 @epsilon近似 ，$epsilon$可以近似表示为 $nabla_(x_t) log p(x_t)$。值得注意的是，$epsilon$ 与 $nabla_(x_t) log p(x_t)$之间只相差负常数倍（$-sqrt(1-overline(alpha)_t)$）。这说明以$-sqrt(1-overline(alpha)_t) epsilon$来代替$epsilon$作为训练数据的神经网络也是可行的。
 
-#part("Part Two Title")
+#figure(image("用于推断得分的神经网络.svg"), caption: [用于推断得分的神经网络])
 
-#chapter("Mathematics", image: image("./orange2.jpg"))
+图中的神经网络将得分的近似值 $-sqrt(1-overline(alpha)_t) epsilon$ 推断为 $s_theta (x_t,t)$ 。因此，我们也可以通过推断得分的神经网络来实现扩散模型。
 
-== Theorems
-#index("Theorems")
-=== Several equations<heading2>
-#index("Theorems!Several equations")
-This is a theorem consisting of several equations.
-#theorem(name: "Name of the theorem")[
-  In $E=bb(R)^n$ all norms are equivalent. It has the properties:
-  $ abs(norm(bold(x)) - norm(bold(y))) <= norm(bold(x-y)) $
-  $ norm(sum_(i=1)^n bold(x)_i) <= sum_(i=1)^n norm(bold(x)_i) quad "where" n "is a finite integer" $
+#tip[
+  生成模型中包括对得分进行建模的方法。这些模型统称为基于得分的模型。以对数似然最大化的方式可以推导出各种模型（GMM、VAE、扩散模型等）。这些模型可以被称为基于似然的模型。重要的是，扩散模型也可以作为基于得分的模型推导得出。
 ]
 
-=== Single Line
-#index("Theorems!Single Line")
-This is a theorem consisting of just one line.
-#theorem()[
-  A set $scr(D)(G)$  in dense in $L^2(G)$, $|dot|_0$.
-]
-== Definitions
-#index("Definitions")
-A definition can be mathematical or it could define a concept.
-#definition(name: "Definition name")[
-  Given a vector space $E$, a norm on $E$ is an application, denoted $norm(dot)$, $E$ in $bb(R)^+ = [0,+∞[$ such that:
-  $ norm(bold(x)) = 0 arrow.r.double bold(x) = bold(0) $
-  $ norm(lambda bold(x)) = abs(lambda) dot norm(bold(x)) $
-  $ norm(bold(x) + bold(y)) lt.eq norm(bold(x)) + norm(bold(y)) $
-]
-== Notations
-#index("Notations")
+=== @epsilon近似 的证明
 
-#notation()[
-  Given an open subset $G$ of $bold(R)^n$, the set of functions $phi$ are:
-  #v(0.5em, weak: true)
-  + Bounded support $G$;
-  + Infinitely differentiable;
-  #v(0.5em, weak: true)
-  a vector space is denoted by $scr(D)(G)$.
-]
-== Remarks
-#index("Remarks")
-This is an example of a remark.
+现在让我们来证明 @epsilon近似 成立。
 
-#remark()[
-  The concepts presented here are now in conventional employment in mathematics. Vector spaces are taken over the field $bb(K)=bb(R)$, however, established properties are easily extended to $bb(K)=bb(C)$.
-]
+$
+  epsilon approx - sqrt(1-overline(alpha)_t) nabla_(x_t) log p(x_t)
+$
 
-== Corollaries
-#index("Corollaries")
-#corollary(name: "Corollary name")[
-  The concepts presented here are now in conventional employment in mathematics. Vector spaces are taken over the field $bb(K)=bb(R)$, however, established properties are easily extended to $bb(K)=bb(C)$.
-]
-== Propositions
-#index("Propositions")
-=== Several equations
-#index("Propositions!Several equations")
+我们先来复习一下。时刻$t$的噪声数据$x_t$可以基于以下正态分布从原始数据$x_0$生成。
 
-#proposition(name: "Proposition name")[
-  It has the properties:
-  $ abs(norm(bold(x)) - norm(bold(y))) <= norm(bold(x-y)) $
-  $ norm(sum_(i=1)^n bold(x)_i) <= sum_(i=1)^n norm(bold(x)_i) quad "where" n "is a finite integer" $
-]
-=== Single Line
-#index("Propositions!Single Line")
+$
+  q(x_t|x_0) = cal(N) (x_t;sqrt(overline(alpha)_t)x_0,(1-overline(alpha))bold(I))
+$ <xtformula>
 
-#proposition()[
-  Let $f,g in L^2(G)$; if $forall phi in scr(D) (G)$, $(f,phi)_0=(g,phi)_0$ then $f = g$.
-]
-== Examples
-#index("Examples")
-=== Equation Example
-#index("Examples!Equation")
-#example()[
-  Let $G=\(x in bb(R)^2:|x|<3\)$ and denoted by: $x^0=(1,1)$; consider the function:
+利用重参数化技巧，可以通过以下式子得到$x_t$的样本。
 
+$
+  epsilon tilde cal(N) (0,bold(I)) \
+  x_t = sqrt(overline(alpha)_t)x_0 + sqrt(1-overline(alpha)_t)epsilon
+$ <重参数技巧>
+
+接下来要用到的是Tweedie公式，这个公式如下所示。
+
+#tip(title: "Tweedie公式")[
+  当基于 $x tilde cal(N)(x;bold(mu),bold(Sigma))$ 得到样本 $x$ 时，有以下式子成立。
   $
-    f(x) = cases(
-      e^(abs(x)) quad & "si" |x-x^0| lt.eq 1 slash 2,
-      0 & "si" |x-x^0| gt 1 slash 2
-    )
+    EE [bold(mu)|x] = x + Sigma nabla_x log p(x)
   $
-
-  The function $f$ has bounded support, we can take $A={x in bb(R)^2:|x-x^0| lt.eq 1 slash 2+ epsilon}$ for all $epsilon in lr(\] 0\;5 slash 2-sqrt(2) \[, size: #70%)$.
 ]
 
-=== Text Example
-#index("Examples!Text")
+式子中的$bold(mu)$被视为随机变量。左侧的$EE [bold(mu)|x]$是在$x$作为条件下的$bold(mu)$的期望值。右侧的$nabla_x log p(x)$表示得分。我们将这个Tweedie公式应用于@xtformula。
 
-
-
-== Exercises
-#index("Exercises")
-#exercise()[
-  This is a good place to ask a question to test learning progress or further cement ideas into students' minds.
-]
-== Problems
-#index("Problems")
-
-#problem()[
-  What is the average airspeed velocity of an unladen swallow?
+#tip(title: "Tweedie公式的应用")[
+  当基于 $x_t tilde cal(N) (x_t;sqrt(overline(alpha)_t)x_0,(1-overline(alpha)_t)bold(I))$得到样本$x_t$时，有以下式子成立。
+  $
+    EE [sqrt(overline(alpha)_t)x_0|x_t] & = x_t + (1-overline(alpha)_t)bold(I) nabla_x_t log p(x_t) \
+                                        & = x_t + (1-overline(alpha)_t) nabla_x_t log p(x_t)
+  $
 ]
 
-== Vocabulary
-#index("Vocabulary")
+然后，利用 @重参数技巧 中的 $x_t = sqrt(overline(alpha)_t)x_0 + sqrt(1-overline(alpha)_t)epsilon$ 成立这一事实将式子展开，如下所示。
 
-Define a word to improve a students' vocabulary.
+$
+  & EE [colred(sqrt(overline(alpha)_t)x_0)|x_t] = x_t + (1-overline(alpha)_t) nabla_x_t log p(x_t) \
+  <=> & EE [colred(x_t-sqrt(1-overline(alpha)_t)epsilon)|x_t] = x_t + (1-overline(alpha)_t) nabla_x_t log p(x_t) \
+  <=> & EE [x_t|x_t] - EE [sqrt(1-overline(alpha)_t) epsilon|x_t] = x_t + (1-overline(alpha)_t) nabla_x_t log p(x_t) \
+  <=> & x_t - sqrt(1-overline(alpha)_t) EE [epsilon|x_t] = x_t + (1-overline(alpha)_t) nabla_x_t log p(x_t) \
+  therefore & EE [epsilon|x_t] = (1-overline(alpha)_t) nabla_x_t log p(x_t)
+$
 
-#vocabulary(name: "Word")[
-  Definition of word.
+期望值 $EE [epsilon|x_t]$ 可以用蒙特卡洛方法近似。这里我们用一个采样数据来近似$x_t$。这样就得到了以下数学式。
+
+$
+  epsilon approx - sqrt(1-overline(alpha)_t) nabla_x_t log p(x_t)
+$
+
+这样我们就完成了推导。
+
+== 分类器指引
+
+在上面的内容中，我们了解到可以通过预测得分的神经网络来实现扩散模型。在本节中，我们将从得分的角度来研究扩散模型，并推导出一种称为指引的方法。指引有两种主要类型：分类器指引（classifier guidance）和无分类器指引（classifier-free guidance）。我们先来介绍分类器指引。
+
+=== 什么是分类器
+
+分类器指引是一种使用分类器指导数据生成的方法。分类器是一个能够对数据进行分类的预训练神经网络，如图所示。
+
+#figure(
+  image("使用预训练神经网络进行分类的示例.svg"),
+  caption: [使用预训练神经网络进行分类的示例（参数为$phi.alt$）],
+)
+
+图中的神经网络将时刻$t$的噪声图像$x_t$作为输入，并输出类别$y$的概率$p_phi.alt (y|x_t)$。利用这个分类器的神经网络，可以将普通的扩散模型变换为条件扩散模型。在这个过程中，我们需要掌握以下两点。
+
+- 扩散模型可以通过预测得分 $nabla_x_t log p(x_t)$ 的神经网络来实现。
+- （基于同样的原理）条件扩散模型可以通过预测条件概率得分 $nabla_x_t log p(x_t|y)$ 的神经网络来实现。
+
+在记住以上两点之后，我们进行式子的变形，推导出分类器指引。
+
+=== 分类器指引的推导
+
+首先，根据贝叶斯定理，将条件概率$p(x_t|y)$表示为下面的数学式。
+
+$
+  p(x_t|y) = (p(x_t)p(y|x_t)) / (p(y))
+$
+
+然后，计算关于 $x_t$ 的梯度（$nabla_x_t$）。
+
+$
+  nabla_x_t log p(x_t|y) & = nabla_x_t log ( (p(x_t)p(y|x_t)) / p(y) ) \
+                         & = nabla_x_t log p(x_t) + nabla_x_t log p(y|x_t) - underbrace(nabla_x_t log p(y), 0) \
+                         & = nabla_x_t log p(x_t) + nabla_x_t log p(y|x_t)
+$
+
+中间的式子中出现 $nabla_x_t log p(y)$ ，但由于 $p(y)$ 中不包含 $x_t$ ，因此 $nabla_x_t log p(y)=0$ 。由此得到的数学式如下所示。
+
+$
+  underbrace(nabla_x_t log p(x_t|y), "条件得分") = underbrace(nabla_x_t log p(x_t), "❶得分") + underbrace(nabla_x_t log p(y|x_t), "❷分类器的对数似然的梯度")
+$
+
+根据这个式子可以推导出分类器指引。下面是对式子中的要点的说明。
+
+❶ 此项可以使用预测得分的神经网络$s_theta (x_t,t)$来计算。
+
+❷ 此项可以使用作为分类器的神经网络来计算。
+
+由此可见，我们可以利用得分和分类器这两个神经网络来表示条件得分（而一旦有了条件得分，便可以实现条件扩散模型）。另外，❷的$nabla_x_t log p(y|x_t)$可以很容易地通过反向传播求出。
+
+#figure(
+  image("通过反向传播可以求出logp.svg"),
+  caption: [通过反向传播可以求出$nabla_x_t log p(y|x_t)$],
+)
+
+上图中的 $nabla_x_t log p(y|x_t)$ 显示了在当前 $x_t$ 下，类别 $y$ 的对数似然增加最快的方向。因此，如果沿着 $nabla_x_t log p(y|x_t)$ 的方向更新 $x_t$ ，那么更新后的图像被分类为类别 $y$ 的概率会更高。
+#linebreak()
+#linebreak()
+分类器指引的理念是使用得分和分类器来表示条件得分。通常，我们会向分类器指引中引人权重$gamma$，这样就能调整分类器的贡献度。引入后的数学式如下所示。
+
+$
+  nabla_x_t log p(x_t|y) = nabla_x_t log p(x_t) + colred(gamma) nabla_x_t log p(y|x_t)
+$
+
+权重$gamma$是人为设定的值（超参数），用于调整分类器向类别$y$方向引导的程度。$gamma$值越大，条件$y$的作用就越显著。使用表示推断得分的神经网络$s_theta (x_t,t)$和表示分类器的$p_phi.alt (y|x_t)$，可以将式子改写为如下形式。
+
+$
+  nabla_x_t log p(x_t|y) approx s_theta (x_t,t) + gamma nabla_x_t log p(y|x_t)
+$
+
+作为参考，上式所执行的处理如下图所示。
+
+#figure(
+  image("使用了推断得分的神经网络的分类器指引.svg"),
+  caption: [使用了推断得分的神经网络的分类器指引],
+)
+
+如图所示，分类器可以与常规的扩散模型（推断得分的模型）相结合，作为条件扩散模型来生成数据。以上就是分类器指引的核心思想。
+
+== 无分类器指引
+
+分类器指引可以生成强调条件的数据。然而，分类器指引在实际应用中存在一个问题，即需要单独准备一个分类器。针对分类器指引的这一缺点进行改进的技术是无分类器指引。
+
+=== 无分类器指引的理论知识
+
+顾名思义，无分类器指引就是不需要分类器的指引。它的机制可以通过以下过程得出。
+
+$
+  & nabla_x_t log p(x_t|y) \
+  & = nabla_x_t log p(x_t) + gamma nabla_x_t log p(y|x_t) \
+  & = nabla_x_t log p(x_t) + gamma nabla_x_t log (p(x_t|y)p(y)) / p(x_t) \
+  & = nabla_x_t log p(x_t) + gamma ( nabla_x_t log p(x_t|y) + underbrace(nabla_x_t log p(y), 0) - nabla_x_t log p(x_t) ) \
+  & = nabla_x_t log p(x_t) + gamma ( nabla_x_t log p(x_t|y) - nabla_x_t log p(x_t) )
+$
+
+上面我们使用贝叶斯定理进行了式子的展开，最后得到了上面的式子。根据上面的式子，可以推导出无分类器指引。上式的意思是从点 $nabla_x_t log p(x_t)$ 出发，沿着 $nabla_x_t log p(x_t|y)$ 的方向前进了 $gamma$ 倍的距离。下图是这个式子的示意图。
+
+#figure(
+  image("式子的可视化.svg"),
+  caption: [上面式子的可视化]
+)
+
+式子中的 $nabla_x_t log p(x_t)$ 和 $nabla_x_t log p(x_t|y)$ 分别表示无条件得分和条件得分。它们可以由以下两个神经网络进行推断。
+
+- 无条件得分推断器：$s _ theta_1 (x_t,t)$
+- 条件得分的推断器：$s _ theta_2 (x_t,t,y)$
+
+不过，准备两个模型很麻烦。更简单的方法是使用一个条件得分推断器 $s _ theta_2 (x_t,t,y)$ ，并按如下方式建模。
+
+- 无条件得分的推断器：$s _ theta (x_t,t,emptyset)$
+- 条件得分的推断器：$s _ theta (x_t,t,y)$
+
+这里我们用$emptyset$表示"无条件"对应的类别。条件$y$可以被嵌入层变换为向量，但当类别为$emptyset$时，它会被变换为"零向量"，使其不包含任何信息。根据以上信息，无分类器指引的数学式可以表示成如下形式。
+
+$
+  nabla_x_t log p(x_t|y) approx s _ theta (x_t,t,emptyset) + gamma ( s _ theta (x_t,t,y) - s _ theta (x_t,t,emptyset) )
+$
+
+下图展示了这一计算过程。
+
+上面介绍的是推断得分函数的神经网络，但由于得分和噪声之间只有常数倍的差别，因此同样的机制也适用于推断噪声的神经网络。
+
+#tip[
+  在提供文本的图像生成服务中，我们经常会用到一种名为反向提示词（negative prompt）的技术。反向提示词是一种指定不希望生成的文本的技术。在上面的公式的$emptyset$中插入反向提示词即可实现这一技术。
 ]
 
-#chapter("Presenting Information and Results with a Long Chapter Title", image: image("./orange3.jpg"))
-== Table
-#index("Table")
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent porttitor arcu luctus, imperdiet
-urna iaculis, mattis eros. Pellentesque iaculis odio vel nisl ullamcorper, nec faucibus ipsum molestie.
-Sed dictum nisl non aliquet porttitor. Etiam vulputate arcu dignissim, finibus sem et, viverra nisl.
-Aenean luctus congue massa, ut laoreet metus ornare in. Nunc fermentum nisi imperdiet lectus
-tincidunt vestibulum at ac elit. Nulla mattis nisl eu malesuada suscipit.
+=== 无分类器指引的实现
 
-#figure(
-  table(
-    columns: (auto, auto, auto),
-    inset: 10pt,
-    align: horizon,
-    [*Treatments*], [*Response 1*], [*Response 2*],
-    [Treatment 1], [0.0003262], [0.562],
-    [Treatment 2], [0.0015681], [0.910],
-    [Treatment 3], [0.0009271], [0.296],
-  ),
-  caption: [Table caption.],
-) <table>
+下面我们通过修改节中的部分代码来实现无分类器指引。先来回忆一下前面已经实现的UNetCond类，然后在这个类中实现`forward()`方法，代码如下所示。
 
-Referencing @table in-text using its label.
+```python
+class UNetCond(nn.Module):
+    #...（省略）
+    def forward(self, x, timesteps, labels=None):
+        t = pos_encoding(timesteps, self.time_embed_dim)
 
-== Figure
-#index("Figure")
+        if labels is not None:
+            t += self.label_emb(labels)
+        #...
+```
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent porttitor arcu luctus, imperdiet
-urna iaculis, mattis eros. Pellentesque iaculis odio vel nisl ullamcorper, nec faucibus ipsum molestie.
-Sed dictum nisl non aliquet porttitor. Etiam vulputate arcu dignissim, finibus sem et, viverra nisl.
-Aenean luctus congue massa, ut laoreet metus ornare in. Nunc fermentum nisi imperdiet lectus
-tincidunt vestibulum at ac elit. Nulla mattis nisl eu malesuada suscipit.
+从上面的代码来看，只有指定了参数`labels`，才会处理类标签。如果没有指定参数（当`labels=None`时），则不做任何处理。这相当于"无条件"的处理。
 
-#figure(
-  image("creodocs_logo.svg", width: 50%),
-  caption: [Figure caption.],
-) <figure>
+无分类器指引的训练是在"无条件"和"有条件"两种情况下进行的条件扩散模型的训练。例如，我们可以以一定的比例进行"无条件"的训练，除此之外进行"有条件"的训练。基于这一点，我们可以按如下方式实现。
 
-Referencing @figure in-text using its label and referencing @figure1 in-text using its label.
+== Stable Diffusion
 
-#figure(
-  placement: top,
-  table(
-    columns: (auto, auto, auto),
-    inset: 10pt,
-    align: horizon,
-    [*Treatments*], [*Response 1*], [*Response 2*],
-    [Treatment 1], [0.0003262], [0.562],
-    [Treatment 2], [0.0015681], [0.910],
-    [Treatment 3], [0.0009271], [0.296],
-  ),
-  caption: [Floating table.],
-) <table1>
+到目前为止，我们已经实现了处理MNIST的小型扩散模型以及小型条件扩散模型。当然，现代的扩散模型规模相当庞大，而且经过了多项改进。下面是一些进一步改进扩散模型的指引。这里我们介绍一个著名的模型——Stable Diffusion，它能够生成下图所示的高清图像。另外，它的代码和预训练的权重数据是公开的，任何人都可以运行这些代码。
 
-#figure(
-  placement: bottom,
-  image("creodocs_logo.svg", width: 100%),
-  caption: [Floating figure.],
-) <figure1>
-
-#my-bibliography(bibliography("sample.bib"))
-
-#make-index(title: "Index")
-
-#show: appendices.with("Appendices", hide-parent: false)
-
-#chapter("Appendix Chapter Title", image: image("./orange2.jpg"))
-
-== Appendix Section Title
-
-#lorem(50)
-#chapter("Appendix Chapter Title", image: image("./orange2.jpg"))
-
-== Appendix Section Title
-
-#lorem(50)
