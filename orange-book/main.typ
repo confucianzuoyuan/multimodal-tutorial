@@ -1529,7 +1529,75 @@ for value, index in zip(values, indices):
   + 使用余弦相似度找出向量数据库中和文本特征最接近的几张图片
 ]
 
-#chapter("扩散模型", image: image("./orange2.jpg"), l: "multimodal-chap3")
+#chapter("ClipCap（图生文）", image: image("./orange2.jpg"), l: "multimodal-clipcap")
+
+#tip(title: "Image Captioning Model")[
+图片标题模型（image captioning model）是一种将图片作为输入并生成图片描述的模型。
+]
+
+下面是一个简单的示例，展示了一个图片标题模型：
+
+#figure(
+  image("clipcap的简单示例.svg"),
+  caption: [图片标题模型的简单示例]
+)
+
+== ClipCap的工作原理
+
+ClipCap 是一种结合了 CLIP 和 GPT-2 的图片标题架构。
+
+CLIP 是我们将用来创建输入图像嵌入的模型。
+
+GPT-2 是一种基于解码器的模型，用于生成文本。
+
+ClipCap 的基本工作原理如下：
+
+输入图像首先通过 CLIP 模型转换为嵌入，目的是利用这种嵌入（捕捉图像意义）来引导 GPT-2 生成文本。
+
+但有一个问题：CLIP 和 GPT-2 的嵌入空间不同。所以我们不能直接把这个嵌入输入到 GPT-2 中。
+
+为了解决这个问题，我们使用一个映射网络将 CLIP 嵌入映射到 GPT-2 的嵌入空间。
+
+这些映射的图像嵌入称为前缀（prefixes），因为它们是 GPT-2 生成图片说明所需的上下文。
+
+#figure(
+  image("将clip嵌入映射到gpt嵌入.svg"),
+  caption: [将图片的CLIP嵌入映射到GPT2的嵌入空间]
+)
+
+== 关于训练
+
+CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练 CLIP 模型。
+
+根据 GPT-2 是否经过微调，ClipCap 有两种变体 ：
+
+- 如果我们对 GPT-2 进行微调 ，那么我们就用 MLP 作为映射网络。GPT-2 和 MLP 都经过训练。
+- 如果我们不对 GPT-2 进行微调，那么我们就用Transformer架构（例如Bert）作为映射网络，只有变换器本身被训练。
+
+就我而言，我选择对 GPT-2 模型进行微调 ，并使用 MLP 作为映射网络。
+
+== 推理
+
+在我们这里，这意味着为未见的图片生成说明文字。
+
+让我们用一辆蓝色汽车的图片作为推断过程的例子：
+
++ 输入图像被转换为 CLIP 嵌入。
++ 该嵌入通过映射网络传递，生成前缀嵌入 。
++ 在时间步 t = 1 时，我们将这些前缀嵌入传递到 GPT-2。模型预测下一个标记——假设是 “a”。我们将此附加到序列中。
++ 在 t = 2 时，我们将更新后的输入序列（ 前缀 + “a”） 传递给 GPT-2。它预测下一个标记——这次可能是 “蓝色”。
++ 这一过程持续进行，模型一次预测一个token，直到它：
+  - 生成 `<EOS>`（序列结束）token，或
+  - 生成的标题长度达到最大。
+
+如下图所示
+
+#figure(
+  image("clipcap的推理.svg"),
+  caption: [ClipCap的推理过程],
+)
+
+#chapter("扩散模型", image: image("./orange2.jpg"), l: "multimodal-diffuser")
 
 扩散模型的兴起可以看作是近年来AI生成艺术作品领域取得突破的主要因素。
 
@@ -2379,7 +2447,7 @@ images = diffuser.sample(model)
 show_images(images)
 ```
 
-#chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-chap4")
+#chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 
 我们之前对数据$x$的概率$p(x)$进行了建模。但在实用层面，我们更希
 望对条件概率$p(x|y)$进行建模（其中$y$表示条件）。如果能成功建立$p(x|y)$的模型，那么就可以通过条件$y$控制想生成的$x$。
@@ -2763,23 +2831,23 @@ $
 
 #figure(
   image("式子的可视化.svg"),
-  caption: [上面式子的可视化]
+  caption: [上面式子的可视化],
 )
 
 式子中的 $nabla_x_t log p(x_t)$ 和 $nabla_x_t log p(x_t|y)$ 分别表示无条件得分和条件得分。它们可以由以下两个神经网络进行推断。
 
-- 无条件得分推断器：$s _ theta_1 (x_t,t)$
-- 条件得分的推断器：$s _ theta_2 (x_t,t,y)$
+- 无条件得分推断器：$s_theta_1 (x_t,t)$
+- 条件得分的推断器：$s_theta_2 (x_t,t,y)$
 
-不过，准备两个模型很麻烦。更简单的方法是使用一个条件得分推断器 $s _ theta_2 (x_t,t,y)$ ，并按如下方式建模。
+不过，准备两个模型很麻烦。更简单的方法是使用一个条件得分推断器 $s_theta_2 (x_t,t,y)$ ，并按如下方式建模。
 
-- 无条件得分的推断器：$s _ theta (x_t,t,emptyset)$
-- 条件得分的推断器：$s _ theta (x_t,t,y)$
+- 无条件得分的推断器：$s_theta (x_t,t,emptyset)$
+- 条件得分的推断器：$s_theta (x_t,t,y)$
 
 这里我们用$emptyset$表示"无条件"对应的类别。条件$y$可以被嵌入层变换为向量，但当类别为$emptyset$时，它会被变换为"零向量"，使其不包含任何信息。根据以上信息，无分类器指引的数学式可以表示成如下形式。
 
 $
-  nabla_x_t log p(x_t|y) approx s _ theta (x_t,t,emptyset) + gamma ( s _ theta (x_t,t,y) - s _ theta (x_t,t,emptyset) )
+  nabla_x_t log p(x_t|y) approx s_theta (x_t,t,emptyset) + gamma ( s_theta (x_t,t,y) - s_theta (x_t,t,emptyset) )
 $
 
 下图展示了这一计算过程。
@@ -2812,4 +2880,9 @@ class UNetCond(nn.Module):
 == Stable Diffusion
 
 到目前为止，我们已经实现了处理MNIST的小型扩散模型以及小型条件扩散模型。当然，现代的扩散模型规模相当庞大，而且经过了多项改进。下面是一些进一步改进扩散模型的指引。这里我们介绍一个著名的模型——Stable Diffusion，它能够生成下图所示的高清图像。另外，它的代码和预训练的权重数据是公开的，任何人都可以运行这些代码。
+
+#figure(
+  image("sd-image.png"),
+  caption: [Stable Diffusion生成的高清图像],
+)
 

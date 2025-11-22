@@ -4,12 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "105023991ed6ab94",
+        "id": "cbb09dd31fd7ab2f",
         "type": "tabs",
-        "dimension": 79.44162436548223,
         "children": [
           {
-            "id": "0fa4cb0dd668c900",
+            "id": "1da83ce6ccb73864",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -23,82 +22,7 @@
             }
           },
           {
-            "id": "f13050a0060d6ec5",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "3. 扩散模型（diffusion model）.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "3. 扩散模型（diffusion model）"
-            }
-          },
-          {
-            "id": "3331265c0108b65e",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Drawing 2025-09-29 16.50.38.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2025-09-29 16.50.38.excalidraw"
-            }
-          },
-          {
-            "id": "621ae327e1dc5956",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Drawing 2025-11-21 16.22.48.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2025-11-21 16.22.48.excalidraw"
-            }
-          },
-          {
-            "id": "fb83ea79fcd12520",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/扩散模型采样示意图.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "扩散模型采样示意图.excalidraw"
-            }
-          },
-          {
-            "id": "bccfcacc8a864770",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/扩散模型训练步骤示意图.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "扩散模型训练步骤示意图.excalidraw"
-            }
-          },
-          {
-            "id": "0237afa7588e3431",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/简单损失函数.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "简单损失函数.excalidraw"
-            },
-            "group": "e88393cdf42f64a3"
-          },
-          {
-            "id": "e1c545832102f9ef",
+            "id": "57086a79925766d8",
             "type": "leaf",
             "state": {
               "type": "excalidraw",
@@ -110,67 +34,7 @@
             }
           },
           {
-            "id": "d4c207035c04a43d",
-            "type": "leaf",
-            "state": {
-              "type": "image",
-              "state": {
-                "file": "img/正向扩散和逆向扩散.png"
-              },
-              "icon": "lucide-image",
-              "title": "正向扩散和逆向扩散"
-            }
-          },
-          {
-            "id": "183a97b769f7500e",
-            "type": "leaf",
-            "state": {
-              "type": "image",
-              "state": {
-                "file": "img/共享模型.png"
-              },
-              "icon": "lucide-image",
-              "title": "共享模型"
-            }
-          },
-          {
-            "id": "e3f016b33cc58ad3",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/3.10.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "3.10.excalidraw"
-            }
-          },
-          {
-            "id": "f05394236322d106",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/3.9.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "3.9.excalidraw"
-            }
-          },
-          {
-            "id": "1e3b61ee14646538",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/3.8.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "3.8.excalidraw"
-            }
-          },
-          {
-            "id": "6ed8b80fd46f5cca",
+            "id": "82fd4f2e06a107de",
             "type": "leaf",
             "state": {
               "type": "excalidraw",
@@ -182,44 +46,19 @@
             }
           },
           {
-            "id": "c61ce398606b94e0",
+            "id": "e8a2592303b55be3",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "image",
               "state": {
-                "file": "6. DALL-E 2（文生图）.md",
-                "mode": "source",
-                "source": false
+                "file": "sd-image.png"
               },
-              "icon": "lucide-file",
-              "title": "6. DALL-E 2（文生图）"
+              "icon": "lucide-image",
+              "title": "sd-image"
             }
           }
         ],
         "currentTab": 3
-      },
-      {
-        "id": "30736ef8db227549",
-        "type": "tabs",
-        "dimension": 20.558375634517766,
-        "children": [
-          {
-            "id": "83b3454e745ab56f",
-            "type": "leaf",
-            "state": {
-              "type": "outline",
-              "state": {
-                "file": "Excalidraw/简单损失函数.excalidraw.md",
-                "followCursor": false,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-list",
-              "title": "简单损失函数.excalidraw 的大纲"
-            },
-            "group": "e88393cdf42f64a3"
-          }
-        ]
       }
     ],
     "direction": "vertical"
@@ -292,7 +131,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "1. Vision Transformer.md",
+                "file": "Excalidraw/3.1.excalidraw.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -302,7 +141,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "1. Vision Transformer 的反向链接列表"
+              "title": "3.1.excalidraw 的反向链接列表"
             }
           },
           {
@@ -311,12 +150,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "1. Vision Transformer.md",
+                "file": "Excalidraw/3.1.excalidraw.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "1. Vision Transformer 的出链列表"
+              "title": "3.1.excalidraw 的出链列表"
             }
           },
           {
@@ -340,13 +179,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "1. Vision Transformer.md",
+                "file": "Excalidraw/3.1.excalidraw.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "1. Vision Transformer 的大纲"
+              "title": "3.1.excalidraw 的大纲"
             }
           }
         ]
@@ -368,53 +207,53 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "621ae327e1dc5956",
+  "active": "e8a2592303b55be3",
   "lastOpenFiles": [
-    "orange-book/式子的可视化.svg",
+    "orange-book/clipcap的简单示例.svg.crswap",
+    "orange-book/clipcap的简单示例.svg",
+    "orange-book/将clip嵌入映射到gpt嵌入.svg.crswap",
+    "orange-book/将clip嵌入映射到gpt嵌入.svg",
+    "orange-book/clipcap的推理.svg.crswap",
+    "orange-book/clipcap的推理.svg",
+    "orange-book/sd-image.png",
     "Pasted Image 20251121162426_433.png",
-    "未命名.md",
-    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "Drawing 2025-11-22 18.04.47.excalidraw.md",
+    "sd-image.png",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
-    "3. 扩散模型（diffusion model）.md",
-    "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
-    "orange-book/使用了推断得分的神经网络的分类器指引.svg",
-    "orange-book/通过反向传播可以求出logp.svg.crswap",
-    "orange-book/通过反向传播可以求出logp.svg",
-    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap",
-    "orange-book/使用预训练神经网络进行分类的示例.svg",
-    "orange-book/用于推断得分的神经网络.svg.crswap",
-    "orange-book/用于推断得分的神经网络.svg",
-    "orange-book/扩散模型中使用的推断噪声的神经网络.svg.crswap",
-    "orange-book/扩散模型中使用的推断噪声的神经网络.svg",
-    "orange-book/在扩散模型中添加嵌入层.svg.crswap",
-    "orange-book/在扩散模型中添加嵌入层.svg",
-    "orange-book/条件扩散模型的神经网络.svg.crswap",
-    "orange-book/条件扩散模型的神经网络.svg",
-    "orange-book/预测图像和预测噪声.svg.crswap",
+    "orange-book/sd-image.webp",
+    "未命名.md",
     "orange-book/预测图像和预测噪声.svg",
-    "orange-book/flower-noise-100.png",
-    "4. 条件扩散模型.md",
-    "orange-book/未确认 906937.crdownload",
-    "orange-book/将要实现的条件扩散模型.svg.crswap",
-    "5. 图生文（ClipCap）.md",
+    "orange-book/预测图像与实际图像之间的差异使用损失函数计算.svg",
+    "orange-book/预测噪声.svg",
+    "orange-book/u-net-illustration-correct-scale2.pdf",
+    "orange-book/t.typ",
+    "orange-book/sample.bib",
+    "orange-book/main.typ",
+    "orange-book/main.pdf",
+    "orange-book/main-diagrams.pdf",
+    "orange-book",
+    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "附录A：扩散模型数学推导.md",
+    "附录B：梯度下降习题.md",
+    "条件扩散模型.excalidraw.md",
+    "文生图扩散解码器.excalidraw.md",
+    "1. Vision Transformer.md",
+    "papers/unclip.pdf",
+    "img/条件扩散模型.excalidraw.md",
+    "img/图片token和文本token.excalidraw.md",
+    "codes/chapter03/README.md",
+    "codes/appendix-a/README.md",
+    "Excalidraw/简单损失函数.excalidraw.md",
+    "Excalidraw/模型的设计要点.excalidraw.md",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
-    "附录B：梯度下降习题.md",
-    "Excalidraw/简单损失函数.excalidraw.md",
-    "Excalidraw/3.1.excalidraw.md",
-    "Excalidraw/3.11.excalidraw.md",
-    "Excalidraw/3.10.excalidraw.md",
+    "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
     "Excalidraw/3.7.excalidraw.md",
-    "1. Vision Transformer.md",
-    "2. CLIP.md",
-    "6. DALL-E 2（文生图）.md",
-    "附录A：扩散模型数学推导.md",
-    "条件扩散模型.excalidraw.md",
-    "7. 项目总结.md",
-    "文生图扩散解码器.excalidraw.md",
-    "img/图片token和文本token.excalidraw.md",
-    "img/条件扩散模型.excalidraw.md"
+    "Excalidraw/3.6.excalidraw.md",
+    "Excalidraw/3.5.excalidraw.md",
+    "Excalidraw/3.4.excalidraw.md",
+    "Excalidraw/3.3.excalidraw.md"
   ]
 }
