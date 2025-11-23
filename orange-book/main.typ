@@ -29,6 +29,26 @@
   lowercase-references: false,
 )
 
+#show raw.where(lang: "python"): it => {
+  show regex("\$(.*?)\$"): re => {
+    eval(re.text, mode: "markup")
+  }
+  it
+}
+
+#set text(font: (
+  (name: "JetBrains Mono", covers: "latin-in-cjk"),
+  "FZShusong-Z01",
+))
+
+#show strong: set text(font: "FZHei-B01")
+#show emph: set text(font: "FZKai-Z03")
+
+#show raw: set text(font: (
+  (name: "JetBrains Mono", covers: "latin-in-cjk"),
+  "FZShusong-Z01",
+))
+
 #part("强化学习")
 
 #part("基于人类反馈的强化学习")
@@ -285,10 +305,10 @@ class AttentionHead(nn.Module):
         K = self.key(x)
         V = self.value(x)
 
-        # Q和K的点积
+        # $Q K ^ T$
         attention = Q @ K.transpose(-2,-1)
 
-        # 缩放
+        # $"softmax"( (Q K^T)/sqrt(d_"head") )V$
         attention = attention / (self.head_size ** 0.5)
         attention = torch.softmax(attention, dim=-1)
         attention = attention @ V
@@ -320,7 +340,6 @@ def forward(self, x):
 我们能够通过计算Q和K的点积来获取序列中token之间的关系。
 
 ```python
-# Q和K的点积
 attention = Q @ K.transpose(-2,-1)
 ```
 
@@ -418,10 +437,8 @@ class TransformerEncoder(nn.Module):
         )
 
     def forward(self, x):
-        # 第一次层归一化之后的残差
-        out = x + self.mha(self.ln1(x))
-        # 第二次层归一化之后的残差
-        out = out + self.mlp(self.ln2(out))
+        out = x + self.mha(self.ln1(x)) # 跳跃连接
+        out = out + self.mlp(self.ln2(out)) # 跳跃连接
         return out
 ```
 
@@ -430,9 +447,7 @@ Transformer编码器由两个子层组成：第一个子层执行多头注意力
 层归一化是一种优化技术，可跨其特征独立归一化批处理中的每个输入。对于我们的模型，我们将在每个子层的开头通过层归一化模块传递我们的输入。
 
 ```python
-# 第一个层归一化模块
 self.ln1 = nn.LayerNorm(d_model)
-# 第二个层归一化模块
 self.ln2 = nn.LayerNorm(d_model)
 ```
 
@@ -455,9 +470,7 @@ MLP 将由两个线性层组成，中间有一个GELU层。使用GELU代替RELU�
 
 ```python
 def forward(self, x):
-    # 残差
     out = x + self.mha(self.ln1(x))
-    # 残差
     out = out + self.mlp(self.ln2(out))
     return out
 ```
@@ -491,7 +504,7 @@ class VisionTransformer(nn.Module):
         self.patch_size = patch_size # 补丁大小
         self.n_channels = n_channels # 通道数
         self.n_heads = n_heads # 注意力头的数量
-        # 补丁的数量 = (32x32) // (4x4)
+        # 补丁的数量 = $(32 times 32)/(4 times 4)$
         self.n_patches = (self.img_size[0] * self.img_size[1]) \
                       // (self.patch_size[0] * self.patch_size[1])
         # 序列的长度 = 1（分类token） + 补丁的数量
@@ -641,13 +654,9 @@ for epoch in range(epochs):
         inputs, labels = inputs.to(device), labels.to(device)
 
         optimizer.zero_grad()
-        # 前向传播
         outputs = ViT(inputs)
-        # 交叉熵损失
         loss = criterion(outputs, labels)
-        # 求导数
         loss.backward()
-        # 梯度下降
         optimizer.step()
 
         training_loss += loss.item()
@@ -743,14 +752,11 @@ class AttentionHead(nn.Module):
         self.value = nn.Linear(width, head_size)
 
     def forward(self, x, mask=None):
-        # 计算K，Q，V
         Q = self.query(x)
         K = self.key(x)
         V = self.value(x)
 
-        # Q和K的点积
         attention = Q @ K.transpose(-2,-1)
-        # 缩放
         attention = attention / (self.head_size ** 0.5)
         # 掩码
         if mask is not None:
@@ -784,7 +790,8 @@ class MultiHeadAttention(nn.Module):
         self.head_size = width // n_heads
         self.W_o = nn.Linear(width, width)
         self.heads = nn.ModuleList([
-            AttentionHead(width, self.head_size) for _ in range(n_heads)
+            AttentionHead(width, self.head_size)
+            for _ in range(n_heads)
         ])
 
     def forward(self, x, mask=None):
@@ -891,7 +898,21 @@ mask = torch.cat((mask,torch.zeros(10-len(mask)))).type(torch.IntTensor)
 
 === 文本编码器
 
-
+#codly(
+  highlighted-lines: (40, 41),
+  annotations: (
+    (
+      start: 40,
+      end: 41,
+      content: block(
+        width: auto,
+        align(
+          left,
+        )[将文本嵌入映射到CLIP嵌入空间#sym.space],
+      ),
+    ),
+  ),
+)
 ```python
 class TextEncoder(nn.Module):
     def __init__(
@@ -915,7 +936,7 @@ class TextEncoder(nn.Module):
             for _ in range(n_layers)
         ])
         # 可学习投影（projection）
-        # d_model(width) --- emb_dim
+        # $W _ ("width" times "emb_dim")$
         self.projection = nn.Parameter(torch.randn(width, emb_dim))
 
     def forward(self, text, mask=None):
@@ -932,11 +953,9 @@ class TextEncoder(nn.Module):
             # 取出掩码mask矩阵的第0行，加和再减1，就得到了EOT的索引
             torch.sub(torch.sum(mask[:,0],dim=1),1)
         ]
-        # 将文本特征嵌入到联合嵌入空间中（多模态嵌入空间）
-        # 文本编码器输出的张量的维度和图像编码器输出的张量的维度必须一致
         if self.projection is not None:
             x = x @ self.projection
-
+        # 向量x转换为模长为1的向量
         x = x / torch.norm(x, dim=-1, keepdim=True)
         return x
 ```
@@ -950,28 +969,24 @@ self.encoder_embedding = nn.Embedding(vocab_size, width)
 在输出 Transformer 的结果之前，我们需要将特征嵌入到联合嵌入空间中。我们将通过获取文本特征的点积以及使用 `nn.Parameter` 创建的可学习的投影来实现这一点。
 
 ```python
-# 可学习的投影
 self.projection = nn.Parameter(torch.randn(width, emb_dim))
 ```
 
 在 `forward` 方法中，我们要做的第一件事是通过嵌入表传递文本的token。
 
 ```python
-# 文本嵌入
 x = self.encoder_embedding(text)
 ```
 
 然后，我们需要将位置编码添加到嵌入表的输出中。
 
 ```python
-# 位置嵌入
 x = self.positional_embedding(x)
 ```
 
 添加位置编码后，我们现在可以将其与掩码一起通过编码器层。
 
 ```python
-# Transformer编码器
 for encoder_layer in self.encoder:
     x = encoder_layer(x, mask=mask)
 ```
@@ -980,13 +995,20 @@ for encoder_layer in self.encoder:
 
 ```python
 # 从EOT的嵌入抽取特征
-x = x[torch.arange(text.shape[0]),torch.sub(torch.sum(mask[:,0],dim=1),1)]
+x = x[torch.arange(
+  text.shape[0]),
+  torch.sub(torch.sum(mask[:,0],dim=1),1)
+]
 ```
 
-最后，我们通过计算特征和投影之间的点积，将文本特征嵌入到联合嵌入空间中，并通过除以归一化的点积对其进行归一化。
+最后，我们通过计算特征和投影之间的点积，将文本嵌入映射到CLIP嵌入空间中，并通过除以归一化的点积对其进行归一化。
+
+#tip(title: "为什么要做映射？")[
+  主要是为了在CLIP嵌入空间中，文本嵌入向量的维度和图像嵌入向量的维度一致。
+  向量除以向量的模长，就是模长为1的向量。这样文本嵌入向量和图像嵌入向量都变成了模长为1的向量。两个向量的点积，就是两个向量的余弦相似度！
+]
 
 ```python
-# 将文本特征嵌入到联合嵌入空间中（多模态嵌入空间）
 if self.projection is not None:
     x = x @ self.projection
 x = x / torch.norm(x, dim=-1, keepdim=True)
@@ -995,7 +1017,21 @@ return x
 
 === 图像编码器
 
-
+#codly(
+  highlighted-lines: (58, 59),
+  annotations: (
+    (
+      start: 58,
+      end: 59,
+      content: block(
+        width: auto,
+        align(
+          left,
+        )[将图像嵌入映射到CLIP嵌入空间#sym.space],
+      ),
+    ),
+  ),
+)
 ```python
 class ImageEncoder(nn.Module):
     def __init__(
@@ -1035,7 +1071,7 @@ class ImageEncoder(nn.Module):
             for _ in range(n_layers)
         ])
 
-        # 可学习的投影
+        # $W _ ("width" times "emb_dim")$
         self.projection = nn.Parameter(torch.randn(width, emb_dim))
 
     def forward(self,x):
@@ -1054,11 +1090,9 @@ class ImageEncoder(nn.Module):
         # 获取类别token
         x = x[:, 0, :]
 
-        # 多模态嵌入
-        # 保证文本编码器的输出的维度和图像编码器的输出的维度相等
         if self.projection is not None:
             x = x @ self.projection
-
+        # 向量x转换为模长为1的向量
         x = x / torch.norm(x, dim=-1, keepdim=True)
         return x
 ```
@@ -1107,25 +1141,25 @@ class CLIP(nn.Module):
 
 
     def forward(self, image, text, mask=None):
-        # Iₑ是图像嵌入，形状 [B, D=emb_dim]
+        # $I_e$是图像嵌入，形状 [B, D=emb_dim]
         I_e = self.image_encoder(image)
-        # Tₑ是文本嵌入，形状 [B, D=emb_dim]
+        # $T_e$是文本嵌入，形状 [B, D=emb_dim]
         T_e = self.text_encoder(text, mask=mask)
 
         # 缩放逐点余弦相似度[n, n]
-        # 形状 I_e @ T_e^T : [B, D] @ [D, B] --> [B, B]
+        # 形状 $I_e dot.c T_e$ : [B, D] @ [D, B] --> [B, B]
         logits = (I_e @ T_e.transpose(-2,-1)) * torch.exp(self.temperature)
 
-        # 对称损失函数 labels形状为[B]，值为 [0, 1, 2, ..., B-1]
+        # 对称损失函数：labels形状为[B]，值为 [0, 1, 2, ..., B-1]
         labels = torch.arange(logits.shape[0]).to(self.device)
-        # 从文本 --> 图像方向，以文本嵌入 T₃ 为例子，
-        # 交叉熵损失的目标是让 T₃⋅I₃ 越大越好
+        # 从文本 --> 图像方向，以文本嵌入 $T_3$ 为例子，
+        # 交叉熵损失的目标是让 $T_3 dot.c I_3$ 越大越好
         loss_i = nn.functional.cross_entropy(
             logits.transpose(-2,-1),
             labels
         )
-        # 从图像 --> 文本方向，以图像嵌入 I₃ 为例子，
-        # 交叉熵损失的目标是让 I₃⋅T₃ 越大越好
+        # 从图像 --> 文本方向，以图像嵌入 $I_3$ 为例子，
+        # 交叉熵损失的目标是让 $I_3 dot.c T_3$ 越大越好
         loss_t = nn.functional.cross_entropy(
             logits,
             labels
@@ -1231,7 +1265,7 @@ class MNIST(Dataset):
 在本教程中，我们将使用MNIST数据集。我们选择这个数据集是因为它相当小并且保持训练时间合理。
 
 ```python
-self.dataset = load_dataset("./../datasets/clip-mnist")
+self.dataset = load_dataset("clip-mnist")
 ```
 
 对于数据集中的每个条目，我们将需要3样东西：图像、文本和文本掩码。
@@ -1417,10 +1451,10 @@ with torch.no_grad():
         image_features = model.image_encoder(images)
         # 使用clip模型中的文本编码器对文本抽取特征
         text_features = model.text_encoder(text, mask=mask)
-        # 归一化
+        # 转换为模长为1的向量
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
-        # I_e @ T_e^T
+        # I_e @ T_e^T: $I_e dot.c T_e$
         similarity = (
             100.0 * image_features @ text_features.T
         ).softmax(dim=-1)
@@ -1532,14 +1566,14 @@ for value, index in zip(values, indices):
 #chapter("ClipCap（图生文）", image: image("./orange2.jpg"), l: "multimodal-clipcap")
 
 #tip(title: "Image Captioning Model")[
-图片标题模型（image captioning model）是一种将图片作为输入并生成图片描述的模型。
+  图片标题模型（image captioning model）是一种将图片作为输入并生成图片描述的模型。
 ]
 
 下面是一个简单的示例，展示了一个图片标题模型：
 
 #figure(
   image("clipcap的简单示例.svg"),
-  caption: [图片标题模型的简单示例]
+  caption: [图片标题模型的简单示例],
 )
 
 == ClipCap的工作原理
@@ -1562,7 +1596,7 @@ ClipCap 的基本工作原理如下：
 
 #figure(
   image("将clip嵌入映射到gpt嵌入.svg"),
-  caption: [将图片的CLIP嵌入映射到GPT2的嵌入空间]
+  caption: [将图片的CLIP嵌入映射到GPT2的嵌入空间],
 )
 
 == 关于训练
@@ -1580,12 +1614,12 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
 
 在我们这里，这意味着为未见的图片生成说明文字。
 
-让我们用一辆蓝色汽车的图片作为推断过程的例子：
+让我们用一辆蓝色汽车的图片作为推理过程的例子：
 
-+ 输入图像被转换为 CLIP 嵌入。
++ 输入图像被转换为CLIP嵌入。
 + 该嵌入通过映射网络传递，生成前缀嵌入 。
-+ 在时间步 t = 1 时，我们将这些前缀嵌入传递到 GPT-2。模型预测下一个标记——假设是 “a”。我们将此附加到序列中。
-+ 在 t = 2 时，我们将更新后的输入序列（ 前缀 + “a”） 传递给 GPT-2。它预测下一个标记——这次可能是 “蓝色”。
++ 在时间步`t=1`时，我们将这些前缀嵌入传递到GPT2。模型预测下一个token——假设是"a"。我们将此附加到序列中。
++ 在`t=2`时，我们将更新后的输入序列（前缀+"a"）传递给GPT2。它预测下一个token——这次可能是"蓝色"。
 + 这一过程持续进行，模型一次预测一个token，直到它：
   - 生成 `<EOS>`（序列结束）token，或
   - 生成的标题长度达到最大。
@@ -1596,6 +1630,10 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
   image("clipcap的推理.svg"),
   caption: [ClipCap的推理过程],
 )
+
+== ClipCap的代码实现
+
+
 
 #chapter("扩散模型", image: image("./orange2.jpg"), l: "multimodal-diffuser")
 
@@ -1751,12 +1789,12 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
 
 前向扩散过程逐步将高斯噪声添加到输入图像 $x_0$ 中，总共会有 $T$ 步。该过程将产生一系列带噪声的图像样本 $x_1,x_2,...,x_T$ 。
 
-当 $T → ∞$ 时，最终结果将变成完全噪声图像，就像从 *各向同性* 的高斯分布中采样出来的噪声一样。
+当 $T arrow infinity$ 时，最终结果将变成完全噪声图像，就像从*各向同性*的高斯分布中采样出来的噪声一样。
 
 首先，如果 $z tilde cal(N) (mu, sigma^2)$ 的话，那么正态分布可以写成如下公式：
 
 $
-  z=mu+sigma epsilon space #text[其中] epsilon tilde cal(N) (0,1)
+  z=mu+sigma epsilon space "其中" epsilon tilde cal(N) (0,1)
 $
 
 利用这个技巧，我们可以将采样图像 $x_t$ 表示如下：
@@ -1909,8 +1947,8 @@ $
 ```python
 # self.betas: 方差计划调度表
 self.betas = torch.linspace(
-    beta_start, # beta_start: 起始β值，论文中等于0.0001
-    beta_end, # beta_end: 结束β值，论文中等于0.02
+    beta_start, # beta_start: 起始$beta$值，论文中等于0.0001
+    beta_end, # beta_end: 结束$beta$值，论文中等于0.02
     num_timesteps, # num_timesteps: 时间步的数量：1000
     device=device
 )
@@ -1944,13 +1982,6 @@ self.alpha_bars = torch.cumprod(self.alphas, dim=0)
 
 公式和代码基本是对应的。
 
-#show raw.where(lang: "python"): it => {
-  show regex("\$(.*?)\$"): re => {
-    eval(re.text, mode: "markup")
-  }
-  it
-}
-
 ```python
 def add_noise(self, x_0, t):
     # $x_0$是原始图片，$t$是时间步
@@ -1982,28 +2013,6 @@ def add_noise(self, x_0, t):
 
 给定了时间步和添加噪声的图像，模型可以预测出这幅图片中的噪声有多少，那么我们从 $x_t$ 中将预测出的噪声减掉，就可以去噪了！
 
-#codly(
-  annotations: (
-    (
-      start: 25,
-      end: 31,
-      content: block(
-        width: auto,
-        align(
-          left,
-        )[$mu_theta (x_t, t)=1/sqrt(alpha_t) (bold("x")_t - (1-alpha_t)/sqrt(1-overline(alpha)_t) epsilon_theta (bold("x")_t,t)) space$],
-      ),
-    ),
-    (
-      start: 32,
-      end: 34,
-      content: block(
-        width: auto,
-        align(left)[$sigma_t = sqrt(((1-alpha_t)(1-overline(alpha)_(t-1)))/(1-overline(alpha)_t))$],
-      ),
-    ),
-  ),
-)
 ```python
 def denoise(self, model, x, t):
     # x是图片，模型会认为x是添加了t步噪声的图片
@@ -2029,14 +2038,10 @@ def denoise(self, model, x, t):
 	noise = torch.randn_like(x, device=self.device)
 	# 如果时间步为1的话，我们就不再添加$σ_z$噪声
 	noise[t == 1] = 0  # no noise at t=1
-	# 均值
-	mu = (x                                \
-        -                                \
-        ((1-alpha)                       \
-         /                               \
-         torch.sqrt(1-alpha_bar)) * eps) \
+	# 均值$mu_theta (x_t, t)=1/sqrt(alpha_t) (bold("x")_t - (1-alpha_t)/sqrt(1-overline(alpha)_t) epsilon_theta (bold("x")_t,t))$
+	mu = (x - ((1-alpha) / torch.sqrt(1-alpha_bar)) * eps)
 	   / torch.sqrt(alpha)
-	# 标准差
+	# 标准差$sigma_t = sqrt(((1-alpha_t)(1-overline(alpha)_(t-1)))/(1-overline(alpha)_t))$
 	std = torch.sqrt((1-alpha) * (1-alpha_bar_prev) \
       / (1-alpha_bar))
 	# 返回$x_(t-1)$
@@ -2087,9 +2092,7 @@ def _pos_encoding(time_idx, output_dim, device='cpu'):
 
     i = torch.arange(0, D, device=device)
     div_term = torch.exp(i / D * math.log(10000))
-    # 偶数位置
     v[0::2] = torch.sin(t / div_term[0::2])
-    # 奇数位置
     v[1::2] = torch.cos(t / div_term[1::2])
     return v
 
@@ -2297,9 +2300,9 @@ class UNet(nn.Module):
 class Diffuser:
     def __init__(self,
         num_timesteps=1000, # 时间步T=1000
-        beta_start=0.0001, # 方差的起始值β_0 = 0.0001
-        beta_end=0.02, # 方差的最终值β_T = 0.02
-        device='cpu'
+        beta_start=0.0001, # 方差的起始值$beta_0 = 0.0001$
+        beta_end=0.02, # 方差的最终值$beta_T = 0.02$
+        device="cpu"
     ):
         self.num_timesteps = num_timesteps
         self.device = device
@@ -2310,9 +2313,9 @@ class Diffuser:
             num_timesteps,
             device=device
         )
-        # α_t = 1 - β_t
+        # $alpha_t = 1 - beta_t$
         self.alphas = 1 - self.betas
-        # α_bar_t = α_t * α_{t-1} * ... * α_1
+        # $overline(alpha)_t=alpha_t alpha_(t-1) dots.c alpha_1$
         self.alpha_bars = torch.cumprod(self.alphas, dim=0)
 
     def add_noise(self, x_0, t):
@@ -2330,8 +2333,7 @@ class Diffuser:
         return x_t, noise
 
     def denoise(self, model, x, t):
-        """去除一步噪声"""
-        # x_t, t
+        """去除一步噪声，x为时间步t的带噪声图片$x_t$"""
         T = self.num_timesteps
         assert (t >= 1).all() and (t <= T).all()
 
@@ -2358,7 +2360,7 @@ class Diffuser:
         std = torch.sqrt(
             (1-alpha) * (1-alpha_bar_prev) / (1-alpha_bar)
         )
-        # x_{t-1}
+        # $x_(t-1)$
         return mu + noise * std
 
     def reverse_to_img(self, x):
@@ -2370,9 +2372,9 @@ class Diffuser:
         return to_pil(x)
 
     def sample(self, model, x_shape=(20, 1, 28, 28)):
-        """从纯噪声图片x_1000反向扩散出x_0"""
+        """从纯噪声图片$x_1000$反向扩散出$x_0$"""
         batch_size = x_shape[0]
-        # 采样一张白噪声图片x_1000出来
+        # 采样一张白噪声图片$x_1000$出来
         x = torch.randn(x_shape, device=self.device)
         # for t = T, T-1, ..., 0
         for i in tqdm(range(self.num_timesteps, 0, -1)):
@@ -2381,7 +2383,7 @@ class Diffuser:
                 device=self.device,
                 dtype=torch.long
             )
-            # 一步去噪，x_t --> x_{t-1}
+            # 一步去噪，$x_t -> x_(t-1)$
             x = self.denoise(model, x, t)
 
         images = [
@@ -2393,7 +2395,7 @@ class Diffuser:
 
 preprocess = transforms.ToTensor()
 dataset = torchvision.datasets.MNIST(
-    root='./../datasets',
+    root="./../datasets",
     download=True,
     transform=preprocess
 )
@@ -2419,9 +2421,9 @@ for epoch in range(epochs):
         x = images.to(device)
         # 随机取一个时间步
         t = torch.randint(1, num_timesteps+1, (len(x),), device=device)
-        # x_noisy是x_t，noise是添加的真正的噪声
+        # x_noisy是$x_t$，noise是添加的真正的噪声
         x_noisy, noise = diffuser.add_noise(x, t)
-        # 模型根据x_t和时间步t，预测给x_t添加的噪声
+        # 模型根据$x_t$和时间步$t$，预测给$x_t$添加的噪声
         noise_pred = model(x_noisy, t)
         # 添加的真实噪声和预测噪声之间进行均方误差计算
         loss = F.mse_loss(noise, noise_pred)
@@ -2434,12 +2436,12 @@ for epoch in range(epochs):
 
     loss_avg = loss_sum / cnt
     losses.append(loss_avg)
-    print(f'Epoch {epoch} | Loss: {loss_avg}')
+    print(f"Epoch {epoch} | Loss: {loss_avg}")
 
 # 画出损失
 plt.plot(losses)
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
 plt.show()
 
 # 从完全噪声的图片反向扩散
@@ -2449,8 +2451,7 @@ show_images(images)
 
 #chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 
-我们之前对数据$x$的概率$p(x)$进行了建模。但在实用层面，我们更希
-望对条件概率$p(x|y)$进行建模（其中$y$表示条件）。如果能成功建立$p(x|y)$的模型，那么就可以通过条件$y$控制想生成的$x$。
+我们之前对数据$x$的概率$p(x)$进行了建模。但在实用层面，我们更希望对条件概率$p(x|y)$进行建模（其中$y$表示条件）。如果能成功建立$p(x|y)$的模型，那么就可以通过条件$y$控制想生成的$x$。
 
 条件$y$可以是文本、图像或标签等。如果$y$是一张低分辨率的图像，那么可以考虑将其变换为高分辨率的图像。这就是被称为超分辨率成像（super-resolution imaging）的技术。使用扩散模型进行超分辨率处理的模型包括级联扩散模型（cascaded diffusion model）等。
 
@@ -2877,6 +2878,58 @@ class UNetCond(nn.Module):
 
 无分类器指引的训练是在"无条件"和"有条件"两种情况下进行的条件扩散模型的训练。例如，我们可以以一定的比例进行"无条件"的训练，除此之外进行"有条件"的训练。基于这一点，我们可以按如下方式实现。
 
+```python
+for epoch in range(epochs):
+    loss_sum = 0.0
+    cnt = 0
+
+    for images, labels in tqdm(dataloader):
+        optimizer.zero_grad()
+        x = images.to(device)
+        labels = labels.to(device)
+        t = torch.randint(1, num_timesteps+1, (len(x),), device=device)
+
+        # 以10%的概率进行"无条件"的训练
+        if np.random.random() < 0.1:
+            labels = None
+        
+        x_noisy, noise = diffuser.add_noise(x, t)
+        noise_pred = model(x_noisy, t, labels)
+        loss = F.mse_loss(noise, noise_pred)
+        loss.backward()
+        optimizer.step()
+
+        loss_sum += loss.item()
+        cnt += 1
+```
+
+上面的代码以10%的概率进行了"无条件"的训练。对于"无条件"的情况，设置`labels=None`。
+
+最后是`Diffuser`类进行去噪处理的代码。
+
+```python
+class Diffuser:
+    #...（省略）
+
+    def denoise(self, model, x, t, labels, gamma):
+        #...
+        with torch.no_grad():
+            eps_cond = model(x, t, labels)
+            eps_uncond = model(x, t)
+            eps = eps_uncond + gamma * (eps_cond - eps_uncond)
+        #...
+```
+
+参数`gamma`的值越大，就越应该重视条件部分。另外，这里实现的是如下数学式的代码。
+
+$
+  epsilon approx epsilon_theta (x_t , t, emptyset) + gamma (epsilon_theta (x_t , t , y ) - epsilon_theta ( x_t, t, emptyset ))
+$
+
+经过以上修改之后，我们就完成了无分类器指引的实现。这里以$gamma = 3$（`gamma=3.0`）声称了数据。
+
+无分类器指引可以通过$gamma$来调整条件的重视程度。而且由于无需另外训练分类器，因此在资源和时间方面更为高效。
+
 == Stable Diffusion
 
 到目前为止，我们已经实现了处理MNIST的小型扩散模型以及小型条件扩散模型。当然，现代的扩散模型规模相当庞大，而且经过了多项改进。下面是一些进一步改进扩散模型的指引。这里我们介绍一个著名的模型——Stable Diffusion，它能够生成下图所示的高清图像。另外，它的代码和预训练的权重数据是公开的，任何人都可以运行这些代码。
@@ -2884,5 +2937,9 @@ class UNetCond(nn.Module):
 #figure(
   image("sd-image.png"),
   caption: [Stable Diffusion生成的高清图像],
-)
+) <sd-image>
+
+```python
+# $#text[@sd-image]$
+```
 

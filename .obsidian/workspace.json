@@ -51,14 +51,14 @@
             "state": {
               "type": "image",
               "state": {
-                "file": "sd-image.png"
+                "file": "orange-book/正向扩散公式图解.svg"
               },
               "icon": "lucide-image",
-              "title": "sd-image"
+              "title": "正向扩散公式图解"
             }
           }
         ],
-        "currentTab": 3
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -207,53 +207,53 @@
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
-  "active": "e8a2592303b55be3",
+  "active": "57086a79925766d8",
   "lastOpenFiles": [
+    "orange-book/正向扩散公式图解.svg",
+    "Excalidraw/3.1.excalidraw.md",
+    "Excalidraw/扩散模型采样示意图.excalidraw.md",
+    "Excalidraw/3.2.excalidraw.md",
+    "Excalidraw/3.3.excalidraw.md",
+    "Excalidraw/3.4.excalidraw.md",
+    "Excalidraw/3.5.excalidraw.md",
+    "Excalidraw/3.6.excalidraw.md",
+    "Excalidraw/3.7.excalidraw.md",
+    "Excalidraw/3.8.excalidraw.md",
+    "Excalidraw/3.9.excalidraw.md",
+    "Excalidraw/3.10.excalidraw.md",
+    "Excalidraw/3.11.excalidraw.md",
+    "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
+    "Excalidraw/模型的设计要点.excalidraw.md",
+    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
+    "Excalidraw/简单损失函数.excalidraw.md",
+    "orange-book/扩散模型采样示意图.svg",
+    "未命名.md",
+    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap",
+    "orange-book/通过反向传播可以求出logp.svg.crswap",
+    "条件扩散模型.excalidraw.md",
+    "Drawing 2025-11-22 18.04.47.excalidraw.md",
+    "Drawing 2025-09-29 16.50.38.excalidraw.md",
+    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
+    "orange-book/将clip嵌入映射到gpt嵌入.svg",
+    "5. 图生文（ClipCap）.md",
+    "orange-book/clipcap的简单示例-backup.pdf",
+    "orange-book/clipcap的简单示例-backup.svg",
+    "orange-book/clipcap的简单示例.pdf",
+    "orange-book/model.py",
+    "sd-image.png",
     "orange-book/clipcap的简单示例.svg.crswap",
     "orange-book/clipcap的简单示例.svg",
     "orange-book/将clip嵌入映射到gpt嵌入.svg.crswap",
-    "orange-book/将clip嵌入映射到gpt嵌入.svg",
     "orange-book/clipcap的推理.svg.crswap",
     "orange-book/clipcap的推理.svg",
     "orange-book/sd-image.png",
     "Pasted Image 20251121162426_433.png",
-    "Drawing 2025-11-22 18.04.47.excalidraw.md",
-    "sd-image.png",
-    "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "orange-book/sd-image.webp",
-    "未命名.md",
     "orange-book/预测图像和预测噪声.svg",
-    "orange-book/预测图像与实际图像之间的差异使用损失函数计算.svg",
-    "orange-book/预测噪声.svg",
     "orange-book/u-net-illustration-correct-scale2.pdf",
-    "orange-book/t.typ",
-    "orange-book/sample.bib",
-    "orange-book/main.typ",
-    "orange-book/main.pdf",
-    "orange-book/main-diagrams.pdf",
-    "orange-book",
-    "Drawing 2025-11-21 16.22.48.excalidraw.md",
     "附录A：扩散模型数学推导.md",
     "附录B：梯度下降习题.md",
-    "条件扩散模型.excalidraw.md",
-    "文生图扩散解码器.excalidraw.md",
-    "1. Vision Transformer.md",
-    "papers/unclip.pdf",
-    "img/条件扩散模型.excalidraw.md",
-    "img/图片token和文本token.excalidraw.md",
-    "codes/chapter03/README.md",
-    "codes/appendix-a/README.md",
-    "Excalidraw/简单损失函数.excalidraw.md",
-    "Excalidraw/模型的设计要点.excalidraw.md",
-    "Excalidraw/扩散模型采样示意图.excalidraw.md",
-    "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
-    "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
-    "Excalidraw/3.9.excalidraw.md",
-    "Excalidraw/3.8.excalidraw.md",
-    "Excalidraw/3.7.excalidraw.md",
-    "Excalidraw/3.6.excalidraw.md",
-    "Excalidraw/3.5.excalidraw.md",
-    "Excalidraw/3.4.excalidraw.md",
-    "Excalidraw/3.3.excalidraw.md"
+    "文生图扩散解码器.excalidraw.md"
   ]
 }
