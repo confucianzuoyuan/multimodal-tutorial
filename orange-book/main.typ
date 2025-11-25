@@ -150,7 +150,7 @@ self.linear_project = nn.Conv2d(
 )
 ```
 
-在 `forward` 方法中，我们通过 `linear_project/Conv2D` 方法传递具有形状 `(B, C, H, W)` 的输入，并输出形状 `(B, d_model, P_col, P_row)` 的张量。
+在 `forward` 方法中，我们通过 `linear_project/Conv2d` 方法传递具有形状 `(B, C, H, W)` 的输入，并输出形状 `(B, d_model, P_col, P_row)` 的张量。
 
 ```python
 def forward(self, x):
@@ -279,10 +279,10 @@ return x
 
 #figure(
   image("添加类别token.png"),
-  caption: [左图：使用 `Conv2D` 运算分成 `16` 个 `8x8` 块的 `32x32` MNIST 图像。右图：添加位置编码和类别token后的 `16` 个图像补丁，使用随机数据初始化。],
+  caption: [左图：使用 `Conv2d` 运算分成 `16` 个 `8x8` 块的 `32x32` MNIST 图像。右图：添加位置编码和类别token后的 `16` 个图像补丁，使用随机数据初始化。],
 )
 
-请注意，我们已经用 64 个卷积核初始化了 `Conv2D` 运算，每个卷积核中的每个补丁只占用一个像素，以免扭曲图像。
+请注意，我们已经用 64 个卷积核初始化了 `Conv2d` 运算，每个卷积核中的每个补丁只占用一个像素，以免扭曲图像。
 
 == 注意力头
 
@@ -1557,7 +1557,7 @@ for value, index in zip(values, indices):
 
 对于zero-shot分类，我们将图像与类别的名称进行比较。我们输入标签以与图像进行比较，它将返回前5个预测以及预测的可能性。这不是CLIP执行zero-shot分类的最佳示例。使用MNIST数据集使模型易于训练，但标题不是很丰富。要真正理解CLIP的zero-shot功能，包含多个名称的训练集会更合适。真正的zero-shot检测将允许检测以前未见过的排列。
 
-#tip[
+#tip(title: "应用举例：文搜图")[
   具体步骤如下：
   + 将数据库中的所有图片使用clip的图像编码器进行抽取特征
   + 将抽取的图片特征存入向量数据库
@@ -1608,18 +1608,18 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
 根据 GPT-2 是否经过微调，ClipCap 有两种变体 ：
 
 - 如果我们对 GPT-2 进行微调 ，那么我们就用 MLP 作为映射网络。GPT-2 和 MLP 都经过训练。
-- 如果我们不对 GPT-2 进行微调，那么我们就用Transformer架构（例如Bert）作为映射网络，只有变换器本身被训练。
+- 如果我们不对 GPT-2 进行微调，那么我们就用Transformer架构（例如Bert）作为映射网络，只有Transformer本身被训练。
 
 就我而言，我选择对 GPT-2 模型进行微调 ，并使用 MLP 作为映射网络。
 
 == 推理
 
-在我们这里，这意味着为未见的图片生成说明文字。
+在我们这里，这意味着为没见过的图片生成说明文字。
 
 让我们用一辆蓝色汽车的图片作为推理过程的例子：
 
-+ 输入图像被转换为CLIP嵌入。
-+ 该嵌入通过映射网络传递，生成前缀嵌入 。
++ 输入图像被转换为CLIP图像嵌入。
++ CLIP图像嵌入通过映射网络传递，生成前缀嵌入 。
 + 在时间步`t=1`时，我们将这些前缀嵌入传递到GPT2。模型预测下一个token——假设是"a"。我们将此附加到序列中。
 + 在`t=2`时，我们将更新后的输入序列（前缀+"a"）传递给GPT2。它预测下一个token——这次可能是"蓝色"。
 + 这一过程持续进行，模型一次预测一个token，直到它：
@@ -1638,7 +1638,7 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
 === 项目配置
 
 #codly(
-  header: [config.py]
+  header: [config.py],
 )
 ```python
 import torch
@@ -1657,7 +1657,7 @@ device = torch.device("cuda")
 === 处理数据
 
 #codly(
-  header: [process_data.py]
+  header: [process_data.py],
 )
 ```python
 from PIL import Image
@@ -1711,11 +1711,11 @@ if __name__ == '__main__':
 
 #figure(
   image("clipcap模型的设计要点.svg"),
-  caption: [clipcap的模型设计要点]
+  caption: [clipcap的模型设计要点],
 )
 
 #codly(
-  header: [model.py]
+  header: [model.py],
 )
 ```python
 import torch
@@ -1865,7 +1865,7 @@ class ClipCapDataset(Dataset):
 
 #figure(
   image("clip接生成模型的训练目标.svg"),
-  caption: [clipcap的训练目标]
+  caption: [clipcap的训练目标],
 )
 
 #codly(header: [train.py])
@@ -1907,7 +1907,7 @@ def train(model, train_loader, optimizer):
             # logits.size(-1): 取 logits 的最后一维大小。一般最后一维是词表大小 vocab_size。
             # 原 logits 形状通常是 [B, L, V]（批大小、序列长度、词表大小）。
             # 经过切片后，shift_logits 的形状是 [B, L-1, V]。
-            # 再 `.contiguous().view(-1, logits.size(-1))` 
+            # 再 `.contiguous().view(-1, logits.size(-1))`
             # 就变成 [B*(L-1), V]，把前两维展平，便于和标签做交叉熵。
             # caption_ids 形状通常是 [B, L-1]（与 shift_logits 的时间步对齐）。
             # caption_ids.view(-1) 把它展平成 [B*(L-1)]，与 shift_logits 的第一维对齐，
@@ -1941,7 +1941,7 @@ if __name__ == '__main__':
 
 #figure(
   image("clipcap根据图片嵌入预测下一个token.svg"),
-  caption: [clipcap只根据图片的嵌入预测文本的token，也就是看图说话，不再需要文本了！]
+  caption: [clipcap只根据图片的嵌入预测文本的token，也就是看图说话，不再需要文本了！],
 )
 
 #codly(header: [infer.py])
@@ -2075,8 +2075,22 @@ if __name__ == '__main__':
 
 #figure(
   image("A800训练10个小时的效果.png"),
-  caption: [A800训练10个小时的效果]
+  caption: [A800训练10个小时的效果],
 )
+
+== 拓展：Qwen3-VL
+
+#figure(
+  image("qwen2.5vl_arc.jpeg"),
+  caption: [Qwen2.5-VL 框架展示了视觉编码器与语言模型解码器的集成，用以处理包括图像和视频在内的多模态输入。视觉编码器被设计为处理原生分辨率的输入并支持动态帧率采样。不同尺寸的图像和具有不同时帧率的视频帧被动态映射为长度各异的token序列。值得注意的是，MRoPE 在时间维度上将时间 ID 与绝对时间对齐，使模型能够更好地理解时间动态，例如事件的节奏和精确的时刻定位。处理后的视觉数据随后被输入到 Qwen2.5 LM 解码器。我们对ViT架构进行了重构，加入了诸如带 SwiGLU 激活的前馈网络（FFN）、用于归一化的 RMSNorm 以及基于窗口的注意力机制等先进组件，以提升性能和效率。],
+)
+
+Qwen2.5-VL 的整体模型架构由三部分组成：
+
++ 大语言模型：Qwen2.5-VL 系列以大语言模型（LLM）作为其基础组件。该模型以 Qwen2.5 LLM 的预训练权重进行初始化。为了更好地满足多模态理解的需求，我们将一维 RoPE（旋转位置嵌入）修改为与绝对时间对齐的多模态旋转位置嵌入（Multimodal Rotary Position Embedding Aligned to Absolute Time）。
++ 视觉编码器：Qwen2.5-VL 的视觉编码器采用了重新设计的ViT架构。在结构上，我们引入了二维 RoPE 和窗口注意力，以支持原生输入分辨率并加速整个视觉编码器的计算。在训练和推理过程中，输入图像的高度和宽度在送入 ViT 之前会被调整为 28 的倍数。视觉编码器通过以 14 的步幅将图像切分为补丁来处理图像，生成一组图像特征。
++ 基于 MLP 的视觉-语言合并器：为了解决图像特征长序列带来的效率问题，我们采用一种简单但有效的方法：在将特征序列输入大型语言模型（LLM）之前对其进行压缩。具体来说，我们不是直接使用由ViT提取的原始的补丁嵌入，我们首先将空间上相邻的四个补丁嵌入分为一组。然后将这些分组嵌入串联起来，并通过一个两层的多层感知器（MLP）投影到与在 LLM 中使用的文本嵌入对齐的维度。该方法不仅降低了计算成本，还为动态压缩不同长度的图像特征序列提供了一种灵活的途径。
+
 
 #chapter("扩散模型", image: image("./orange2.jpg"), l: "multimodal-diffuser")
 
@@ -2244,7 +2258,58 @@ $
 
 $
   x_t = sqrt(1-beta_t) x_(t-1) + sqrt(beta_t) epsilon_(t-1)
-$
+$ <step-by-step-add-noise>
+
+#codly(header: [@step-by-step-add-noise 的代码实现，逐步向图片中添加噪声])
+```python
+import torch
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+
+image = plt.imread("./flower.png")
+print(image.shape)
+
+preprocess = transforms.ToTensor()
+x = preprocess(image)
+print(image.shape)
+
+def reverse_to_img(x):
+    x = x * 255
+    x = x.clamp(0, 255)
+    x = x.to(torch.uint8)
+    to_pil = transforms.ToPILImage()
+    return to_pil(x)
+
+# 最大时间步
+T = 1000
+# 方差计划的起始值
+beta_start = 0.0001
+# 方差计划的结束值
+beta_end = 0.02
+betas = torch.linspace(beta_start, beta_end, T)
+print(betas)
+
+imgs = []
+
+for t in range(T):
+    if t % 100 == 0:
+        img = reverse_to_img(x)
+        imgs.append(img)
+
+    beta = betas[t]
+    eps = torch.randn_like(x) # 生成和x形状相同的噪声
+    x = torch.sqrt(1 - beta) * x + torch.sqrt(beta) * eps
+
+# 2行5列的方式显示10张图片
+plt.figure(figsize=(15, 6))
+for i, img in enumerate(imgs[:10]):
+    plt.subplot(2, 5, i + 1)
+    plt.imshow(img)
+    plt.title(f"Noise: {i * 100}")
+    plt.axis("off")
+
+plt.show()
+```
 
 #danger(title: "一步一步的添加噪声太麻烦了！")[
   根据上面的公式，如果想要从原始图片 $x_0$ 得到添加了 500 步噪声的图片 $x_500$ 需要迭代 500 次！
@@ -2257,7 +2322,7 @@ $
 #tip(title: "给定原始图片" + $x_0$ + "和时间步" + $t$ + "直接采样出" + $x_t$ + "的公式")[
   $
     x_t = sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon
-  $
+  $ <closed-form-add-noise>
   其中：
   - $overline(alpha)_t=alpha_t alpha_(t-1) dots alpha_1$
   - $alpha_t = 1 - beta_t$
@@ -2265,6 +2330,63 @@ $
 ]
 
 现在我们可以使用此公式在任何时间步直接对 $x_t$ 进行采样，这使得前向扩散过程更快。
+
+#codly(header: [@closed-form-add-noise 的实现，使用闭式解添加噪声])
+```python
+import torch
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+
+image = plt.imread("./flower.png")
+print(image.shape)
+
+preprocess = transforms.ToTensor()
+x = preprocess(image)
+print(image.shape)
+
+
+def reverse_to_img(x):
+    x = x * 255
+    x = x.clamp(0, 255)
+    x = x.to(torch.uint8)
+    to_pil = transforms.ToPILImage()
+    return to_pil(x)
+
+
+# 最大时间步
+T = 1000
+# 方差计划的起始值
+beta_start = 0.0001
+# 方差计划的结束值
+beta_end = 0.02
+betas = torch.linspace(beta_start, beta_end, T)
+print(betas)
+
+# 一步得到x_t,使用闭式解（closed form）
+def add_noise(x_0, t, betas):
+    T = len(betas)
+
+    alphas = 1 - betas  # [α_1, α_2, ...]
+    # cumprod功能：[1,2,3,4] --> [1,2,6,24]
+    alpha_bars = torch.cumprod(alphas, dim=0)
+    t_idx = t - 1
+    alpha_bar = alpha_bars[t_idx]  # alpha_bar_t
+
+    eps = torch.randn_like(x_0)
+    # 闭式解
+    x_t = torch.sqrt(alpha_bar) * x_0 + torch.sqrt(1 - alpha_bar)*eps
+
+    return x_t
+
+t = 100
+x_t = add_noise(x, t, betas)
+
+img = reverse_to_img(x_t)
+plt.imshow(img)
+plt.title(f"Noise: {t}")
+plt.axis("off")
+plt.show()
+```
 
 === 反向扩散过程
 
@@ -2550,39 +2672,145 @@ def pos_encoding(timesteps, output_dim, device='cpu'):
 
 === U-Net神经网络
 
+U-Net最初是为医学图像的语义分割而开发的模型。语义分割是为图像中的每个像素分配特定的类别标签的任务，如图所示。
+
 #figure(
-  image("u-net-illustration-correct-scale2.svg"),
-  caption: [U-net模型],
+  image("unet-tiger.png"),
+  caption: [U-Net执行语义分割],
 )
 
-先来编写卷积块。
+图中U-Net的输入是形状为`(C, H, W)`的图像数据，其中，`C`是输入图像的通道数（RGB图像为3），`H`是图像的高度，`W`是图像的宽度。输出是形状为`(D, H, W)`的张量，其中`D`是要分类的类别数。模型对每个像素输出`D`个类别的概率分布。而在扩散模型中，输出被设置为`(C, H, W)`（D=C），即输入和输出的通道数都被设置为`C`。
 
+U-Net的名称源于网络结构的形状，因为它与字母"U"的形状相似。
+
+#figure(
+  image("myunet.svg"),
+  caption: [本章要实现的U-Net],
+)
+
+U-Net的处理过程分为前半部分的"缩小阶段"和后半部分的"扩大阶段"。在前半部分的缩小阶段中，在卷积层进行处理的同时，特征图会逐渐缩小。缩小特征图的层称为"下采样层"。在后半部分的扩大阶段中，在卷积层进行特征抽取的同时，特征图会逐渐扩大，这与前半部分正好相反。扩大特征图的层称为"上采样层"。
+
+U-Net的重要特征是跳跃连接（skip connection）。这是一种在网络的缩小阶段和扩大阶段之间直接传递特征图的机制。这种跳跃连接使得U-Net能够捕捉对象整体的特征，同时使用更精细的空间位置信息进行处理。
+
+如上图所示，U-Net包含两个缩小阶段和两个扩大阶段。每个阶段由两个卷积层进行处理。为了实现这个U-Net，首先要实现一个名为ConvBlock的类。如下图所示，该类分别对卷积层，批量归一化层和ReLU函数的处理执行了两次。
+
+#figure(
+  image("ConvBlock类执行的处理.svg"),
+  caption: [ConvBlock类执行的处理],
+)
+
+然后是ConvBlock类的代码，如下所示。
 
 ```python
+import torch
+from torch import nn
+
 class ConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, time_embed_dim):
+    def __init__(self, in_ch, out_ch):
         super().__init__()
         self.convs = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, 3, padding=1),
-            nn.BatchNorm2d(out_ch),
-            nn.ReLU(),
-            nn.Conv2d(out_ch, out_ch, 3, padding=1),
-            nn.BatchNorm2d(out_ch),
+            nn.Conv2d(in_ch, out_ch, 3, padding=1)
+            nn.BatchNorm2d(out_ch)
+            nn.ReLU()
+            nn.Conv2d(out_ch, out_ch, 3, padding=1)
+            nn.BatchNorm2d(out_ch)
             nn.ReLU()
         )
-        self.mlp = nn.Sequential(
-            nn.Linear(time_embed_dim, in_ch),
-            nn.ReLU(),
-            nn.Linear(in_ch, in_ch)
-        )
 
-    def forward(self, x, v):
-        N, C, _, _ = x.shape
-        v = self.mlp(v)
-        v = v.view(N, C, 1, 1)
-        y = self.convs(x + v)
-        return y
+    def forward(self, x):
+        return self.convs(x)
 ```
+
+这段代码使用`nn.Sequential()`串联了多个层。这样做的目的是使数据按顺序逐层通过。使用ConvBlock类，我们可以实现上图所示的UNet类。代码如下所示。
+
+```python
+class UNet(nn.Module):
+    def __init__(self, in_ch=1):
+        super().__init__()
+
+        self.down1 = ConvBlock(in_ch, 64)
+        self.down2 = ConvBlock(64, 128)
+        self.bot1 = ConvBlock(128, 256)
+        self.up2 = ConvBlock(128 + 256, 128)
+        self.up1 = ConvBlock(128 + 64, 64)
+        self.out = nn.Conv2d(64, in_ch, 1)
+
+        self.maxpool = nn.MaxPool2d(2)
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear")
+
+    def forward(self, x):
+        x1 = self.down1(x)
+        x = self.maxpool(x1)
+        x2 = self.down2(x)
+        x = self.maxpool(x2)
+        x = self.bot1(x)
+
+        x = self.upsample(x)
+        x = torch.cat([x, x2], dim=1)
+        x = self.up2(x)
+        x = self.upsample(x)
+        x = torch.cat([x, x1], dim=1)
+        x = self.up1(x)
+        x = self.out(x)
+        return x
+```
+
+这段代码使用最大池化（`nn.MaxPool2d`）来缩小数据。这会使张量的大小缩小1/2。而在扩大数据的处理中，代码使用了双线性插值的上采样（`nn.Upsample`）。这会使张量的大小扩大２倍。
+
+#tip(title: "双线性插值")[
+  双线性插值是一种用于扩大图像大小的技术。双线性插值可以创建新的像素，其值基于原始图像中像素的值计算得出。这样就能平滑地扩大图像。
+]
+
+进行U-Net的跳跃连接的代码是`torch.cat([x, x1], dim=1)`。`torch.cat()`函数是连接张量的函数，其中`dim=1`指定了连接的维度。在本例中，
+如果`x`的形状是`(N, C, H, W)`，`x1`的形状是`(N, I, H, W)`，那么连接后的张量的形状就是`(N, C + I, H, W)`。
+
+上面我们实现了处理$x_t$的U-Net。剩下的任务是将时刻$t$引入U-Net中。需要注意的是这里的$t$是整数。在神经网络中，将整数变换为向量可以提高训练和预测的效率。扩散模型在对时刻$t$进行编码时，常常使用正弦位置编码。
+
+正弦位置编码因在论文"Attention Is All You Need"的Transformer模型中使用而闻名。正弦位置编码的意思是"使用正弦波（sin波）对位置信息进行编码"。位置信息是指序列数据中每个元素出现的位置。例如，在自然语言处理任务中，单词出现的位置就相当于位置信息。扩散模型的时刻$t$也是位置信息。
+
+正弦位置编码可以将整数$t$变换为向量$bold(v)$。如果变换后的向量$bold(v)$的维度为$D$，则其第$i$个元素的数学式如下所示。
+
+$
+  bold("v")_i = cases(
+    sin (t/(10000^(i/D))) ",  " i"为偶数时", ,
+    cos (t/(10000^(i/D))) ",  " i"为奇数时"
+  )
+$
+
+上面的正弦位置编码不以绝对值来编码位置信息，而是通过具有循环特性的sin函数和cos函数来编码位置信息。这样一来，位置信息中的相对差异和循环模式就能清晰地显示出来，使模型能够更有效地学习序列数据中的相对位置关系。
+
+下面我们来实现正弦位置编码。首先，我们将实现对单个时刻数据（整数）进行编码的函数`_pos_encoding()`。然后，我们将使用它来实现一个名为`pos_encoding()`的处理批量数据的的数。以下是`_pos_encoding()`的代码。
+
+```python
+import torch
+
+def _pos_encoding(t, output_dim, device="cpu"):
+    D = output_dim
+    v = torch.zero(D, device=device)
+    i = torch.arange(0, D, device=device) ①
+    div_term = 10000 ** (i / D)
+
+    v[0::2] = torch.sin(t / div_term[0::2]) ②
+    v[1::2] = torch.cos(t / div_term[1::2])
+    return v
+```
+
+这段代码基于输入时刻（`t`）和输出维度（`output_dim`）进行位置编码。代码①处通过`torch.arange(D)`创建张量`[0, 1, ..., D]`。代码②处使用切片语法`v[0::2]`来指定"从`v`的第0个元素开始，每次跳过一个元素后的所有元素"。也就是说，指定向量`v`的偶数索引`(0, 2, 4, ...)`对应的元素，并对这些元素进行正弦编码。
+
+接下来，我们将实现用于处理批量数据的正弦位置编码。为了易于理解，这里使用`for`语句来实现，代码如下所示。
+
+```python
+def pos_encoding(ts, output_dim, device="cpu"):
+    batch_size = len(ts)
+    v = torch.zeros(batch_size, output_dim, device=device)
+    for i in range(batch_size):
+        v[i] = _pos_encoding(ts[i], output_dim, device)
+    return v
+```
+
+参数`ts`是张量。对于该张量的每个元素，调用刚刚实现的`_pos_encoding`函数。这样我们就完成了正弦位置编码的实现。
+
+
 
 完整的 U-Net 结果如下
 
@@ -2893,6 +3121,27 @@ show_images(images)
 ```
 
 #chapter("扩散模型背后的数学理论", image: image("./orange2.jpg"), l: "multimodal-diffuser-math")
+
+由于我们正在创建一个生成模型，我们希望找到真实图像的分布。
+
+给定一个目标和未知的概率分布，可以构造一条马尔可夫链，用来近似该目标概率分布。执行近似时包含的步骤越多，样本的分布就越接近真实分布。
+
+当当前决策仅取决于你所在的位置而非起点时，过程就是马尔可夫过程。存在概率转移矩阵，我们可以构建一个链结构，称为马尔可夫链。
+
+#figure(
+  $
+             p(x) & prop e^(-f(x)) arrow.stroked log p(x) = -f(x) + "常数" space space space & (1) \
+    therefore x_t & = x_(t-1) - eta_t nabla f(x_(t-1))                                       & (2) \
+          x_(t+1) & = x_t - epsilon/2 nabla f(x_t) + sqrt(epsilon) cal(N)(0,I)               & (3) \
+  $,
+  caption: [郎之万动力学],
+) <Langevin>
+
+郎之万动力学是目前最流行的MCMC（马尔可夫蒙特卡洛采样）方法之一。如果我们有一个概率分布 $p(x)$ 且是马尔可夫分布，则它属于指数分布类。这在@Langevin(1)中给出，其中$f(x)$是某个使得该方程成立的函数。假设我们没有直接从该分布中采样的方法。假设我们只能知道函数在每一点的梯度$nabla f(x)$。如果是这样，我们可以应用梯度下降来求出分布的模态。这由@Langevin(2)给出，其中$eta$是时间步$t$的学习率。如果我们能找到分布的模态，那么我们就能找到密度中具有峰值的区域。由于在我们的训练数据中，会有很多"好"图像，这意味着去到峰值时，会得到这些好图像。郎之万采样是对该梯度下降算法的有趣修改，由@Langevin(3)给出。这里我们在梯度下降公式的每个步骤中添加一个噪声项。
+
+一个问题是，如果想加快过程，可能会选择$epsilon$的值过高，这可能导致上述方程(3)不稳定并发散。所以，如果我们能提供某种形式的保证，保证更新规则会收敛，那就更好了。
+
+
 
 #figure(
   image("正向扩散和逆向扩散.png"),

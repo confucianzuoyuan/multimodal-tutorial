@@ -30,3 +30,4 @@ $
 $
   mark(x, color: #rgb("#29a321")) + markhl(f(x)) + markrect(e^x) + markul(x + 1)
 $
+

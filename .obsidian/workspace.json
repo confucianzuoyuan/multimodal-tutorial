@@ -79,12 +79,12 @@
             "id": "c61ce398606b94e0",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
+              "type": "pdf",
               "state": {
-                "file": "Drawing 2025-11-22 18.04.47.excalidraw.md"
+                "file": "orange-book/u-net-illustration-correct-scale2.pdf"
               },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2025-11-22 18.04.47.excalidraw"
+              "icon": "lucide-file-text",
+              "title": "u-net-illustration-correct-scale2"
             }
           }
         ],
@@ -239,11 +239,22 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
-    "orange-book/clipcap根据图片嵌入预测下一个token.svg",
+    "orange-book/ConvBlock类执行的处理.svg.crswap",
+    "orange-book/ConvBlock类执行的处理.svg",
+    "orange-book/myunet.svg.crswap",
+    "orange-book/myunet.svg",
+    "orange-book/u-net-illustration-correct-scale2.svg",
+    "orange-book/u-net-illustration-correct-scale2.pdf",
+    "Drawing 2025-11-22 18.04.47.excalidraw.md",
+    "unet-tiger.png",
+    "orange-book/unet-tiger.png",
     "Pasted Image 20251121162426_433.png",
+    "orange-book/unet-dog.jpeg",
+    "orange-book/未确认 753900.crdownload",
+    "orange-book/qwen2.5vl_arc.jpeg",
+    "orange-book/clipcap根据图片嵌入预测下一个token.svg",
     "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
     "5. 图生文（ClipCap）.md",
-    "Drawing 2025-11-22 18.04.47.excalidraw.md",
     "附录A：扩散模型数学推导.md",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "orange-book/clip接生成模型的训练目标.svg",
@@ -252,38 +263,27 @@
     "Excalidraw/3.8.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
     "Excalidraw/3.10.excalidraw.md",
-    "img/共享模型.png",
-    "img/正向扩散和逆向扩散.png",
     "Excalidraw/3.1.excalidraw.md",
     "Excalidraw/简单损失函数.excalidraw.md",
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/模型的设计要点.excalidraw.md",
-    "orange-book/clipcap模型的设计要点.svg",
     "文生图扩散解码器.excalidraw.md",
     "3. 扩散模型（diffusion model）.md",
-    "orange-book/A800训练10个小时的效果.png",
     "Excalidraw/3.3.excalidraw.md",
-    "orange-book/去噪的解析解无法计算.svg",
     "2. CLIP.md",
     "4. 条件扩散模型.md",
     "7. 项目总结.md",
     "Excalidraw/3.2.excalidraw.md",
-    "orange-book/重参数技巧.svg",
     "条件扩散模型.excalidraw.md",
     "1. Vision Transformer.md",
     "Drawing 2025-11-21 16.22.48.excalidraw.md",
-    "sd-image.png",
-    "orange-book/将clip嵌入映射到gpt嵌入.svg",
     "orange-book/model.py",
     "orange-book/clipcap的简单示例.pdf",
     "orange-book/clipcap的简单示例-backup.pdf",
     "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
     "orange-book/通过反向传播可以求出logp.svg.crswap",
     "orange-book/使用预训练神经网络进行分类的示例.svg.crswap",
-    "orange-book/用于推断得分的神经网络.svg.crswap",
-    "orange-book/扩散模型中使用的推断噪声的神经网络.svg.crswap",
-    "orange-book/在扩散模型中添加嵌入层.svg.crswap",
-    "orange-book/条件扩散模型的神经网络.svg.crswap"
+    "orange-book/用于推断得分的神经网络.svg.crswap"
   ]
 }
