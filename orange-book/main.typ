@@ -49,6 +49,8 @@
   "FZShusong-Z01",
 ))
 
+#let colred(x) = text(fill: red, $#x$)
+
 #part("强化学习")
 
 #part("基于人类反馈的强化学习")
@@ -1303,7 +1305,7 @@ return {"image": img, "caption": cap, "mask": mask}
 
 #pagebreak()
 
-#tip[
+#error(title: "不要和因果注意力混淆！")[
   #figure(
     image("因果注意力.svg"),
     caption: [因果注意力分数的掩码],
@@ -1633,7 +1635,448 @@ CLIP 生成的图像嵌入开箱即用已经足够好——所以我们不训练
 
 == ClipCap的代码实现
 
+=== 项目配置
 
+#codly(
+  header: [config.py]
+)
+```python
+import torch
+
+CLIP_MODEL_PATH = "./chinese-clip-vit-base-patch16"
+# 一张图片的嵌入经过投影转换成10个token的embedding，每个embedding的dim是768
+IMAGE_TOKEN_LENGTH = 10 # 图片的token的数量
+MAX_LENGTH = 100 # 最大token数量
+# clip对接的大语言模型
+LLM_PATH = "./gpt2-chinese-cluecorpussmall"
+LLM_WORD_EMBD_DIM = 768 # gpt2的词嵌入维度
+IMAGE_EMBD_DIM = 512 # clip输出的图像嵌入的维度
+device = torch.device("cuda")
+```
+
+=== 处理数据
+
+#codly(
+  header: [process_data.py]
+)
+```python
+from PIL import Image
+import pickle
+from transformers import ChineseCLIPProcessor, ChineseCLIPModel
+from config import CLIP_MODEL_PATH
+
+
+def main():
+    # 加载clip模型
+    # clip模型只用来生成图片的嵌入，不进行微调。
+    clip_model = ChineseCLIPModel.from_pretrained(CLIP_MODEL_PATH)
+    # 加载clip处理器
+    processor = ChineseCLIPProcessor.from_pretrained(CLIP_MODEL_PATH)
+    # 将2张图片进行处理，处理完之后交给clip抽取特征
+    inputs_1 = processor(images=Image.open("1.jpg"), return_tensors="pt")
+    inputs_2 = processor(images=Image.open("2.jpg"), return_tensors="pt")
+    # 获取第一张图片的嵌入（dim: 512）
+    image_1_features = clip_model.get_image_features(**inputs_1)
+    image_2_features = clip_model.get_image_features(**inputs_2)
+    # 除以模长，归一化
+    image_1_features = image_1_features / \
+        image_1_features.norm(p=2, dim=-1, keepdim=True)  # normalize
+    image_2_features = image_2_features / \
+        image_2_features.norm(p=2, dim=-1, keepdim=True)  # normalize
+    # key：图片id
+    # value: 图片的嵌入
+    # 下面的字典也可以放在chroma这样的向量数据库
+    image_id2embed = {
+        1: image_1_features,
+        2: image_2_features,
+    }
+    # 图片的id和图片标题对
+    caption_list = [
+        (1, "两只狗在雪地里嬉闹"),
+        (2, "一件好看的立领的很特别的紫色风衣"),
+    ]
+
+    with open("caption_image.pkl", 'wb') as f:
+        pickle.dump([caption_list, image_id2embed], f)
+
+    print(f'图像嵌入的数量:{len(image_id2embed)}')
+    print(f'图像文本的数量:{len(caption_list)}')
+
+
+if __name__ == '__main__':
+    main()
+```
+
+=== 模型结构
+
+#figure(
+  image("clipcap模型的设计要点.svg"),
+  caption: [clipcap的模型设计要点]
+)
+
+#codly(
+  header: [model.py]
+)
+```python
+import torch
+import torch.nn as nn
+from transformers import GPT2LMHeadModel
+
+from typing import Sequence
+from config import LLM_PATH, IMAGE_TOKEN_LENGTH, IMAGE_EMBD_DIM
+
+
+class MLP(nn.Module):
+    """投影层"""
+    def __init__(self, sizes: Sequence[int]):
+        super().__init__()
+
+        in_dim, h1, out_dim = sizes
+        self.l1 = nn.Linear(in_dim, h1)
+        self.act1 = nn.Tanh()
+        self.l2 = nn.Linear(h1, out_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.float()
+        x = self.l1(x)
+        x = self.act1(x)
+        x = self.l2(x)
+        return x
+
+
+class ClipCaptionModel(nn.Module):
+    def __init__(self):
+        super(ClipCaptionModel, self).__init__()
+        # 大语言模型：用来生成图片的文本描述
+        self.gpt2 = GPT2LMHeadModel.from_pretrained(LLM_PATH)
+        # gpt2的词嵌入维度是768
+        self.word_embd_dim = self.gpt2.config.n_embd
+        # 投影层定义
+        self.projection = MLP((
+            # 输入维度是512,也就是clip的图像编码器输出的嵌入的维度
+            IMAGE_EMBD_DIM,
+            # (768 * 10) // 2
+            # 10是图片嵌入转换成的token数量
+            (self.word_embd_dim * IMAGE_TOKEN_LENGTH) // 2,
+            # 768 x 10，图片占10个token，每个token的嵌入和词嵌入相同是768维度
+            self.word_embd_dim * IMAGE_TOKEN_LENGTH
+        ))
+
+    def forward(self, image_embeds, caption_ids, mask):
+        # 张量形状：[B, 文本长度, gpt2的词嵌入的维度]
+        # 标题caption的每个token的词嵌入
+        caption_embeds = self.gpt2.transformer.wte(caption_ids)
+        # 将图片的嵌入转换为像词嵌入那样的维度：
+        # [B, 图片token的长度为10, gpt2的词嵌入的维度]
+        image_as_word_embeds = self.projection(
+            image_embeds
+        ).view(-1, IMAGE_TOKEN_LENGTH, self.word_embd_dim)
+        # 10个图片的token + 文本的token
+        # 张量形状：[B, 10+文本长度, 词嵌入维度]
+        embedding_cat = torch.cat((
+            image_as_word_embeds, # 图像的token
+            caption_embeds # 文本的token
+        ), dim=1)
+        out = self.gpt2(inputs_embeds=embedding_cat, attention_mask=mask)
+        # 张量形状：[B, 10+文本长度，词嵌入维度]
+        logits = out.logits
+        return logits
+```
+
+=== 准备训练数据集
+
+#codly(header: [clipcap_dataset.py])
+```python
+import torch
+from torch.utils.data import Dataset
+import pickle
+from typing import Tuple
+from config import IMAGE_TOKEN_LENGTH, MAX_LENGTH
+
+
+class ClipCapDataset(Dataset):
+    def __init__(self, tokenizer):
+        # 填充符
+        pad_id = tokenizer.pad_token_id
+        # 取出图片的文本和图片的嵌入
+        with open("caption_image.pkl", 'rb') as f:
+            caption_list, image_id2embed = pickle.load(f)
+        print('图片嵌入的总数:{}'.format(len(image_id2embed)))
+        print('图片描述的总数:{}'.format(len(caption_list)))
+
+        image_embed_list = []
+        caption_ids_list = []
+        mask_list = []
+        for image_id, caption in caption_list:
+            # 使用图像id获取图像的特征（clip.image_encoder输出的）
+            image_embed = image_id2embed[image_id]
+            # 只对文本进行分词，不添加任何特殊token
+            caption_ids = tokenizer.encode(
+                caption,
+                add_special_tokens=False
+            )
+            # 在文本的token列表后面添加一个分隔符token
+            caption_ids.append(tokenizer.sep_token_id)
+
+            # 截断
+            # 只能留下前90个token，因为图像对应的token需要占用10个token的位置
+            # 最终的数据是：图像的token列表 + 文本的token列表
+            caption_ids = caption_ids[:MAX_LENGTH - IMAGE_TOKEN_LENGTH]
+            # 图像部分和文本部分的token都要掩码
+            mask = [1] * (IMAGE_TOKEN_LENGTH + len(caption_ids))
+
+            # 填充pad
+            padding_len = MAX_LENGTH         \
+                        - IMAGE_TOKEN_LENGTH \
+                        - len(caption_ids)
+            caption_ids += [pad_id] * padding_len
+            # 将填充符掩码为0
+            mask += [0] * padding_len
+
+            caption_ids = torch.tensor(caption_ids).long()
+            mask = torch.tensor(mask).long()
+
+            image_embed_list.append(image_embed)
+            caption_ids_list.append(caption_ids)
+            mask_list.append(mask)
+        # 保存训练数据
+        with open("train_data.pkl", 'wb') as f:
+            pickle.dump([
+                image_embed_list, # clip输出的图片特征的列表
+                caption_ids_list, # 图片文本的input_ids的列表
+                mask_list # 掩码的列表
+            ], f)
+        self.image_embed_list = image_embed_list
+        self.caption_ids_list = caption_ids_list
+        self.mask_list = mask_list
+        print(f'训练数据总数：{len(self.image_embed_list)}')
+
+    def __len__(self) -> int:
+        return len(self.caption_ids_list)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, ...]:
+        image_embed = self.image_embed_list[index]
+        caption_ids = self.caption_ids_list[index]
+        mask = self.mask_list[index]
+        return image_embed, caption_ids, mask
+```
+
+=== 训练
+
+#figure(
+  image("clip接生成模型的训练目标.svg"),
+  caption: [clipcap的训练目标]
+)
+
+#codly(header: [train.py])
+```python
+import torch
+from torch.utils.data import DataLoader
+from transformers import BertTokenizer
+from tqdm import tqdm
+from clipcap_dataset import ClipCapDataset
+from model import ClipCaptionModel
+import torch.nn.functional as F
+from config import LLM_PATH, IMAGE_TOKEN_LENGTH, device
+
+
+def train(model, train_loader, optimizer):
+    model.train()
+    for _ in range(20):
+        for _, data in enumerate(tqdm(train_loader)):
+            image_embed, caption_ids, mask = data
+            image_embed = image_embed.to(device)
+            caption_ids = caption_ids.to(device)
+            mask = mask.to(device)
+            # 输出的logits
+            logits = model(image_embed, caption_ids, mask)
+
+            # 计算loss
+            # [图片的最后一个token]，[两]，[只]，[狗]
+            #          ↓            ↓    ↓
+            #         [两]         [只]  [狗]
+            shift_logits = logits[
+                :,
+                # 截取范围[图片的最后一个token～倒数第二个token]
+                IMAGE_TOKEN_LENGTH - 1: -1, # 去掉最后一个token
+                :
+            ].contiguous().view(-1, logits.size(-1))
+            # 预测目标
+            shift_labels = caption_ids.view(-1)
+            loss = F.cross_entropy(shift_logits, shift_labels)
+            # logits.size(-1): 取 logits 的最后一维大小。一般最后一维是词表大小 vocab_size。
+            # 原 logits 形状通常是 [B, L, V]（批大小、序列长度、词表大小）。
+            # 经过切片后，shift_logits 的形状是 [B, L-1, V]。
+            # 再 `.contiguous().view(-1, logits.size(-1))` 
+            # 就变成 [B*(L-1), V]，把前两维展平，便于和标签做交叉熵。
+            # caption_ids 形状通常是 [B, L-1]（与 shift_logits 的时间步对齐）。
+            # caption_ids.view(-1) 把它展平成 [B*(L-1)]，与 shift_logits 的第一维对齐，
+            # 用于计算 CrossEntropyLoss(shift_logits, shift_labels)。
+
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+    torch.save(model.state_dict(), f'model.pt')
+
+
+def main():
+    # 分词器
+    tokenizer = BertTokenizer.from_pretrained(LLM_PATH)
+    # 加载模型
+    model = ClipCaptionModel().to(device)
+
+    dataset = ClipCapDataset(tokenizer)
+    train_dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
+
+    train(model, train_dataloader, optimizer)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+=== 推理
+
+#figure(
+  image("clipcap根据图片嵌入预测下一个token.svg"),
+  caption: [clipcap只根据图片的嵌入预测文本的token，也就是看图说话，不再需要文本了！]
+)
+
+#codly(header: [infer.py])
+```python
+from PIL import Image
+import torch
+from transformers import BertTokenizer, ChineseCLIPModel, ChineseCLIPProcessor
+from model import ClipCaptionModel
+import torch.nn.functional as F
+from config import LLM_PATH, CLIP_MODEL_PATH, IMAGE_TOKEN_LENGTH, LLM_WORD_EMBD_DIM, device, MAX_LENGTH
+
+
+def generate(model, image_embeds, tokenizer):
+    """
+    :param image_embeds: [B, IMAGE_EMBD_DIM=512]
+    """
+
+    b_size = image_embeds.size(0)
+    pad_id = tokenizer.pad_token_id
+    sep_id = tokenizer.sep_token_id
+    unk_id = tokenizer.unk_token_id
+    temperature = 0.7
+
+    cur_len = 0
+    caption_ids = []    # 存储生成的caption
+
+    # gpt2模型的输入: inputs_embeds:[B, 图片token的数量为10, gpt2的词嵌入维度768]
+    # 先将图片特征投影为10个图片token
+    inputs_embeds = model.projection(
+        image_embeds
+    ).view(-1, IMAGE_TOKEN_LENGTH, LLM_WORD_EMBD_DIM)
+    finish_flag = [False] * b_size  # 第i个输入是否完成生成的标志
+
+    while True:
+        out = model.gpt2(inputs_embeds=inputs_embeds)
+        logits = out.logits  # [B, len, vocab_size]
+        # 采样下一个token
+        next_token_logits = logits[:, -1, :]    # 取最后一个单词的预测分布
+        next_token_logits = next_token_logits / temperature
+        next_token_logits[:, unk_id] = -float('Inf')   # 将unk设为无穷小
+
+        # 采样下一个token，多项分布
+        next_token_ids = torch.multinomial(
+            F.softmax(next_token_logits, dim=-1),
+            num_samples=1
+        ).squeeze(1).tolist()
+
+        # 分别判断生成图片是否已生成完毕
+        # index表示第index张正在生成文本的图片
+        for index in range(len(next_token_ids)):
+            token_id = next_token_ids[index]
+            # 如果第i个句子已经生成结束
+            if finish_flag[index]:
+                next_token_ids[index] = pad_id
+            # 如果第i个句子生成结束，预测到了分隔符
+            elif token_id == sep_id:
+                finish_flag[index] = True
+            # 生成刚开始
+            elif cur_len == 0:
+                caption_ids.append([token_id])
+            else:
+                caption_ids[index].append(token_id)
+        next_token_ids = torch.tensor(next_token_ids).to(device)
+        next_token_embeds = model.gpt2.transformer.wte(
+            next_token_ids).to(device).unsqueeze(1)
+        # 将生成的next token拼接到上文的后面，继续生成
+        inputs_embeds = torch.cat((inputs_embeds, next_token_embeds), dim=1)
+
+        cur_len += 1 # 生成长度+1
+        # 如果生成长度大于最大长度，或者所有图片的生成文本都结束了，退出生成过程。
+        if cur_len > MAX_LENGTH or False not in finish_flag:
+            break
+
+    # 对token_id进行解码
+    captions = []
+    for caption_id in caption_ids:
+        caption = tokenizer.convert_ids_to_tokens(caption_id)
+        caption = ''.join(caption)
+        captions.append(caption)
+
+    return captions
+
+
+def main():
+    # 分词器
+    tokenizer = BertTokenizer.from_pretrained(LLM_PATH)
+    # 初始化模型
+    model = ClipCaptionModel().to(device)
+    # 加载权重
+    model.load_state_dict(torch.load(
+        "model.pt",
+        map_location=device
+    ), False)
+    model.eval()
+
+    # 加载clip模型
+    clip_model = ChineseCLIPModel.from_pretrained(CLIP_MODEL_PATH)
+    processor = ChineseCLIPProcessor.from_pretrained(CLIP_MODEL_PATH)
+    inputs_1 = processor(images=Image.open("1.jpg"), return_tensors="pt")
+    inputs_2 = processor(images=Image.open("2.jpg"), return_tensors="pt")
+    image_1_features = clip_model.get_image_features(**inputs_1)
+    image_2_features = clip_model.get_image_features(**inputs_2)
+    image_1_features = image_1_features / \
+        image_1_features.norm(p=2, dim=-1, keepdim=True)  # normalize
+    image_2_features = image_2_features / \
+        image_2_features.norm(p=2, dim=-1, keepdim=True)  # normalize
+    # 将两张图片的特征打包成一个批次数据
+    data = torch.stack([
+        image_1_features,
+        image_2_features
+    ], dim=0).to(device)
+    captions = generate(model, data, tokenizer)
+    print(captions)
+    captions = generate(model, data, tokenizer)
+    print(captions)
+    captions = generate(model, data, tokenizer)
+    print(captions)
+    captions = generate(model, data, tokenizer)
+    print(captions)
+    captions = generate(model, data, tokenizer)
+    print(captions)
+
+
+if __name__ == '__main__':
+    main()
+```
+
+== 应用：图生文
+
+当前电商平台上的商品描述主要依赖商家手工编写，质量参差不齐，存在描述不准确、信息不完整、语言不标准等问题。这不仅影响用户的购买决策，还增加了平台内容审核与优化的成本。如何利用智能化手段快速生成高质量的商品描述，成为亟待解决的核心问题。
+
+#figure(
+  image("A800训练10个小时的效果.png"),
+  caption: [A800训练10个小时的效果]
+)
 
 #chapter("扩散模型", image: image("./orange2.jpg"), l: "multimodal-diffuser")
 
@@ -1954,7 +2397,7 @@ self.betas = torch.linspace(
 )
 ```
 
-而由于 $α_t=1-beta_t$ ，所以有如下代码
+而由于 $alpha_t=1-beta_t$ ，所以有如下代码
 
 ```python
 self.alphas = 1 - self.betas
@@ -2449,6 +2892,177 @@ images = diffuser.sample(model)
 show_images(images)
 ```
 
+#chapter("扩散模型背后的数学理论", image: image("./orange2.jpg"), l: "multimodal-diffuser-math")
+
+#figure(
+  image("正向扩散和逆向扩散.png"),
+  caption: [正向扩散和逆向扩散],
+)
+
+扩散模型的训练可以分为两部分：
+
+1. 正向扩散过程 #sym.arrow.long 给图像添加噪声。
+2. 反向扩散过程 #sym.arrow.long 从图像中去除噪声。
+
+== 正向扩散过程
+
+#figure(
+  image("正向扩散公式图解.svg"),
+  caption: [正向扩散公式图解],
+)
+
+前向扩散过程逐步将高斯噪声添加到输入图像 $x_0$ 中，总共会有 $T$ 步。该过程将产生一系列带噪声的图像样本 $x_1, dots, x_T$ 。
+
+当 $T arrow infinity$ 时，最终结果将变成完全噪声图像，就像从*各向同性*的高斯分布中采样出来的噪声一样。
+
+但我们不需要设计一种算法来迭代地向图像中添加噪声，而是可以使用闭式公式（解析解）在特定的时间步长 $t$ 直接对噪声图像进行采样。
+
+*前向扩散的闭式公式（解析解）*
+
+可以使用*重参数化技巧*推导出解析形式的采样公式。
+
+首先，如果 $z tilde cal(N) (mu,sigma^2)$ 的话，那么有下面的结论
+
+$
+  z = mu + sigma epsilon space "其中" epsilon tilde cal(N)(0, 1)
+$
+
+利用这个技巧，我们可以将采样图像 $x_t$ 表示如下：
+
+$
+  x_t = sqrt(1-beta_t)x_(t-1) + sqrt(beta_t) epsilon_(t-1)
+$
+
+*然后我们可以递归地展开它来得到闭合形式的公式*：
+
+我们先来写一些前置结论
+
+$
+  epsilon_0, ..., epsilon_(t-2), epsilon_(t-1) tilde cal(N) (0, I) \
+  overline(epsilon)_0, ..., overline(epsilon)_(t-2), overline(epsilon)_(t-1) tilde cal(N) (0, I) \
+  epsilon tilde cal(N)(0,I) \
+  alpha_t = 1 - beta_t \
+  overline(alpha)_t = product_(i=1)^t alpha_i
+$
+
+然后我们开始推导
+
+$
+  x_t &= sqrt(1-beta_t)x_(t-1) + sqrt(beta)_t colred(epsilon_(t-1)) \
+  &= sqrt(alpha_t) markrect(x_(t-1), color: #red, tag: #<xtminus1>) + sqrt(1-alpha_t) colred(epsilon_(t-1)) \
+  #linebreak()
+  #linebreak()
+  #linebreak()
+  #linebreak()
+  #linebreak()
+  &= sqrt(alpha_t)markrect((sqrt(alpha_(t-1))x_(t-2) + sqrt(1-alpha_(t-1)) colred(epsilon_(t-2))), color: #red, tag: #<xtminus2>) + sqrt(1-alpha_t) colred(epsilon_(t-1)) \
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + markrect(sqrt(alpha_t (1 - alpha_(t-1))) colred(epsilon_(t-2)) + sqrt(1-alpha_t) colred(epsilon_(t-1)), color: #red, tag: #<xtminus3>) &&\
+  #linebreak()
+  #linebreak()
+  #linebreak()
+  && colred("how?")
+  #linebreak()
+  #linebreak()
+  #linebreak()
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + markrect(sqrt(1-alpha_t alpha_(t-1)) colred(overline(epsilon)_(t-2)), color: #red, tag: #<xtminus4>) \
+  & space dots.v \
+  &= sqrt(alpha_t alpha_(t-1) dots.c alpha_1)x_0 + sqrt(1-alpha_t alpha_(t-1) dots.c alpha_1)epsilon \
+  &= sqrt(overline(alpha)_t)x_0 + sqrt(1-overline(alpha)_t)epsilon
+$
+
+#annot-cetz(
+  (<xtminus1>, <xtminus2>, <xtminus3>, <xtminus4>),
+  cetz,
+  {
+    import cetz.draw: *
+    set-style(mark: (end: "straight"), stroke: (dash: "dashed"))
+    bezier-through("xtminus1.south", (rel: (x: 1, y: -.5)), "xtminus2.north", stroke: red)
+    bezier-through("xtminus3.south-east", (rel: (x: 2.5, y: -0.5)), "xtminus4.north-east", stroke: red)
+  },
+)
+
+#tip[
+  所有 $epsilon$ 都是 i.i.d.（独立同分布）标准正态随机变量。
+
+  使用不同的符号和下标来区分它们非常重要，因为它们是独立的，并且在采样后它们的值可能会有所不同。
+]
+
+但是我们如何从第 4 行跳到第 5 行呢？
+
+也就是公式中的 #text(red)[how?] 怎么解决呢？
+
+#figure(
+  image("重参数技巧.svg"),
+  caption: [重参数技巧的使用],
+)
+
+我们用 $X$ 和 $Y$ 来表示这两个项。它们可以被视为来自两个不同正态分布的样本。即
+
+$
+  X tilde cal(N)(0,alpha_t(1-alpha_(t-1))I)
+$
+
+和
+
+$
+  Y tilde cal(N)(0,(1-alpha_(t))I)
+$
+
+回想一下，两个正态分布（独立）随机变量的和也是正态分布的。即，如果 $Z=X+Y$ ，那么有下面的公式
+
+$
+  Z tilde cal(N)(0, sigma^2_X+sigma^2_Y)
+$
+
+因此，我们可以将它们合并在一起，并以重新参数化的形式表示合并后的正态分布。这就是我们将这两个项合并的方法。
+
+重复这些步骤将为我们提供以下仅取决于输入图像 $x_0$ 的公式：
+
+$
+  x_t = sqrt(overline(alpha)_t)x_(0)+sqrt(1-overline(alpha)_t) epsilon
+$
+
+现在我们可以使用此公式在任何时间步骤直接对 $x_t$ 进行采样，这使得前向过程更快。
+
+== 逆向扩散过程
+
+$
+  q(x_t,x_(t-1)) = q(x_(t)|x_(t-1))q(x_(t-1)) = q(x_(t-1)|x_(t))q(x_(t))
+$
+
+贝叶斯公式
+
+$
+  q(x_(t-1)|x_t) = (q(x_t|x_(t-1)) q(x_(t-1))) / q(x_t)
+$
+
+贝叶斯推断
+
+$
+  q(x_(t-1)|x_t) prop q(x_t|x_(t-1)) q(x_(t-1))
+$
+
+贝叶斯推断为什么要忽略掉分母 $q(x_t)$ 呢？因为我们要计算的是，在 *固定* $x_t$ 的情况下，求 $x_(t-1)$ 的概率，所以 $q(x_t)$ 是个常数。可以忽略掉。
+
+现在的问题是，$q(x_t|x_(t-1))$ 我们已经知道公式了，但 $q(x_(t-1))$ 我们不知道怎么计算。
+
+#linebreak()
+#linebreak()
+$
+  q(x_(t-1)|x_t) prop mark(q(x_t|x_(t-1)), color: #green, tag: #<qcond1>) mark(q(x_(t-1)), color: #red, tag: #<qcond2>)
+  #annot(<qcond1>, pos: top + left, dy: -1.5em, leader-connect: "elbow")[已经知道公式了]
+  #annot(<qcond2>, pos: top + right, dy: -1.5em, leader-connect: "elbow")[#emoji.zombie 算不出来了]
+$
+
+
+
+#figure(
+  image("去噪的解析解无法计算.svg"),
+  caption: [去噪的解析解无法计算],
+)
+
+
+
 #chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 
 我们之前对数据$x$的概率$p(x)$进行了建模。但在实用层面，我们更希望对条件概率$p(x|y)$进行建模（其中$y$表示条件）。如果能成功建立$p(x|y)$的模型，那么就可以通过条件$y$控制想生成的$x$。
@@ -2488,7 +3102,6 @@ $
 
 为了得到条件扩散模型，我们要建模的对象是$p_theta (x_0|y)$，而不是$p_theta (x_0)$。实现这个目标的最简单的方法是在每个时刻的$p_theta (x_(t-1)|x_t)$中添加条件$y$。具体的数学式如下所示：
 
-#let colred(x) = text(fill: red, $#x$)
 
 $
   p_theta (x_0|colred(y))=integral p_theta (x_0|x_1,colred(y)) dots.c p_theta (x_(T-1)|x_T,colred(y)) p(x_T) upright(d)x_1 upright(d)x_T
@@ -2892,7 +3505,7 @@ for epoch in range(epochs):
         # 以10%的概率进行"无条件"的训练
         if np.random.random() < 0.1:
             labels = None
-        
+
         x_noisy, noise = diffuser.add_noise(x, t)
         noise_pred = model(x_noisy, t, labels)
         loss = F.mse_loss(noise, noise_pred)
