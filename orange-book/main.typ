@@ -3303,14 +3303,196 @@ $
   #annot(<qcond2>, pos: top + right, dy: -1.5em, leader-connect: "elbow")[#emoji.zombie 算不出来了]
 $
 
-
-
 #figure(
   image("去噪的解析解无法计算.svg"),
   caption: [去噪的解析解无法计算],
 )
 
+#theorem(name: "Feller")[
+  如果前向过程的马尔可夫链的转移概率分布$q(x_t|x_(t-1))$是高斯分布，且$beta_t$充分小，那么反向过程的马尔可夫链的转移概率分布$q(x_(t-1)|x_t)$也是高斯分布。
+]
 
+#figure(
+  image("马尔可夫逆向1.svg"),
+  caption: [通过贝叶斯定理可以对反向分布$q(x_(t-1)|x_t)$进行推断。右图上的红色曲线显示了用3个高斯分布混合表示的边缘分布$q(x_(t-1))$，而左图显示了以$x_(t-1)$为中心的高斯前向噪声过程$q(x_t|x_(t-1))$作为$x_t$的分布。通过将它们相乘并进行归一化，我们得到了蓝色曲线所示的对于特定选择的$x_t$的分布$q(x_(t-1)|x_t)$。因为左图的分布相对较宽，对应着较大的方差$beta_t$，所以分布$q(x_(t-1)|x_t)$具有复杂的多峰结构。],
+)
+
+#figure(
+  image("马尔可夫逆向2.svg"),
+  caption: [左图中的高斯分布$q(x_t|x_(t-1))$的方差$beta_t$要小的多。我们可以看到右图中相应的分布$q(x_t|x_(t-1))$（蓝色）接近高斯分布，具有与$q(x_t|x_(t-1))$类似的方差],
+)
+
+我们可以将边缘分布$q(x_(t-1))$写成以下形式
+
+$
+  q(x_(t-1)) = integral q(x_(t-1)|bold(upright(x))_0)p(bold(upright(x))_0) upright(d) bold(upright(x))_0
+$
+
+其中 $q(x_(t-1)|bold(upright(x))_0)$ 可以由前向扩散的闭式解搞定。然而，上式的分布是难以处理的。因为我们必须对未知的数据密度$p(bold(upright(x))_0)$进行积分。
+
+如果我们使用训练数据集的样本来近似积分，我们得到一个复杂的分布，表示为高斯混合分布。
+
+#tip[无论多么复杂的概率分布，都可以由多个高斯分布加权相加来拟合。概率分布的万能逼近定理。]
+
+#figure(
+  image("gaussian_mixture_model.svg"),
+  caption: [高斯混合模型（GMM）],
+)
+
+相反，我们考虑条件分布的反向分布，条件是数据向量$bold(upright(x))_0$，定义为$q(x_(t-1)|x_t,bold(upright(x))_0)$，我们很快将看到它实际上是是一个简单的高斯分布。 直观上讲，这是合理的，因为对于给定的噪声图像，很难猜测是哪个更低噪声的图像产生了它，而如果我们还知道起始图像，那么问题就变得容易得多。
+
+我们可以使用贝叶斯定理计算这个条件分布：
+
+$
+  q(x_(t-1)|x_t,bold(upright(x))_0) = (q(x_t|x_(t-1),bold(upright(x))_0)q(x_(t-1)|bold(upright(x))_0)) / q(x_t|bold(upright(x))_0)
+$
+
+现在我们利用前向过程的马尔可夫性质来写
+
+$
+  q(x_t|x_(t-1),bold(upright(x))_0) = q(x_t|x_(t-1))
+$
+
+#corollary[
+  第$t$步到第$t-1$步在第$0$步的条件下的转移概率分布$q(x_(t-1)|x_t,bold(upright(x))_0)$是以下高斯分布：
+  $
+    q(x_(t-1)|x_t,bold(upright(x))_0) = cal(N)(x_(t-1);tilde(bold(mu))_t (x_t, bold(upright(x))_0),tilde(beta)_t bold(I))
+  $
+  其均值是
+  $
+    tilde(bold(mu))_t (x_t, bold(upright(x))_0) = (sqrt(alpha_t)(1-overline(alpha)_(t-1))) / (1 - overline(alpha)_t) x_t + (sqrt(overline(alpha)_(t-1))(1-alpha_t)) / (1 - overline(alpha)_t) bold(upright(x))_0
+  $
+  方差的系数是
+  $
+    tilde(beta)_t = (1-overline(alpha)_(t-1)) / (1-overline(alpha)_t) beta_t
+  $
+]
+
+*证明* 使用贝叶斯定理，利用前向过程的转移概率是高斯分布的性质，可以推导出反向过程的条件转移概率分布也是高斯分布，并得到其概率密度函数。
+
+$
+  & q(x_(t-1)|x_t,bold(upright(x))_0) \
+  & = (q(x_(t-1)|bold(upright(x))_0)q(x_t|x_(t-1),bold(upright(x))_0)) / q(x_t|bold(upright(x))_0) \
+  & = (q(x_(t-1)|bold(upright(x))_0)q(x_t|x_(t-1))) / q(x_t|bold(upright(x))_0) \
+  & = (cal(N)(x_(t-1);sqrt(overline(alpha)_(t-1))bold(upright(x))_0,(1-overline(alpha)_(t-1))bold(I))cal(N)(x_t;sqrt(alpha)_t x_(t-1),(1-alpha_t)bold(I))) / (cal(N)(x_t;sqrt(overline(alpha)_t)bold(upright(x))_0, (1-overline(alpha)_t)bold(I))) \
+  & prop exp { - 1/2 [ ( (x_t - sqrt(alpha_t)x_(t-1))^2 ) / beta_t + ( (x_(t-1) - sqrt(1-overline(alpha)_(t-1))bold(upright(x))_0)^2 ) / (1-overline(alpha)_(t-1)) - (x_t - sqrt(overline(alpha)_t)bold(upright(x))_0)^2 / (1-overline(alpha)_t) ] } \
+  & = exp { - 1/2 [ ( x_t^2 - 2 sqrt(alpha_t) x_(t-1) + alpha_t x_(t-1)^2 ) / beta_t + ( x^2_(t-1) - 2 sqrt(overline(alpha)_(t-1))x_(t-1) bold(upright(x))_0 + overline(alpha)_(t-1) bold(upright(x))_0^2 ) / (1-overline(alpha)_(t-1)) - (x_t - sqrt(overline(alpha)_t)bold(upright(x))_0)^2 / (1-overline(alpha)_t) ] } \
+  & = exp { - 1/2 [ (alpha_t / beta_t + 1 / (1-overline(alpha)_(t-1)))x_(t-2)^2 - 2 ( sqrt(alpha_t) / beta_t x_t + sqrt(overline(alpha)_(t-1)) / (1 - overline(alpha)_(t-1)) )x_(t-1) + C(x_t,bold(upright(x))_0) ] }
+$
+
+$C(x_t,bold(upright(x))_0)$是对于$x_(t-1)$的常数。高斯分布的方差系数是
+
+$
+  overline(beta)_t & = 1 / (alpha_t/beta_t + 1/(1-overline(alpha)_(t-1))) \
+                   & = (1-overline(alpha)_(t-1)) / (1-overline(alpha)_t) beta_t
+$
+
+均值是
+
+$
+  tilde(mu)_t (x_t,bold(upright(x))_0) &= ( sqrt(alpha)_t / beta_t x_t + sqrt(overline(alpha)_(t-1))/(1-overline(alpha)_(t-1))bold(upright(x))_0 ) / ( alpha_t / beta_t + 1 / (1-overline(alpha)_(t-1)) ) \
+  & = (sqrt(alpha)_t / beta_t x_t + sqrt(overline(alpha)_(t-1))/(1-overline(alpha)_(t-1))bold(upright(x))_0)(1-overline(alpha)_(t-1)) / (1-overline(alpha)_t) (1-alpha_t) \
+  & = (sqrt(alpha_t)(1-overline(alpha)_(t-1))) / (1 - overline(alpha)_t) x_t + (sqrt(overline(alpha)_(t-1))(1-alpha_t)) / (1 - overline(alpha)_t) bold(upright(x))_0
+$
+
+*证明完毕*
+
+根据前向扩散的闭式解
+
+$
+  x_t = sqrt(overline(alpha)_t)x_0 + sqrt(1-overline(alpha)_t)epsilon
+$
+
+可以得到
+
+$
+  x_0 = 1/sqrt(overline(alpha)_t) (x_t - sqrt(1-overline(alpha)_t)epsilon)
+$
+
+代入 $tilde(mu)_t (x_t,bold(upright(x))_0)$ 可以得到其只依赖 $x_t$ 的形式：
+
+$
+  tilde(mu)_t (x_t,bold(upright(x))_0) &= (sqrt(alpha_t)(1-overline(alpha)_(t-1))) / (1 - overline(alpha)_t) x_t + (sqrt(overline(alpha)_(t-1))(1-alpha_t)) / (1 - overline(alpha)_t) 1/sqrt(overline(alpha)_t) (x_t - sqrt(1-overline(alpha)_t)epsilon) \
+  & = 1/sqrt(overline(alpha)_t) (x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon)
+$
+
+假设前向过程和反向过程都是马尔可夫链，前向过程的转移概率分布是高斯分布。在此基础上可以得出，反向过程的转移概率分布也是高斯分布，并且能够求出第$t$步前向的转移概率分布$q(x_t|x_0)$和反向的条件转移概率分布$q(x_(t-1)|x_t,x_0)$。
+
+前向过程表示一步步加噪的随机过程，由超参数$beta_t (1,2,...,T)$控制，是事先确定的。反向过程表示一步步去噪的随机过程，由学习得到的神经网络控制。
+
+DDPM用神经网络表示反向的转移概率分布$p_theta (x_(t-1)|x_t), t=1,2,...,T$。由定理可知，这个转移概率分布是高斯分布
+
+$
+  p_theta (x_(t-1)|x_t) = cal(N)(x_(t-1),bold(mu)_theta (x_t,t), bold(Sigma)_theta (x_t,t))
+$
+
+其均值和方差由神经网络决定。神经网络的输入是样本$x_t$和步数$t$，输出是均值$bold(mu)_theta$和方差$bold(Sigma)_theta$，参数是$theta$。
+
+反向过程的联合概率分布表示为
+
+$
+  p(x_0 x_1 dots.c x_T) = p(x_T)cal(N)(x_(T-1);bold(mu)_theta (x_T,T),bold(Sigma)_theta (x_T, T)) dots.c cal(N)(x_1;bold(mu)_theta (x_1,1),bold(Sigma)_theta (x_1, 1))
+$
+
+假设每一步的协方差矩阵是对角阵。
+
+$
+  bold(Sigma)_theta (x_t,t) = sigma^2_t bold(I)
+$
+
+前向过程从第$t-1$步到第$t$步根据$q(x_t|x_(t-1))$采样，由$x_(t-1)$得到$x_t$。反向过程从第$t$步到第$t-1$步根据$p_theta (x_(t-1)|x_t)$采样，由$x_t$得到$x_(t-1)$。原理上$p_theta (x_(t-1)|x_t)$应该近似转移概率分布$q(x_(t-1)|x_t)$。但$q(x_(t-1)|x_t)$难以计算，DDPM实际上使用$p_theta (x_(t-1)|x_t)$近似条件转移概率分布$q(x_(t-1)|x_t,x_0)$。
+
+我们的目的是希望$p_theta (bold(upright(x))_0)$能够逼近理想中的那个$p(bold(upright(x))_0)$。
+
+#theorem(name: [詹生不等式])[
+  $EE_(q(x)) [log f(x)] <= log EE_(q(x)) [f(x)]$
+]
+
+推导*变分下界*：ELBO。
+
+$
+  & log p_theta (x_0) \
+  & = log integral p_theta (x_0 x_1 dots.c x_T) upright(d) x_0 x_1 dots x_T \
+  & = log integral p_theta (x_0 x_1 dots.c x_T) q(x_1 x_2 dots.c x_T|x_0)/q(x_1 x_2 dots.c x_T|x_0) upright(d) x_0 x_1 dots x_T \
+  & = log EE_q(x_1 x_2 dots.c x_T|x_0) [ p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ] \
+  & >= EE_q(x_1 x_2 dots.c x_T|x_0) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ]
+$
+
+那么就有
+
+$
+  EE_(q(x_0)) log p_theta (x_0) >= underbrace(EE_q(x_0 x_1 x_2 dots.c x_T) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ], "变分下界")
+$
+
+直接最大化左边是不可行的，也就是不可求导，无法优化。所以DDPM通过最大化变分下界来优化目标。所以损失函数得到一下结果，其中用$p_theta (x_(t-1)|x_t)$近似$q(x_(t-1)|x_t,x_0)$。
+
+$
+  & L(theta) \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ log (product_(t=1)^T q(x_t|x_(t-1))) / (p_theta (x_T) product_(t=1)^T p_theta (x_(t-1)|x_t)) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=1)^T log q(x_t|x_(t-1)) / (p_theta (x_(t-1)|x_t)) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_t|x_(t-1)) / (p_theta (x_(t-1)|x_t)) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + sum_(t=2)^T log q(x_t|x_0) / q(x_(t-1)|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + log q(x_T|x_0) / q(x_1|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
+  & = EE_q(x_0 x_1 x_2 dots.c x_T) [ log q(x_T|x_0)/(p_theta (x_T)) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) - log p_theta (x_0|x_1) ] \
+  & = EE_(q(x_0,x_T)) [ q(x_T|x_0)/(p_theta (x_T)) ] + sum_(t=2)^T EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))] - EE_(q(x_0,x_1))[log p_theta (x_0|x_1)]
+$
+
+这里的分布 $q(x_(t-1)|x_t,x_0)$ 的定义如下：
+
+$
+           q(x_(t-1)|x_t,x_0) & = cal(N)(x_(t-1);tilde(bold(mu))_t (x_t,x_0), tilde(beta)_t bold(I)) \
+  tilde(bold(mu))_t (x_t,x_0) & = 1/sqrt(alpha_t) (x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon)
+$
+
+与之对应，分布$p_theta (x_(t-1)|x_t)$的定义如下：
+
+$
+  p_theta (x_(t-1)|x_t) &= cal(N)(x_(t-1);tilde(bold(mu))_theta (x_t,t), sigma^2_t bold(I)) \
+  tilde(bold(mu))_theta (x_t,t) &= 1/sqrt(alpha_t) (x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)bold(epsilon)_theta (x_t, t))
+$
+
+假设两个分布$q(x_(t-1)|x_t,x_0)$和$p_theta (x_(t-1)|x_t)$均值具有相同的形式：方差相同，即设$tilde(beta)_t=sigma^2_t$。因此，神经网络简化为$epsilon_theta (x_t,t)$，其输入是样本$x_t$和步数$t$，输出是噪声$epsilon$，$theta$是参数。
 
 #chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 

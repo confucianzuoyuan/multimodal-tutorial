@@ -239,6 +239,8 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "orange-book/马尔可夫逆向2.svg",
+    "orange-book/马尔可夫逆向1.svg",
     "orange-book/ConvBlock类执行的处理.svg.crswap",
     "orange-book/ConvBlock类执行的处理.svg",
     "orange-book/myunet.svg.crswap",
@@ -257,7 +259,6 @@
     "5. 图生文（ClipCap）.md",
     "附录A：扩散模型数学推导.md",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
-    "orange-book/clip接生成模型的训练目标.svg",
     "6. DALL-E 2（文生图）.md",
     "img/图片token和文本token.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
@@ -283,7 +284,6 @@
     "orange-book/clipcap的简单示例-backup.pdf",
     "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
     "orange-book/通过反向传播可以求出logp.svg.crswap",
-    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap",
-    "orange-book/用于推断得分的神经网络.svg.crswap"
+    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap"
   ]
 }
