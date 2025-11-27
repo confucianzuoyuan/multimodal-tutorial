@@ -81,12 +81,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "3. 扩散模型（diffusion model）.md",
+                "file": "4. 条件扩散模型.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "3. 扩散模型（diffusion model）"
+              "title": "4. 条件扩散模型"
             }
           }
         ],
@@ -241,6 +241,8 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "6. DALL-E 2（文生图）.md",
+    "3. 扩散模型（diffusion model）.md",
     "orange-book/新的ConvBlock类.svg.crswap",
     "orange-book/u-net-illustration-correct-scale2.pdf",
     "orange-book/马尔可夫逆向2.svg",
@@ -261,7 +263,6 @@
     "5. 图生文（ClipCap）.md",
     "附录A：扩散模型数学推导.md",
     "Drawing 2025-09-29 16.50.38.excalidraw.md",
-    "6. DALL-E 2（文生图）.md",
     "img/图片token和文本token.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
@@ -272,7 +273,6 @@
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/模型的设计要点.excalidraw.md",
     "文生图扩散解码器.excalidraw.md",
-    "3. 扩散模型（diffusion model）.md",
     "Excalidraw/3.3.excalidraw.md",
     "2. CLIP.md",
     "4. 条件扩散模型.md",
@@ -285,7 +285,6 @@
     "orange-book/clipcap的简单示例.pdf",
     "orange-book/clipcap的简单示例-backup.pdf",
     "orange-book/使用了推断得分的神经网络的分类器指引.svg.crswap",
-    "orange-book/通过反向传播可以求出logp.svg.crswap",
-    "orange-book/使用预训练神经网络进行分类的示例.svg.crswap"
+    "orange-book/通过反向传播可以求出logp.svg.crswap"
   ]
 }
