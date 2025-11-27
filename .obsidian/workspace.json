@@ -79,12 +79,14 @@
             "id": "c61ce398606b94e0",
             "type": "leaf",
             "state": {
-              "type": "pdf",
+              "type": "markdown",
               "state": {
-                "file": "orange-book/u-net-illustration-correct-scale2.pdf"
+                "file": "3. 扩散模型（diffusion model）.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-file-text",
-              "title": "u-net-illustration-correct-scale2"
+              "icon": "lucide-file",
+              "title": "3. 扩散模型（diffusion model）"
             }
           }
         ],
@@ -239,6 +241,7 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "orange-book/u-net-illustration-correct-scale2.pdf",
     "orange-book/马尔可夫逆向2.svg",
     "orange-book/马尔可夫逆向1.svg",
     "orange-book/ConvBlock类执行的处理.svg.crswap",
@@ -246,7 +249,6 @@
     "orange-book/myunet.svg.crswap",
     "orange-book/myunet.svg",
     "orange-book/u-net-illustration-correct-scale2.svg",
-    "orange-book/u-net-illustration-correct-scale2.pdf",
     "Drawing 2025-11-22 18.04.47.excalidraw.md",
     "unet-tiger.png",
     "orange-book/unet-tiger.png",
@@ -254,7 +256,6 @@
     "orange-book/unet-dog.jpeg",
     "orange-book/未确认 753900.crdownload",
     "orange-book/qwen2.5vl_arc.jpeg",
-    "orange-book/clipcap根据图片嵌入预测下一个token.svg",
     "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
     "5. 图生文（ClipCap）.md",
     "附录A：扩散模型数学推导.md",

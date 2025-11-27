@@ -2632,44 +2632,6 @@ def denoise(self, model, x, t):
 
 上面的代码实现了伪代码中的第 4 步。
 
-
-
-=== 时间步位置编码
-
-由于训练网络需要时间步的信息，所以我们需要将时间步进行编码然后注入到网络中。
-
-时间步信息通过正弦位置编码注入网络：
-
-$
-  bold("v")_i = cases(
-    sin (t/(10000^(i/D))) ",  " i"为偶数时", ,
-    cos (t/(10000^(i/D))) ",  " i"为奇数时"
-  )
-$
-
-可以看到编码方式和Transformer中的几乎一样。
-
-
-```python
-def _pos_encoding(time_idx, output_dim, device='cpu'):
-    t, D = time_idx, output_dim
-    v = torch.zeros(D, device=device)
-
-    i = torch.arange(0, D, device=device)
-    div_term = torch.exp(i / D * math.log(10000))
-    v[0::2] = torch.sin(t / div_term[0::2])
-    v[1::2] = torch.cos(t / div_term[1::2])
-    return v
-
-def pos_encoding(timesteps, output_dim, device='cpu'):
-    batch_size = len(timesteps)
-    device = timesteps.device
-    v = torch.zeros(batch_size, output_dim, device=device)
-    for i in range(batch_size):
-        v[i] = _pos_encoding(timesteps[i], output_dim, device)
-    return v
-```
-
 === U-Net神经网络
 
 U-Net最初是为医学图像的语义分割而开发的模型。语义分割是为图像中的每个像素分配特定的类别标签的任务，如图所示。
@@ -2814,21 +2776,21 @@ def pos_encoding(ts, output_dim, device="cpu"):
 
 #figure(
   image("我们自己实现的U-Net.svg"),
-  caption: [我们实现的U-Net]
+  caption: [我们实现的U-Net],
 )
 
 这里要向5个ConvBlock添加正弦位置编码信息。
 
 #figure(
   image("加入正弦位置编码的U-Net.svg"),
-  caption: [加入正弦位置编码的U-Net]
+  caption: [加入正弦位置编码的U-Net],
 )
 
 如图所示，新的ConvBlock中也将接收正弦位置编码信息v作为输入。然后在这个新的ConvBlock内部执行下图所示的处理。
 
 #figure(
   image("新的ConvBlock类.svg"),
-  caption: [新的ConvBlock类]
+  caption: [新的ConvBlock类],
 )
 
 图中的x的形状为`(N, C, H, W)`，v的形状为`(N, D)`。v被MLP（多层感知机，这里指由全连接层组成的神经网络）变换为`(N, C)`的形状，然后再被变换为`(N, C, 1, 1)`的形状。通过这个变形，广播函数得以应用于随后的加法运算中。新的ConvBlock的实现如下所示。
@@ -3322,6 +3284,20 @@ $
 
 == 逆向扩散过程
 
+前向过程的联合概率分布是
+
+$
+  q(x_0 x_1 dots.c x_T) = q(x_0)q(x_1|x_0) dots.c q(x_T|x_(T-1))
+$
+
+反向过程的联合概率分布是
+
+$
+  q(x_0 x_1 dots.c x_T) = q(x_T)q(x_(T-1)|x_T) dots.c q(x_0|x_1)
+$
+
+联合概率的乘法公式是
+
 $
   q(x_t,x_(t-1)) = q(x_(t)|x_(t-1))q(x_(t-1)) = q(x_(t-1)|x_(t))q(x_(t))
 $
@@ -3372,10 +3348,10 @@ $
 我们可以将边缘分布$q(x_(t-1))$写成以下形式
 
 $
-  q(x_(t-1)) = integral q(x_(t-1)|bold(upright(x))_0)p(bold(upright(x))_0) upright(d) bold(upright(x))_0
+  q(x_(t-1)) = integral q(x_(t-1)|bold(upright(x))_0)q(bold(upright(x))_0) upright(d) bold(upright(x))_0
 $
 
-其中 $q(x_(t-1)|bold(upright(x))_0)$ 可以由前向扩散的闭式解搞定。然而，上式的分布是难以处理的。因为我们必须对未知的数据密度$p(bold(upright(x))_0)$进行积分。
+其中 $q(x_(t-1)|bold(upright(x))_0)$ 可以由前向扩散的闭式解搞定。然而，上式的分布是难以处理的。因为我们必须对未知的数据密度$q(bold(upright(x))_0)$进行积分。
 
 如果我们使用训练数据集的样本来近似积分，我们得到一个复杂的分布，表示为高斯混合分布。
 
@@ -3495,12 +3471,16 @@ $
   $EE_(q(x)) [log f(x)] <= log EE_(q(x)) [f(x)]$
 ]
 
-推导*变分下界*：ELBO。
+推导*证据下界*：ELBO。
+
+#tip(title: [ELBO])[
+  ELBO：Evidence Lower Bound，证据下界，变分下界
+]
 
 $
   & log p_theta (x_0) \
-  & = log integral p_theta (x_0 x_1 dots.c x_T) upright(d) x_0 x_1 dots x_T \
-  & = log integral p_theta (x_0 x_1 dots.c x_T) q(x_1 x_2 dots.c x_T|x_0)/q(x_1 x_2 dots.c x_T|x_0) upright(d) x_0 x_1 dots x_T \
+  & = log integral p_theta (x_0 x_1 dots.c x_T) upright(d) x_0 upright(d) x_1 dots upright(d) x_T \
+  & = log integral p_theta (x_0 x_1 dots.c x_T) q(x_1 x_2 dots.c x_T|x_0)/q(x_1 x_2 dots.c x_T|x_0) upright(d) x_0 upright(d) x_1 dots upright(d) x_T \
   & = log EE_q(x_1 x_2 dots.c x_T|x_0) [ p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ] \
   & >= EE_q(x_1 x_2 dots.c x_T|x_0) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ]
 $
@@ -3508,7 +3488,7 @@ $
 那么就有
 
 $
-  EE_(q(x_0)) log p_theta (x_0) >= underbrace(EE_q(x_0 x_1 x_2 dots.c x_T) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ], "变分下界")
+  underbrace(EE_(q(x_0)) log p_theta (x_0), "证据") >= underbrace(EE_q(x_0 x_1 x_2 dots.c x_T) [ log p_theta (x_0 x_1 dots.c x_T) / q(x_1 x_2 dots.c x_T|x_0) ], "证据下界")
 $
 
 直接最大化左边是不可行的，也就是不可求导，无法优化。所以DDPM通过最大化变分下界来优化目标。所以损失函数得到一下结果，其中用$p_theta (x_(t-1)|x_t)$近似$q(x_(t-1)|x_t,x_0)$。
@@ -3540,6 +3520,49 @@ $
 $
 
 假设两个分布$q(x_(t-1)|x_t,x_0)$和$p_theta (x_(t-1)|x_t)$均值具有相同的形式：方差相同，即设$tilde(beta)_t=sigma^2_t$。因此，神经网络简化为$epsilon_theta (x_t,t)$，其输入是样本$x_t$和步数$t$，输出是噪声$epsilon$，$theta$是参数。
+
+DDPM的学习实际通过简化的损失函数的最小化进行，训练一个预测噪声的神经网络。
+
+将损失函数展开，第一项损失 $L_T$ 如下：
+
+$
+  L_T(theta) = EE_(q(x_0)) ["KL" (q(x_T|x_0)||p_theta (x_T))]
+$
+
+这个损失是常数，所以对最小化不起作用。
+
+中间各项的损失 $L_(t-1) (t=T,T-1,dots.c,2)$ 如下。通过计算分布 $q(x_(t-1)|x_t,x_0)$ 和 $p_theta (x_(t-1)|x_t)$ 的 KL 散度的期望得到，期望是针对分布 $q(x_0)$ 和 $p(epsilon)$ 的。
+
+$
+  L_(t-1)(theta) & = EE_(q(x_0),p(epsilon)) ["KL" (q(x_(t-1)|x_t,x_0)||p_theta (x_(t-1)|x_t))] \
+  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) || bold(mu)(x_t,x_0) - bold(mu)_theta (x_t,t) ||^2 ] \
+  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) norm(1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon] - 1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon_theta (x_t,t)])^2 ] \
+  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (x_t,t))^2 ] \
+  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
+$
+
+最后一项损失 $L_0$ 如下：
+
+$
+  L_0 (theta) = EE_(q(x_0),p(epsilon_1)) [ - log p_theta (x_0|x_1) ]
+$
+
+针对损失 $L_(t-1),t=T,T-1,dots.c,2$ ，忽略系数，只对平方损失部分进行优化。针对损失 $L_0$ ，假设进行同样的平方损失优化。忽略损失 $L_T$ ，这样得到以下简化的整体损失函数：
+
+$
+  L'(theta) & = sum_(t=1)^T EE_(q(x_0),p(epsilon_1)) [ norm(epsilon - epsilon_theta (x_t,t))^2 ] \
+  & = sum_(t=1)^T EE_(q(x_0),p(epsilon_1)) [ norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
+$
+
+神经网络$epsilon_theta (x_t,t)$预测的是前向过程第$t$步的高斯噪声，其直观的解释是，这样的神经网络也能对反向过程的第$t$步$(t=1,2,dots.c,T)$进行有效的去噪。
+
+反向过程的第$t$步到第$t-1$步的转移概率分布，可以利用学习得到的神经网络$epsilon_theta (x_t,t)$计算。使用随机变量表示形式：
+
+$
+  x_(t-1) = 1/sqrt(alpha_t) (x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon_theta (x_t,t)) + sigma_t epsilon
+$
+
+上面的式子称为DDPM反向过程的迭代公式，用于数据生成。设每一步的方差系数与对应的前向过程的方差系数相同，$sigma_t = sqrt(beta_t)$。
 
 #chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 
