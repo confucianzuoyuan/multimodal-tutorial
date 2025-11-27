@@ -81,12 +81,24 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "4. 条件扩散模型.md",
+                "file": "6. DALL-E 2（文生图）.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "4. 条件扩散模型"
+              "title": "6. DALL-E 2（文生图）"
+            }
+          },
+          {
+            "id": "2f90c07c2111aaef",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "文生图扩散解码器.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "文生图扩散解码器.excalidraw"
             }
           }
         ],
@@ -241,28 +253,31 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "文生图扩散解码器.excalidraw.md",
+    "orange-book/文生图扩散解码器.svg",
     "6. DALL-E 2（文生图）.md",
+    "orange-book/注意力块.png",
+    "orange-book/残差块.png",
+    "orange-book/先验模型架构图.png",
+    "orange-book/DALLE模型整体架构.png",
+    "orange-book/unet-decoder.png",
+    "orange-book/线性调度方差和余弦调度方差的对比.png",
+    "Drawing 2025-09-29 16.50.38.excalidraw.md",
+    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "Drawing 2025-11-22 18.04.47.excalidraw.md",
+    "Pasted Image 20251121162426_433.png",
+    "img/模型整体架构.png",
+    "4. 条件扩散模型.md",
     "3. 扩散模型（diffusion model）.md",
     "orange-book/新的ConvBlock类.svg.crswap",
     "orange-book/u-net-illustration-correct-scale2.pdf",
     "orange-book/马尔可夫逆向2.svg",
-    "orange-book/马尔可夫逆向1.svg",
     "orange-book/ConvBlock类执行的处理.svg.crswap",
-    "orange-book/ConvBlock类执行的处理.svg",
     "orange-book/myunet.svg.crswap",
-    "orange-book/myunet.svg",
-    "orange-book/u-net-illustration-correct-scale2.svg",
-    "Drawing 2025-11-22 18.04.47.excalidraw.md",
-    "unet-tiger.png",
-    "orange-book/unet-tiger.png",
-    "Pasted Image 20251121162426_433.png",
-    "orange-book/unet-dog.jpeg",
     "orange-book/未确认 753900.crdownload",
-    "orange-book/qwen2.5vl_arc.jpeg",
     "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
     "5. 图生文（ClipCap）.md",
     "附录A：扩散模型数学推导.md",
-    "Drawing 2025-09-29 16.50.38.excalidraw.md",
     "img/图片token和文本token.excalidraw.md",
     "Excalidraw/3.8.excalidraw.md",
     "Excalidraw/3.9.excalidraw.md",
@@ -272,15 +287,12 @@
     "Excalidraw/扩散模型训练步骤示意图.excalidraw.md",
     "Excalidraw/扩散模型采样示意图.excalidraw.md",
     "Excalidraw/模型的设计要点.excalidraw.md",
-    "文生图扩散解码器.excalidraw.md",
     "Excalidraw/3.3.excalidraw.md",
     "2. CLIP.md",
-    "4. 条件扩散模型.md",
     "7. 项目总结.md",
     "Excalidraw/3.2.excalidraw.md",
     "条件扩散模型.excalidraw.md",
     "1. Vision Transformer.md",
-    "Drawing 2025-11-21 16.22.48.excalidraw.md",
     "orange-book/model.py",
     "orange-book/clipcap的简单示例.pdf",
     "orange-book/clipcap的简单示例-backup.pdf",
