@@ -6338,7 +6338,7 @@ def sample_image(config, prompt, mask, schedule_values=None):
     return img
 ```
 
-=== 训练结果
+== 训练结果
 
 为了查看模型的结果，我将展示每个标题的反向扩散过程。为了查看这一点，我们创建了一个修改版的 sample_image 函数，用于绘制反向扩散过程中十个时间步的图像。
 
