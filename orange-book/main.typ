@@ -2810,10 +2810,58 @@ def pos_encoding(ts, output_dim, device="cpu"):
 
 参数`ts`是张量。对于该张量的每个元素，调用刚刚实现的`_pos_encoding`函数。这样我们就完成了正弦位置编码的实现。
 
+最后将正弦位置编码嵌入到U-Net中。这里我们将正弦位置编码嵌入到之前实现的ConvBlock类中。ConvBlock是拥有两个卷积层的处理单元。我们使用ConvBlock实现了U-Net，如图所示。
 
+#figure(
+  image("我们自己实现的U-Net.svg"),
+  caption: [我们实现的U-Net]
+)
 
-完整的 U-Net 结果如下
+这里要向5个ConvBlock添加正弦位置编码信息。
 
+#figure(
+  image("加入正弦位置编码的U-Net.svg"),
+  caption: [加入正弦位置编码的U-Net]
+)
+
+如图所示，新的ConvBlock中也将接收正弦位置编码信息v作为输入。然后在这个新的ConvBlock内部执行下图所示的处理。
+
+#figure(
+  image("新的ConvBlock类.svg"),
+  caption: [新的ConvBlock类]
+)
+
+图中的x的形状为`(N, C, H, W)`，v的形状为`(N, D)`。v被MLP（多层感知机，这里指由全连接层组成的神经网络）变换为`(N, C)`的形状，然后再被变换为`(N, C, 1, 1)`的形状。通过这个变形，广播函数得以应用于随后的加法运算中。新的ConvBlock的实现如下所示。
+
+```python
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, time_embed_dim):
+        super().__init__()
+        self.convs = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU()
+        )
+        self.mlp = nn.Sequential(
+            nn.Linear(time_embed_dim, in_ch),
+            nn.ReLU(),
+            nn.Linear(in_ch, in_ch)
+        )
+
+    def forward(self, x, v):
+        N, C, _, _ = x.shape
+        v = self.mlp(v)
+        v = v.view(N, C, 1, 1)
+        y = self.convs(x + v)
+        return y
+```
+
+参数`time_embed_dim`是通过正弦位置编码变换后的向量的维度。名为`self.mlp`的全连接层可以将维度为`time_embed_dim`的向量变换为维度为`in_ch`的向量。
+
+最后使用这个新的`ConvBlock`类来实现`UNet`类。代码如下所示。
 
 ```python
 class UNet(nn.Module):
@@ -2832,27 +2880,26 @@ class UNet(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear')
 
     def forward(self, x, timesteps):
-        """unet的输入：图片x_t和时间步t"""
-
-        # 时间步的位置编码嵌入
         v = pos_encoding(timesteps, self.time_embed_dim, x.device)
 
-        x1 = self.down1(x, v) # 下采样
-        x = self.maxpool(x1) # 最大池化
-        x2 = self.down2(x, v) # 下采样
-        x = self.maxpool(x2) # 最大池化
+        x1 = self.down1(x, v)
+        x = self.maxpool(x1)
+        x2 = self.down2(x, v)
+        x = self.maxpool(x2)
 
         x = self.bot1(x, v)
 
-        x = self.upsample(x) # 上采样
-        x = torch.cat([x, x2], dim=1) # 跳跃连接
-        x = self.up2(x, v) # 上采样
-        x = self.upsample(x) # 上采样
-        x = torch.cat([x, x1], dim=1) # 跳跃连接
-        x = self.up1(x, v) # 上采样
+        x = self.upsample(x)
+        x = torch.cat([x, x2], dim=1)
+        x = self.up2(x, v)
+        x = self.upsample(x)
+        x = torch.cat([x, x1], dim=1)
+        x = self.up1(x, v)
         x = self.out(x)
         return x
 ```
+
+这样我们就完成了扩散模型使用的神经网络的实现。
 
 == 完整代码
 
