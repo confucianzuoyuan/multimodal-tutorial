@@ -4670,15 +4670,15 @@ show_images(images, labels)
 
 #figure(
   image("线性调度方差和余弦调度方差的对比.png"),
-  caption: [线性调度方差和余弦调度方差的对比]
+  caption: [线性调度方差和余弦调度方差的对比],
 )
 
 对于方差调度，在Ho等人的原始DDPM论文中，采用了线性调度。虽然该调度在高分辨率图像上效果良好，但当图像较小（`64x64`或更小）时，前向过程最终会产生过多的噪声。为了解决这个问题，Nichol等人建议使用余弦调度，其公式如下所示。
 
 $
-  beta_t &= 1 - overline(alpha)_t / overline(alpha)_(t-1) \
-  overline(alpha)_t &= f(t) / f(0) \
-  f(t) &= cos ( (t/T + s) / (1+s) dot pi/2 )^2
+             beta_t & = 1 - overline(alpha)_t / overline(alpha)_(t-1) \
+  overline(alpha)_t & = f(t) / f(0) \
+               f(t) & = cos ( (t/T + s) / (1+s) dot pi/2 )^2
 $
 
 这些值被剪裁为小于或等于0.999，以防止在 t = T 附近出现奇点。因为我们使用包含低分辨率图像的 FashionMNIST 数据集，所以我们将使用余弦方差计划。
@@ -4757,7 +4757,7 @@ def forward_diffusion(x_0, schedule_values, t):
 ```python
 class SinusoidalPositionalEncodings(nn.Module):
     def __init__(
-        self, 
+        self,
         max_seq_length,    # 最大序列长度
         width              # 模型的宽度（嵌入的维度d_model）
     ):
@@ -4772,7 +4772,7 @@ class SinusoidalPositionalEncodings(nn.Module):
                     pe[pos][i] = np.cos(pos/(10000**((i-1)/width)))
 
         self.register_buffer('pe', pe)
-        
+
     def forward(self, x):
         # Get positional encodings corresponding to inputted timesteps
         x = self.pe[x]
@@ -5017,7 +5017,7 @@ def sample(self, captions, masks=None):
         captions,
         mask=masks
     ) # (B, text_seq_length) -> (B, latent_dim)
-    
+
     # (B, latent_dim) -> (B, 1, latent_dim)
     text_embeddings = t_emb[:, None, :]
 
@@ -5403,7 +5403,7 @@ class ResidualBlock(nn.Module):
 
 #figure(
   image("注意力块.png"),
-  caption: [注意力块]
+  caption: [注意力块],
 )
 
 在我们的模型中，我们将把注意力模块放置在编码器和解码器内层以及瓶颈层（bottle层，连接编码器和解码器的底层）的残差模块之后。例如，如果编码器和解码器有四层，那么第二层和第三层就会有一个注意力模块。
@@ -5576,7 +5576,7 @@ class Upsample(nn.Module):
 
 #figure(
   image("文生图扩散解码器.svg"),
-  caption: [解码器训练流程]
+  caption: [解码器训练流程],
 )
 
 在训练解码器时，模型需要做的第一件事就是设置条件信息。为此，我们首先需要从先验模型中采样以获取CLIP图像嵌入。与CLIP模型一样，在加载先验模型时，应冻结层并将模式设置为eval。
@@ -5624,11 +5624,11 @@ self.positional_encodings = nn.Parameter(torch.randn(config.text_seq_length,conf
 
 self.text_encoder = nn.ModuleList(
     [TransformerBlock(
-        config.latent_dim, 
-        cond_width=config.latent_dim, 
-        n_heads=config.decoder.n_heads, 
-        dropout=config.decoder.dropout, 
-        r_mlp=config.decoder.r_mlp, 
+        config.latent_dim,
+        cond_width=config.latent_dim,
+        n_heads=config.decoder.n_heads,
+        dropout=config.decoder.dropout,
+        r_mlp=config.decoder.r_mlp,
         bias=config.decoder.bias
      ) for _ in range(config.decoder.text_layers)]
 )
@@ -5832,7 +5832,7 @@ class Decoder(nn.Module):
 
         ch = config.decoder.model_channels
 
-        # Initial convolution 
+        # Initial convolution
         self.in_conv = nn.Conv2d(
             config.img_channels,
             ch,
@@ -6337,3 +6337,35 @@ def sample_image(config, prompt, mask, schedule_values=None):
 
     return img
 ```
+
+=== 训练结果
+
+为了查看模型的结果，我将展示每个标题的反向扩散过程。为了查看这一点，我们创建了一个修改版的 sample_image 函数，用于绘制反向扩散过程中十个时间步的图像。
+
+```python
+# Displaying Results
+config = FMNISTConfig()
+captions = {
+    0: "An image of a t-shirt/top",
+    1: "An image of trousers",
+    2: "An image of a pullover",
+    3: "An image of a dress",
+    4: "An image of a coat",
+    5: "An image of a sandal",
+    6: "An image of a shirt",
+    7: "An image of a sneaker",
+    8: "An image of a bag",
+    9: "An image of an ankle boot"
+}
+sample_captions = torch.stack([tokenizer(x, text_seq_length=config.text_seq_length)[0] for x in captions.values()]).to(config.device)
+sample_masks = torch.stack([tokenizer(x, text_seq_length=config.text_seq_length)[1] for x in captions.values()]).to(config.device)
+for i in range(len(sample_captions)):
+    caption = sample_captions[None, (i % len(sample_captions))]
+    mask = sample_masks[None, (i % len(sample_masks))]
+    test = sample_plot_image(config, caption, mask)
+```
+
+#figure(
+  image("dalle训练结果.png"),
+  caption: [训练结果],
+)
