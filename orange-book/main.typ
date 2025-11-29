@@ -3502,7 +3502,7 @@ $
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + sum_(t=2)^T log q(x_t|x_0) / q(x_(t-1)|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + log q(x_T|x_0) / q(x_1|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ log q(x_T|x_0)/(p_theta (x_T)) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) - log p_theta (x_0|x_1) ] \
-  & = EE_(q(x_0,x_T)) [ q(x_T|x_0)/(p_theta (x_T)) ] + sum_(t=2)^T EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))] - EE_(q(x_0,x_1))[log p_theta (x_0|x_1)]
+  & = EE_(q(x_0,x_T)) [ log q(x_T|x_0)/(p_theta (x_T)) ] + sum_(t=2)^T EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))] - EE_(q(x_0,x_1))[log p_theta (x_0|x_1)]
 $
 
 这里的分布 $q(x_(t-1)|x_t,x_0)$ 的定义如下：
@@ -3523,11 +3523,20 @@ $
 
 DDPM的学习实际通过简化的损失函数的最小化进行，训练一个预测噪声的神经网络。
 
+#tip(title: [KL散度])[
+  $
+    D_"KL" (P||Q) & = sum_(x in cal(X)) P(x) log P(x)/Q(x) \
+                  & = EE_(x tilde P) [log P(x)/Q(x)]
+  $
+]
+
 将损失函数展开，第一项损失 $L_T$ 如下：
 
 $
-  L_T(theta) = EE_(q(x_0)) ["KL" (q(x_T|x_0)||p_theta (x_T))]
+  L_T (theta) = EE_(q(x_0)) ["KL" (q(x_T|x_0)||p_theta (x_T))]
 $
+
+由于 $q$ 没有可学习的参数$theta$，而 $p_theta (x_T)$ 只是高斯噪声概率，因此该项在训练期间将是一个常数，因此可以忽略不计。
 
 这个损失是常数，所以对最小化不起作用。
 
@@ -4023,6 +4032,21 @@ show_images(images, labels)
 
 === 什么是得分函数
 
+截至目前，本章讨论的去噪扩散模型与另一类相对独立发展的深度生成式模型密切相关，它们都基于得分匹配（score matching）。这些模型利用的得分函数（或斯坦因得分）则定义为对数似然函数关于数据向量$bold(x)$的梯度。
+
+$
+  s(x) = nabla _ x log p(x)
+$ <score-match>
+
+这里需要强调的是，梯度是针对*数据向量*计算的，而不是针对任何参数向量。注意$s(x)$是一个与$x$维度相同的向量值函数，并且其中的每个元素$s_i (x) = (partial log p(x)) / (partial x_i)$都与$x$的相应元素$x_i$相关联。例如，如果$x$是一个图像，那么$s(x)$也可以表示为一个同尺寸的图像，其中对应的像素是图像的得分。下图显示了二维中的概率密度示例以及相应的得分函数。
+
+#figure(
+  image("score-matching.svg"),
+  caption: [得分函数的示意图，图中显示了两种信息的融合：由高斯混合分布构成的二维分布，表示为热图；以及由 @score-match 定义的相应得分函数，其作为向量绘制在$x$值的规则网络上]
+)
+
+为了理解得分函数的用处，考虑两个函数$q(x)$和$p(x)$，它们具有得分相等的属性，所以对于$x$的所有值，$nabla _ x log q(x) = nabla _ x log p(x)$。如果我们对这个等式的两边关于$x$积分并取指数，则可以得到$q(x)=K p(x)$，其中$K$是一个独立于$x$的常数。所以如果我们能学习到一个得分函数的模型$s(x,w)$，就可以重建原始数据分布，所得结果与之前的相比，最多相差一个常数倍数。
+
 在实现扩散模型时，我们使用神经网络对$epsilon_theta (x_t,t)$进行了建模。$epsilon_theta (x_t,t)$基于$x_t$和$t$来推断噪声$epsilon$。下图是这个过程的示意图。
 
 #figure(
@@ -4168,7 +4192,7 @@ $
 上图中的 $nabla_x_t log p(y|x_t)$ 显示了在当前 $x_t$ 下，类别 $y$ 的对数似然增加最快的方向。因此，如果沿着 $nabla_x_t log p(y|x_t)$ 的方向更新 $x_t$ ，那么更新后的图像被分类为类别 $y$ 的概率会更高。
 #linebreak()
 #linebreak()
-分类器指引的理念是使用得分和分类器来表示条件得分。通常，我们会向分类器指引中引人权重$gamma$，这样就能调整分类器的贡献度。引入后的数学式如下所示。
+分类器指引的理念是使用得分和分类器来表示条件得分。通常，我们会向分类器指引中引入权重$gamma$，这样就能调整分类器的贡献度。引入后的数学式如下所示。
 
 $
   nabla_x_t log p(x_t|y) = nabla_x_t log p(x_t) + colred(gamma) nabla_x_t log p(y|x_t)
@@ -4303,7 +4327,7 @@ $
   epsilon approx epsilon_theta (x_t , t, emptyset) + gamma (epsilon_theta (x_t , t , y ) - epsilon_theta ( x_t, t, emptyset ))
 $
 
-经过以上修改之后，我们就完成了无分类器指引的实现。这里以$gamma = 3$（`gamma=3.0`）声称了数据。
+经过以上修改之后，我们就完成了无分类器指引的实现。这里以$gamma = 3$（`gamma=3.0`）生成了数据。
 
 无分类器指引可以通过$gamma$来调整条件的重视程度。而且由于无需另外训练分类器，因此在资源和时间方面更为高效。
 
@@ -4638,9 +4662,7 @@ show_images(images, labels)
 
 + 6个输入经过Decoder-Only Transformer之后会输出5个张量，我们取*最后一个*，也就是图中蓝色的#box(fill: rgb("#D0E4F2"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Learned Embeddings]。
 + #box(fill: rgb("#D0E4F2"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Learned Embeddings]会送入一个MLP，输出的就是预测的CLIP图片嵌入。
-+ #box(fill: rgb("#D0E4F2"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Learned Embeddings]会送入两次MLP，生成两个预测的CLIP图片嵌入。
-+ 两个预测的CLIP图片嵌入分别和CLIP文本嵌入计算余弦相似度，然后选取最相似的一个预测。
-+ 使用余弦相似度更大的那个预测出的CLIP图片嵌入和预测目标（真正的CLIP图片嵌入）计算损失，并反向传播更新网络。
++ 预测的CLIP图片嵌入与真正的CLIP图片嵌入计算损失，并反向传播更新网络。
 
 === 先验模型的推理
 
@@ -4663,6 +4685,12 @@ show_images(images, labels)
 #tip[
   所以只有#box(fill: rgb("#FEF2CB"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Text Captions]是我们自己编写的文本提示词，其它输入都是模型或者程序自动生成的。
 ]
+
+*先验模型的输出：*
+
++ 6个输入经过Decoder-Only Transformer之后会输出5个张量，我们取*最后一个*，也就是图中蓝色的#box(fill: rgb("#D0E4F2"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Learned Embeddings]。
++ #box(fill: rgb("#D0E4F2"), inset: (x: 3pt, y: 0pt), outset: (y: 3pt), radius: 2pt)[Learned Embeddings]会送入两次MLP，生成两个预测的CLIP图片嵌入。
++ 两个预测的CLIP图片嵌入分别和CLIP文本嵌入计算余弦相似度，然后选取最相似的一个作为预测。
 
 === 关键代码解释
 
@@ -6369,3 +6397,46 @@ for i in range(len(sample_captions)):
   image("dalle训练结果.png"),
   caption: [训练结果],
 )
+
+#chapter("总结", image: image("./orange2.jpg"), l: "multimodal-summary")
+
++ ViT可以对解决手写数字识别问题。ViT可以解决图像分类的问题。
+	+ 将图片切成patch（补丁），添加一个分类token。
+	+ 每个patch都会加上位置编码信息。
+	+ NLP Transformer, Audio Transformer, Vision Transformer
+
++ Clip的目标是将图片和文本对齐。
+	+ 训练一个图像编码器(ViT)，训练一个文本编码器(NLP Transformer)
+	+ 要求图文对输出的两个嵌入的余弦相似度很高，说明图文对很对齐。
+	+ 可以解决的问题是*文搜图*。
+
++ 你的文搜图是怎么实现的呢？
+	+ 我使用了clip-chinese-vit-patch16预训练模型，结合本公司标注的图文对（1万对～10万对）进一步微调。
+	+ 将（图片id，图片的路径等信息，图片经过模型编码后的嵌入张量）存入chroma之类的向量数据库。
+	+ 输入文本，文本经过clip模型输出文本嵌入。然后使用文本嵌入在向量数据库中检索相似的向量，并返回图片文件的各类信息。
+
++ ClipCap：Clip + Caption，目标是给模型输入图片，能够生成图片对应的文字描述。也就是*图生文*。
+	+ Clip（预训练模型clip-chinese-vit-patch16，冻结） + 生成模型（GPT2，Qwen0.5B）。
+	+ Clip输出的图像嵌入的维度和gpt2要求的词嵌入维度不同，需要一个MLP转换形状。
+	+ 将图像嵌入通过一个mlp转换成10个token嵌入。然后和文本的token嵌入列表进行拼接。然后对gpt2和mlp进行微调。
+	+ 微调的方法：预测下一个token，但*只计算文本部分的损失*。
+	+ 构建数据集：图文对。一张图片对应多条文本。例如：1张图片有10条文本，那么是10对训练数据。50万对图文对，使用A800，训练20个小时。如果换生成模型，那么需要的GPU资源会多很多。
+	+ 标准的clipcap是冻结clip模型和冻结生成模型，只微调mlp。但是如果生成模型不够好，那么效果堪忧。
+
++ 扩散模型的目标是：生成没见过的图片。
+	+ 正向扩散：逐步给图片添加噪声（解析解，一步采样到$x_{500}$）。需要图片，随机选择的时间步，以及*方差计划*。
+	+ 反向扩散：
+		+ 需要训练一个UNET（输入和输出的分辨率一致。先下采样，再上采样，残差连接）。
+		+ 输入：$(x_500, t=500)$。输出是预测的噪声。训练方式是预测的噪声和真实添加的噪声进行mse loss。
+		+ 逐步去噪：$("纯噪声图片" x_1000,t=1000)$ 发送给UNET，unet输出预测的噪声，$(x_1000-"noise") arrow x_999$ 。接下来，$(x_999,t=999) arrow "noise"_999$, $x_999 - "noise"_999 arrow x_998$ 。。。。
+
++ 带条件的扩散模型的目标是给定提示词，生成提示词对应的没见过的图片，*文生图*。
+	+ 使用图文对训练clip模型，后续使用需要冻结。
+	+ 训练一个prior model（先验模型）。先验模型要解决的问题是：能够给定提示词，先验模型可以输出预测的clip图像嵌入。先验模型的目的是想要生成一个高质量的条件。
+		+ （训练阶段）模型的输入：（图片的文本id列表，图片的文本clip嵌入，随机选择的时间步$t=500$，针对图片的图像clip嵌入添加500步噪声后的图片嵌入，需要学习的嵌入）。预测目标是*图像clip嵌入*。
+		+ （推理阶段）模型的输入：（图片的文本id列表，图片的文本clip嵌入，时间步是1000，和图像嵌入相同形状的白噪声，嵌入）。输出：预测的clip图片嵌入。
+		+ 训练好先验模型以后，后续使用需要冻结。
+	+ 训练一个带条件的unet，用来扩散出图像。
+		+ （训练阶段）模型的输入：$(x_(t=500)$, $t=500$, 条件=先验模型根据提示词预测的图片嵌入)。输出是预测的噪声。
+		+ unet里面加了*注意力模块*。使用注意力模块处理*提示词信息*，捕获图像和提示词的全局信息。
+		+ 反向扩散：输入是(白噪声$x_1000,t=1000$, 先验模型根据提示词预测的图片嵌入, 提示词(用来给注意力模块))。然后逐步去噪。
