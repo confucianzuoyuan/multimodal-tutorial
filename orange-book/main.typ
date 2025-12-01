@@ -111,7 +111,7 @@
 
 #figure(
   image("rl-figures/策略是一个函数.svg", width: 50%),
-  caption: [策略是一个函数]
+  caption: [策略是一个函数],
 )
 
 而这里*要采取的动作*一般来说是一个概率分布。例如：向左推的概率=0.3，向右推的概率=0.7。
@@ -3575,7 +3575,7 @@ $
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + sum_(t=2)^T log q(x_t|x_0) / q(x_(t-1)|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ - log p_theta (x_T) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) + log q(x_T|x_0) / q(x_1|x_0) + log q(x_1|x_0) / (p_theta (x_0|x_1)) ] \
   & = EE_q(x_0 x_1 x_2 dots.c x_T) [ log q(x_T|x_0)/(p_theta (x_T)) + sum_(t=2)^T log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) - log p_theta (x_0|x_1) ] \
-  & = EE_(q(x_0,x_T)) [ log q(x_T|x_0)/(p_theta (x_T)) ] + sum_(t=2)^T EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))] - EE_(q(x_0,x_1))[log p_theta (x_0|x_1)]
+  & = underbrace(EE_(q(x_0,x_T)) [ log q(x_T|x_0)/(p_theta (x_T)) ], L_T) + sum_(t=2)^T underbrace(EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))], L_(t-1))- underbrace(EE_(q(x_0,x_1))[log p_theta (x_0|x_1)], L_0)
 $
 
 这里的分布 $q(x_(t-1)|x_t,x_0)$ 的定义如下：
@@ -3606,34 +3606,63 @@ DDPM的学习实际通过简化的损失函数的最小化进行，训练一个�
 将损失函数展开，第一项损失 $L_T$ 如下：
 
 $
-  L_T (theta) = EE_(q(x_0)) ["KL" (q(x_T|x_0)||p_theta (x_T))]
+  L_T = EE_(q(x_0)) ["KL" (q(x_T|x_0)||p_theta (x_T))]
 $
 
-由于 $q$ 没有可学习的参数$theta$，而 $p_theta (x_T)$ 只是高斯噪声概率，因此该项在训练期间将是一个常数，因此可以忽略不计。
+由于 $q$ 没有可学习的参数$theta$，而 $p_theta (x_T)$ 是完全的高斯噪声，因此该项在训练期间将是一个常数，因此可以忽略不计。
 
 这个损失是常数，所以对最小化不起作用。
 
 中间各项的损失 $L_(t-1) (t=T,T-1,dots.c,2)$ 如下。通过计算分布 $q(x_(t-1)|x_t,x_0)$ 和 $p_theta (x_(t-1)|x_t)$ 的 KL 散度的期望得到，期望是针对分布 $q(x_0)$ 和 $p(epsilon)$ 的。
 
 $
-  L_(t-1)(theta) & = EE_(q(x_0),p(epsilon)) ["KL" (q(x_(t-1)|x_t,x_0)||p_theta (x_(t-1)|x_t))] \
-  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) || bold(mu)(x_t,x_0) - bold(mu)_theta (x_t,t) ||^2 ] \
-  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) norm(1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon] - 1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon_theta (x_t,t)])^2 ] \
-  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (x_t,t))^2 ] \
-  & = EE_(q(x_0),p(epsilon)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
+  L_(t-1) & = EE_(q(x_0,x_(t-1),x_t))[log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t))] \
+  & = integral q(x_(t-1),x_t|x_0) log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) upright(d) x_(t-1) upright(d) x_t \
+  & = integral q(x_t|x_0) q(x_(t-1)|x_t,x_0) log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) upright(d) x_(t-1) upright(d) x_t \
+  & = integral q(x_t|x_0) underbrace(integral q(x_(t-1)|x_t,x_0) log q(x_(t-1)|x_t,x_0) / (p_theta (x_(t-1)|x_t)) upright(d) x_(t-1), "KL散度") upright(d) x_t \
+  & = EE_(q(x_t|x_0)) [D_"KL" (q(x_(t-1)|x_t,x_0)||p_theta (x_(t-1)|x_t))] \
+  & = EE_(q(x_t|x_0)) [ 1/(2 sigma^2 (t)) || bold(mu)(x_t,x_0) - bold(mu)_theta (x_t,t) ||^2 ] \
+  & = EE_(q(x_t|x_0)) [ 1/(2 sigma^2 (t)) norm(1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon] - 1/sqrt(alpha_t) [x_t - (1-alpha_t)/sqrt(1-overline(alpha)_t)epsilon_theta (x_t,t)])^2 ] \
+  & = EE_(q(x_t|x_0)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (x_t,t))^2 ] \
+  & = EE_(q(x_t|x_0)) [ 1/(2 sigma^2 (t)) (1-alpha_t)^2 / (alpha_t (1-overline(alpha)_t)) norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
 $
 
 最后一项损失 $L_0$ 如下：
 
 $
-  L_0 (theta) = EE_(q(x_0),p(epsilon_1)) [ - log p_theta (x_0|x_1) ]
+  L_0 = EE_(q(x_1|x_0)) [ - log p_theta (x_0|x_1) ]
 $
+
+我们想计算的是条件概率$p_theta (x_0|x_1)$，其中：
+
+- $x_0$是离散的图像数据（像素值离散，通常是$0 tilde 255$的整数值）。
+- $x_1$是扩散过程中的一个中间变量（通常是连续变量，浮点数）。
+
+$p_theta (x_0|x_1)$本身是个连续的高斯分布，我们却想要求解某个离散的整数像素值$x_0^i$的概率（$x_0^i$是原始图片$x_0$的第$i$个像素点），直接用像素点取值，只能取到概率密度值，想要得到某个像素点的概率，需要积分一个特别小的区间。由于像素值$0 tilde 255$被归一化到了$[-1,1]$区间。所以DDPM作者选择的积分区间是$(x_0^i - 1/255, x_0^i + 1/255)$。
+
+那么此时有
+
+$
+  p_theta (x_0|x_1) &= product_(i=1)^D integral_(x_0^i - 1/255)^(x_0^i + 1/255) cal(N) (x;mu_theta^i (x_1,1),sigma_1^2) upright(d) x \
+  & approx product_(i=1)^D cal(N) (x;mu_theta^i (x_1,1),sigma_1^2) times 2/255 \
+  & = product_(i=1)^D 1/sqrt(2 pi sigma_1^2) exp (-(x_0^i - mu_theta^i (x_1,1))^2/(2 sigma_1^2)) times 2/255
+$
+
+其中$D$是图片像素点的数量。
+
+两边取对数可以得到
+
+$
+  log p(x_0|x_1) = - 1/(2 sigma^2) norm( x_0 - mu_theta (x_1,1) )^2 + C 
+$
+
+其中$C$是常数，对优化（求导）没有影响。
 
 针对损失 $L_(t-1),t=T,T-1,dots.c,2$ ，忽略系数，只对平方损失部分进行优化。针对损失 $L_0$ ，假设进行同样的平方损失优化。忽略损失 $L_T$ ，这样得到以下简化的整体损失函数：
 
 $
-  L'(theta) & = sum_(t=1)^T EE_(q(x_0),p(epsilon_1)) [ norm(epsilon - epsilon_theta (x_t,t))^2 ] \
-  & = sum_(t=1)^T EE_(q(x_0),p(epsilon_1)) [ norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
+  L'(theta) & = sum_(t=1)^T EE_(q(x_t|x_0)) [ norm(epsilon - epsilon_theta (x_t,t))^2 ] \
+  & = sum_(t=1)^T EE_(q(x_t|x_0)) [ norm(epsilon - epsilon_theta (sqrt(overline(alpha)_t) x_0 + sqrt(1-overline(alpha)_t) epsilon,t))^2 ]
 $
 
 神经网络$epsilon_theta (x_t,t)$预测的是前向过程第$t$步的高斯噪声，其直观的解释是，这样的神经网络也能对反向过程的第$t$步$(t=1,2,dots.c,T)$进行有效的去噪。
@@ -3645,6 +3674,70 @@ $
 $
 
 上面的式子称为DDPM反向过程的迭代公式，用于数据生成。设每一步的方差系数与对应的前向过程的方差系数相同，$sigma_t = sqrt(beta_t)$。
+
+#tip(title: [两个正态分布之间的KL散度])[
+  两个正态分布之间的KL散度可以通过解析的方式求得。如果$q(bold(z))=cal(N)(bold(z);bold(mu)_1,bold(sigma)_1^2 bold(I)), p(bold(z))=cal(N)(bold(z);bold(mu)_2,bold(sigma)_2^2 bold(I))$，那么KL散度可以表示为以下式子（式子中的$H$是$bold(z)$的维度）。
+
+  $
+    D_"KL" (q || p) = - 1/2 sum_(h=1)^H ( 1 + log (sigma_(1,h)^2) / (sigma_(2,h)^2) - (mu_(1,h)-mu_(2,h))^2 / sigma_(2,h)^2 - sigma_(1,h)^2 / sigma_(2,h)^2)
+  $
+]
+
+#tip(title: [期望值的线性性质和相关变量的期望值])[
+  ① 期望的线性性质
+
+  期望值的线性性质是指有下面的等式成立。
+
+  $
+    EE_(p(x,y)) [x+y] = EE_(p(x))[x] + EE_(p(y))[y]
+  $
+
+  上式中的$x$和$y$是随机变量，假定它们相互关联（$p(x,y) != p(x)p(y)$）。上式成立的证明如下所示。
+
+  $
+    EE_(p(x,y)) [x+y] &= integral.double (x+y) p(x,y) upright(d) x upright(d) y \
+    &= integral.double x p(x,y) upright(d) x upright(d) y + integral.double y p(x,y) upright(d) x upright(d) y \
+    &= integral x underbrace((integral p(x,y) upright(d) y), p(x)) upright(d) x + integral y underbrace((integral p(x,y) upright(d) x), p(y)) upright(d) y \
+    &= integral x p(x) upright(d) x + integral y p(y) upright(d) y \
+    &= EE_(p(x))[x] + EE_(p(y))[y]
+  $
+
+  这里展示的等式的意思是"和的期望值"等于"期望值的和"。这一关系也可以扩展到$T$个随机变量，因此有下面的式子成立。
+
+  $
+    EE_(p(x_1 x_2 dots.c x_T)) [ sum_(t=1)^T x_t ] = sum_(t=1)^T EE_(p(x_1 x_2 dots.c x_T)) [ x_t ]
+  $
+
+  ② 相关变量的期望值
+
+  这里假设$f(x)$是以$x$为参数的任意函数。因此，有下式成立。
+
+  $
+    EE_(p(x,y)) [f(x)] = EE_(p(x)) [f(x)]
+  $
+
+  证明过程如下所示。
+
+  $
+    EE_(p(x,y)) [f(x)] & = integral.double f(x)p(x,y) upright(d) x upright(d) y \
+                       & = integral.double f(x) p(x) p(y|x) upright(d) x upright(d) y \
+                       & = integral f(x) p(x) underbrace(integral p(y|x) upright(d) y, =1) upright(d) x \
+                       & = integral f(x) p(x) upright(d) x \
+                       & = EE_(p(x)) [f(x)]
+  $
+
+  "在$p(x,y)$分布下$f(x)$的期望值"等同于"在$p(x)$分布下$f(x)$的期望值"。重点在于概率分布中与期望值内部的对象（$f(x)$）内容无关的随机变量可以被"消除"。因此，有下面的等式成立。
+
+  $
+    EE_(p(x_1 x_2 dots.c x_T)) [f(x_t)] = EE_(p(x_t)) [f(x_t)]
+  $
+
+  另外，$f(x_(t-1),x_t)$的期望值如下所示。
+
+  $
+    EE_(p(x_1 x_2 dots.c x_T)) [f(x_(t-1), x_t)] = EE_(p(x_(t-1),x_t)) [f(x_(t-1),x_t)]
+  $
+]
 
 #chapter("条件扩散模型", image: image("./orange2.jpg"), l: "multimodal-cond-diffuser")
 
