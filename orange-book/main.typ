@@ -3252,11 +3252,19 @@ show_images(images)
 
 可以使用*重参数化技巧*推导出解析形式的采样公式。
 
-首先，如果 $z tilde cal(N) (mu,sigma^2)$ 的话，那么有下面的结论
+#tip(title: [重参数技巧])[
+  首先，如果 $z tilde cal(N) (mu,sigma^2)$ 的话，那么有下面的结论
 
-$
-  z = mu + sigma epsilon space "其中" epsilon tilde cal(N)(0, 1)
-$
+  $
+    z = mu + sigma epsilon space "其中" epsilon tilde cal(N)(0, 1)
+  $
+
+  两个正态分布（独立）随机变量的和也是正态分布，也就是如果$X tilde cal(N)(mu_X, sigma_X^2)$和$Y tilde cal(N)(mu_Y, sigma_Y^2)$，那么对于$Z = X + Y$有$Z tilde cal(N)(mu_X + mu_Y, sigma_X^2+sigma_Y^2)$，也就是
+
+  $
+    z = mu_X + mu_Y + sqrt(sigma_X^2+sigma_Y^2)epsilon space "其中" epsilon tilde cal(N)(0, 1)
+  $
+]
 
 利用这个技巧，我们可以将采样图像 $x_t$ 表示如下：
 
@@ -3277,6 +3285,7 @@ $
 $
 
 然后我们开始推导
+#pagebreak()
 
 $
   x_t &= sqrt(1-beta_t)x_(t-1) + sqrt(beta)_t colred(epsilon_(t-1)) \
@@ -3285,22 +3294,17 @@ $
   #linebreak()
   #linebreak()
   #linebreak()
-  #linebreak()
   &= sqrt(alpha_t)markrect((sqrt(alpha_(t-1))x_(t-2) + sqrt(1-alpha_(t-1)) colred(epsilon_(t-2))), color: #red, tag: #<xtminus2>) + sqrt(1-alpha_t) colred(epsilon_(t-1)) \
-  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + markrect(sqrt(alpha_t (1 - alpha_(t-1))) colred(epsilon_(t-2)) + sqrt(1-alpha_t) colred(epsilon_(t-1)), color: #red, tag: #<xtminus3>) &&\
-  #linebreak()
-  #linebreak()
-  #linebreak()
-  && colred("how?")
-  #linebreak()
-  #linebreak()
-  #linebreak()
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + markrect(sqrt(alpha_t (1 - alpha_(t-1))) colred(epsilon_(t-2)) + sqrt(1-alpha_t) colred(epsilon_(t-1)), color: #red, tag: #<xtminus3>) \
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + 0 + sqrt(alpha_t (1 - alpha_(t-1)))epsilon_(t-2) + 0 + sqrt(1-alpha_t) epsilon_(t-1) \
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + cal(N)(0,alpha_t (1 - alpha_(t-1))bold(I)) + cal(N)(0,(1-alpha_t)bold(I)) \
+  &= sqrt(alpha_t alpha_(t-1))x_(t-2) + cal(N)(0,(1 - alpha_t alpha_(t-1))bold(I)) \
   &= sqrt(alpha_t alpha_(t-1))x_(t-2) + markrect(sqrt(1-alpha_t alpha_(t-1)) colred(overline(epsilon)_(t-2)), color: #red, tag: #<xtminus4>) \
   & space dots.v \
   &= sqrt(alpha_t alpha_(t-1) dots.c alpha_1)x_0 + sqrt(1-alpha_t alpha_(t-1) dots.c alpha_1)epsilon \
   &= sqrt(overline(alpha)_t)x_0 + sqrt(1-overline(alpha)_t)epsilon
 $
-
+#annot(<xtminus2>, pos: top + right)[一步加噪声公式]
 #annot-cetz(
   (<xtminus1>, <xtminus2>, <xtminus3>, <xtminus4>),
   cetz,
@@ -3317,35 +3321,6 @@ $
 
   使用不同的符号和下标来区分它们非常重要，因为它们是独立的，并且在采样后它们的值可能会有所不同。
 ]
-
-但是我们如何从第 4 行跳到第 5 行呢？
-
-也就是公式中的 #text(red)[how?] 怎么解决呢？
-
-#figure(
-  image("重参数技巧.svg"),
-  caption: [重参数技巧的使用],
-)
-
-我们用 $X$ 和 $Y$ 来表示这两个项。它们可以被视为来自两个不同正态分布的样本。即
-
-$
-  X tilde cal(N)(0,alpha_t(1-alpha_(t-1))I)
-$
-
-和
-
-$
-  Y tilde cal(N)(0,(1-alpha_(t))I)
-$
-
-回想一下，两个正态分布（独立）随机变量的和也是正态分布的。即，如果 $Z=X+Y$ ，那么有下面的公式
-
-$
-  Z tilde cal(N)(0, sigma^2_X+sigma^2_Y)
-$
-
-因此，我们可以将它们合并在一起，并以重新参数化的形式表示合并后的正态分布。这就是我们将这两个项合并的方法。
 
 重复这些步骤将为我们提供以下仅取决于输入图像 $x_0$ 的公式：
 
@@ -3653,7 +3628,7 @@ $
 两边取对数可以得到
 
 $
-  log p(x_0|x_1) = - 1/(2 sigma^2) norm( x_0 - mu_theta (x_1,1) )^2 + C 
+  log p(x_0|x_1) = - 1/(2 sigma^2) norm(x_0 - mu_theta (x_1,1))^2 + C
 $
 
 其中$C$是常数，对优化（求导）没有影响。
