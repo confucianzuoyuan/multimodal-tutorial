@@ -65,8 +65,18 @@
 #figure(
   fletcher.diagram(
     node-stroke: 1pt,
-    fletcher.node((0, 0), [智能体], corner-radius: 2pt, extrude: (0, 3), name: <agent>, fill: gradient.radial(blue.lighten(80%), blue, center: (30%, 20%), radius: 80%)),
-    fletcher.node((0, 3), [环境], corner-radius: 2pt, extrude: (0, 3), name: <env>, fill: gradient.radial(orange.lighten(80%), orange, center: (30%, 20%), radius: 80%)),
+    fletcher.node((0, 0), [智能体], corner-radius: 2pt, extrude: (0, 3), name: <agent>, fill: gradient.radial(
+      blue.lighten(80%),
+      blue,
+      center: (30%, 20%),
+      radius: 80%,
+    )),
+    fletcher.node((0, 3), [环境], corner-radius: 2pt, extrude: (0, 3), name: <env>, fill: gradient.radial(
+      orange.lighten(80%),
+      orange,
+      center: (30%, 20%),
+      radius: 80%,
+    )),
     fletcher.edge((0, 0), (2, 0), (2, 3), (0, 3), [动作$A_t$], "-|>"),
     fletcher.edge((0, 3), (-2, 3), [$S_(t+1)$], "-|>"),
     fletcher.edge((-2, 2), (-2, 4), "--"),
@@ -137,6 +147,46 @@
 #tip[
   所谓*从概率分布中采样*的意思是，例如概率分布是向左推的概率是0.7，向右推的概率是0.3。那么从这个概率分布中采样一个动作出来，有70%的概率采取的动作是向左推。但也有30%的概率向右推。
 ]
+
+举个例子：如果我们每次都去最熟悉的餐馆吃饭，可能体验都还可以。而如果去不熟悉的餐厅吃饭，可能体验不好，也可能体验超过了之前的餐馆。在舒适区只利用不探索，就会固步自封。冒险可能会受到伤害，但长期来看，可能会得到提升。
+
+策略是智能体的动作模型，它决定了智能体的动作。它其实是一个函数，用于把输入的状态变成动作。
+
+策略的数学符号是 $pi$ ，所以策略也就是 $pi$ 函数。即 $pi(a|s)=p(a_t=a|s_t=s)$ 。输入一个状态 $s$ ，输出一个概率分布。用条件概率来看，就是在条件：状态为 $s$ 的情况下，策略采取动作 $a$ 的概率是多少。这个概率是智能体所有动作的概率，然后对这个概率分布进行采样，可得到智能体将采取的动作。比如可能是有 0.7 的概率往左，0.3 的概率往右，那么通过采样就可以得到智能体将采取的动作。
+
+#figure(
+  $
+    \
+    \
+    \
+    pi (a|s) = p( markhl(a_t, tag: #<at>)=a|markhl(s_t, tag: #<st>, color: #blue)=s)
+    \
+    \
+    \
+    \
+    \
+    #annot(<at>, pos: top + right, dy: -1.5em, leader-connect: "elbow")[在状态为$s$时，采取动作$a$的概率]
+    #annot(<st>, pos: bottom + right, dy: 1.5em, leader-connect: "elbow")[$t$时刻环境的状态为$s$]
+  $,
+  caption: [策略函数],
+)
+
+所以有如下：
+
+$
+  pi (a=a_"向左推"|s) = 0.7 \
+  pi (a=a_"向右推"|s) = 0.3
+$
+
+如果这个 $pi$ 函数是一个神经网络，那么这就是*深度学习 + 强化学习 = 深度强化学习*。当今 AI 界最热门的话题。
+
+所以玩倒立摆游戏的一个*回合*（episode）就是环境的状态为 $S_0$ ，推车采取动作 $A_0$ ，然后获得奖励 $R_0$ ，然后环境的状态转移到了 $S_1$ ，推车接着采取动作 $A_1$ ，然后获得奖励 $R_1$ ，...。下标是时刻，或者时间步。把它们写到一起，就是一个*轨迹*（trajectory）。轨迹用数学符号 $tau$ 表示，读作*掏*。
+
+$
+  tau = (S_0,A_0,R_0,S_1,A_1,R_1,S_2,A_2,R_2, dots.c)
+$
+
+由于根据环境的状态，采取的动作是从一个概率分布中采样得到的，所以轨迹会有很多很多条。
 
 #part("基于人类反馈的强化学习")
 
