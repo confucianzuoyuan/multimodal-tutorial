@@ -8,6 +8,7 @@
 #import "@preview/mannot:0.3.1": *
 #import "@preview/cetz:0.4.2"
 #import "@preview/algo:0.3.6": algo, code, comment, d, i
+#import "@preview/fletcher:0.5.8" as fletcher
 #show: codly-init.with()
 
 #codly(languages: codly-languages)
@@ -62,7 +63,16 @@
 *强化学习*（reinforcement learning，RL）讨论的问题是智能体（agent）怎么在复杂、不确定的环境（environment）中最大化它能获得的奖励。
 
 #figure(
-  image("rl-figures/强化学习交互循环.svg", width: 50%),
+  fletcher.diagram(
+    node-stroke: 1pt,
+    fletcher.node((0, 0), [智能体], corner-radius: 2pt, extrude: (0, 3), name: <agent>, fill: gradient.radial(blue.lighten(80%), blue, center: (30%, 20%), radius: 80%)),
+    fletcher.node((0, 3), [环境], corner-radius: 2pt, extrude: (0, 3), name: <env>, fill: gradient.radial(orange.lighten(80%), orange, center: (30%, 20%), radius: 80%)),
+    fletcher.edge((0, 0), (2, 0), (2, 3), (0, 3), [动作$A_t$], "-|>"),
+    fletcher.edge((0, 3), (-2, 3), [$S_(t+1)$], "-|>"),
+    fletcher.edge((-2, 2), (-2, 4), "--"),
+    fletcher.edge((-2, 3), (-4, 3), (-4, 0), (0, 0), [状态$S_t$], "-|>"),
+    fletcher.edge(<env>, <agent>, [奖励$R_t$], "-|>"),
+  ),
   caption: [强化学习交互循环],
 )
 
