@@ -9,6 +9,7 @@
 #import "@preview/cetz:0.4.2"
 #import "@preview/algo:0.3.6": algo, code, comment, d, i
 #import "@preview/fletcher:0.5.8" as fletcher
+#import "@preview/suiji:0.5.0" as suiji
 #show: codly-init.with()
 
 #codly(languages: codly-languages)
@@ -84,7 +85,7 @@
     fletcher.edge(<env>, <agent>, [奖励$R_t$], "-|>"),
   ),
   caption: [强化学习交互循环],
-)
+) <fig-rl-loop>
 
 #tip(title: [名词])[
   - Agent：智能体，代理，智能代理
@@ -130,7 +131,15 @@
 换句话说，推车要采取的策略是一个*函数*。
 
 #figure(
-  image("rl-figures/策略是一个函数.svg", width: 50%),
+  cetz.canvas({
+    import cetz.draw: *
+    content((0, 0), [要采取的动作的概率分布=#highlight(fill: red)[策略函数]\(环境的状态\)])
+    line((-3, -5), (3, -5))
+    rect((-1.5, -5), (-1, -3.5), fill: blue, stroke: blue)
+    rect((0.5, -5), (1, -1.5), fill: green, stroke: green)
+    content((-1.5, -5.2), text(size: 5pt)[向左推的概率=0.3])
+    content((1, -5.2), text(size: 5pt)[向右推的概率=0.7])
+  }),
   caption: [策略是一个函数],
 )
 
@@ -187,6 +196,302 @@ $
 $
 
 由于根据环境的状态，采取的动作是从一个概率分布中采样得到的，所以轨迹会有很多很多条。
+
+#figure(
+  cetz.canvas({
+    import cetz.draw: *
+    // let arr = ([向左推], [向右推])
+    // let rng = suiji.gen-rng-f(42)
+    // let x = suiji.choice(rng, arr)
+    for i in (-2, -1, 0, 1, 2) {
+      circle((i, 0), radius: (0.1, 0.1), fill: red, stroke: red)
+      circle((i, -1), radius: (0.1, 0.1), fill: red, stroke: red)
+      circle((i, -2), radius: (0.1, 0.1), fill: red, stroke: red)
+      line((i + 0.1, 0), (i + 0.9, 0), mark: (end: "straight"))
+      line((i + 0.1, -1), (i + 0.9, -1), mark: (end: "straight"))
+      line((i + 0.1, -2), (i + 0.9, -2), mark: (end: "straight"))
+    }
+    for i in (-2, -1, 0, 1, 2) {
+      content((i + 0.4, 0.2), text(size: 4pt)[向左推])
+      content((i + 0.4, -0.8), text(size: 4pt)[向右推])
+      if (i == -2 or i == 0 or i == 2) {
+        content((i + 0.4, -1.8), text(size: 4pt)[向右推])
+      } else {
+        content((i + 0.4, -1.8), text(size: 4pt)[向左推])
+      }
+    }
+    line((0, -2.5), (0, -3.5), stroke: (dash: "dotted"))
+    content((4, 0), text(size: 5pt, fill: red)[游戏失败])
+    content((4, -1), text(size: 5pt, fill: red)[游戏失败])
+    content((4, -2), text(size: 5pt, fill: green)[游戏成功])
+  }),
+  caption: [无数条轨迹],
+)
+
+== 价值函数（Value Function）
+
+当位于时刻 $t$ 时，环境此时处于状态 $S_t$ ，然后我们根据策略函数开始采取动作，那么未来我们一共能获得多少奖励呢？环境处于状态 $S_t$ ，我们采取的动作是 $A_t$ ，获取的奖励是 $R_t$ ，然后环境的状态从 $S_t$ 转移到了 $S_(t+1)$ ，然后采取动作 $A_(t+1)$ ，然后获得即时奖励 $R_(t+1)$ ，然后环境的状态从 $S_(t+1)$ 转移到了 $S_(t+2)$ ，然后环境会给我们即时奖励 $R_(t+2)$ ，......。
+
+但是未来的奖励不如现在的奖励有吸引力，所以需要*打折*。那么，从 $t$ 时刻起，未来一共获得的奖励叫做*回报*（或者收益，Return）。
+
+$
+  G_t = R_t + gamma R_(t+1) + gamma^2 R_(t+2) + dots.c
+$
+
+$gamma$ 叫做折扣因子。随着时间的推移，奖励会被 $gamma$ 指数级削弱。这个 $gamma$ 被称为折扣因子（discount rate），其被设定为 $0.0$ 和 $1.0$ 之间的实数。如果折扣因子是 $0.9$，那么有以下式子成立。
+
+$
+  G_t = R_t + 0.9 R_(t+1) + 0.81 R_(t+2) + dots.c
+$
+
+引入折扣因子主要是为了防止连续性任务的收益变得无穷大。在连续性任务中，如果没有折扣因子（或 $gamma=1$ ），那么收益就会发散到无穷大。因此，设置折扣因子可以防止收益的发散。
+
+折扣因子也使近期的奖励显得更加重要。这解释了人类乃至生物的许多行动原理。例如，你会选择今天拿到 10000 元还是一年后拿到 20000 元？如果折扣因子使未来的回报呈指数级下降，那么眼前的回报就会更有吸引力。
+
+如果我们用倒立摆作为例子，然后我们运行两个时间步。得到下图。
+
+#figure(
+  fletcher.diagram(
+    node-stroke: 0.1em,
+    node-fill: gradient.radial(blue.lighten(80%), blue, center: (30%, 20%), radius: 80%),
+    spacing: 2em,
+    fletcher.node((-1, 0), text(size: 4pt)[起始状态], radius: 1em),
+    fletcher.node((1, 1), text(size: 4pt)[状态$1'$], radius: 1em),
+    fletcher.node((1, -1), text(size: 4pt)[状态$1$], radius: 1em),
+    fletcher.node((4, -0.5), text(size: 4pt)[状态$2'$], radius: 1em),
+    fletcher.node((4, -1.5), text(size: 4pt)[状态$2$], radius: 1em),
+    fletcher.node((4, 0.5), text(size: 4pt)[状态$2''$], radius: 1em),
+    fletcher.node((4, 1.5), text(size: 4pt)[状态$2'''$], radius: 1em),
+    fletcher.edge((-1, 0), (1, -1), "--|>", text(size: 4pt)[向左推0.7], label-side: center),
+    fletcher.edge((-1, 0), (1, 1), "--|>", text(size: 4pt)[向右推0.3], label-side: center),
+
+    fletcher.edge((1, -1), (4, -1.5), "--|>", text(size: 4pt)[向左推0.5], label-side: center),
+    fletcher.edge((1, -1), (4, -0.5), "--|>", text(size: 4pt)[向右推0.5], label-side: center),
+
+    fletcher.edge((1, 1), (4, 0.5), "--|>", text(size: 4pt)[向左推0.2], label-side: center),
+    fletcher.edge((1, 1), (4, 1.5), "--|>", text(size: 4pt)[向右推0.8], label-side: center),
+  ),
+  caption: [倒立摆环境运行2个时间步],
+)
+
+可以看到，一共有 4 条轨迹。每条轨迹都有一个总的回报。而每条轨迹也都有一个产生的概率。那么我们如何评估在环境处于状态 $S_t$ 时，一直采取策略 $pi$ 未来会获得多少回报呢？也就是未来的预期回报（回报的期望值）是多少呢？那就是*状态价值函数*（State Value Function）。
+
+$
+  V_pi (s) & = EE_pi [G_t|S_t=s] \
+           & = EE_pi [ sum_(k=0)^infinity gamma^k R_(t+k) | S_t=s ], "对所有的" space s in S
+$
+
+#tip[
+  状态价值函数，衡量的是在环境处于状态 $s$ 时，一直按照策略 $pi$ 来采取动作，最终的预期回报。
+]
+
+状态价值函数的另一种重要的表示形式如下：
+
+$
+  V_pi (S_t=s) = EE_pi [R_t + gamma V_pi (S_(t+1)=s'|S_t=s)]
+$
+
+#tip(title: "贝尔曼期望方程")[
+  $
+    V_pi (S_t) = EE_pi [R_t + gamma V_pi (S_(t+1)|S_t)]
+  $
+
+  直观解释如下：
+
+  - 当前环境对你的价值 = 当前环境现在给你的奖励 $+$ 折扣因子 $times$ 未来环境对你的价值
+  - 你对公司的评估 = 现在公司给你的薪资 $+$ 折扣因子 $times$ 你对公司未来的评估
+]
+
+== 倒立摆环境编程实践
+
+#codly(
+  header: [安装依赖],
+  header-cell-args: (align: center),
+)
+```bash
+$ pip install gym==0.25.2
+$ pip install numpy==1.26
+$ pip install pygame
+```
+
+后续基于倒立摆环境的所有依赖如下：
+
+#codly(header: [倒立摆环境需要的所有依赖])
+```python
+import gym
+import random
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import rc
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.distributions import Categorical
+```
+
+然后我们来创建一个倒立摆环境。
+
+#codly(header: [创建倒立摆环境])
+```python
+# version确认
+print(gym.__version__)  # 0.25.2版本
+# 创建倒立摆环境
+env = gym.make("CartPole-v0")
+```
+
+这样就生成了倒立摆的环境。
+
+将推车向右或向左移动，以保持杆子的平衡。倒立摆的结束条件是杆子的平衡被打破（杆子超过一定的角度），或者推车的移动位置超出了某个范围。
+
+继续执行下面的代码
+
+#figure(caption: [打印初始状态和动作空间维度])[
+  ```python
+  state = env.reset() # 重置环境的状态为$S_0$
+  print(state) # 初始状态$S_0$
+  action_space = env.action_space # 推车有几个动作？（向左推，向右推）
+  print(action_space) # 动作空间的维度=2
+  ```] <print-state-action>
+
+@print-state-action 通过```python state = env.reset()```获得了初始状态。观察它的输出，你会发现它是拥有 4 个元素的数组。作为参考，下面依次列出这 4 个元素。
+
+- 推车的位置
+- 推车的速度
+- 木杆的角度
+- 木杆的角速度
+
+另外，我们可以通过 `env.action_space` 获得行动的维度（可采取的行动数）。它的输出是一个名为 `Discrete(2)` 的类实例。这意味着有两个候选行动。具体来说，0 对应的是向左移动推车的行动，1 对应的是向右移动推车的行动。下面实际地采取行动，向前推进一个时间步。
+
+#codly(header: [执行1步动作])
+```python
+action = 0 # 或者 1
+next_state, reward, done, info = env.step(action)
+print(next_state)
+```
+
+代码通过 `env.step(action)` 采取行动。作为结果 ，我们得到了以下 4 个信息。
+
+执行1步动作后得到的信息：
+
+- 下一个状态`next_state`：$S_1$
+- 奖励`reward`：$R_0$
+- 是否结束的标志位`done`
+- 附加信息`info`
+
+`reward`是标量值（`float`）。这次的任务在保持平衡的时候总是会得到奖励1。`info`包含有助于调试的信息（如环境模型）。但在实现和评估强化学习的算法时，基本不会用到`info`。
+
+我们先来实现一个随机智能体。也就是这个智能体的策略非常简单，无论环境处于什么状态，我们都是从两个动作中随机采样一个动作。代码如下。
+
+```python
+state = env.reset() # 重置环境的状态
+done = False # 游戏是否结束，初始值为False，也就是未结束
+episode_rewards = []  # 每回合奖励$[R_0, R_1, dots.c, R_T]$
+total_reward = 0 # 带折扣因子的回报（总奖励）
+frames = []         # 保存每一帧
+gamma = 0.95 # 折扣因子$gamma$
+
+# done=True时结束
+while not done:
+    # 渲染画面，并保存帧
+    frames.append(env.render(mode="rgb_array"))
+
+    # 随机选择一个动作$A_t$，0：向左推，1：向右推
+    action = random.choice([0, 1])
+
+    # 下一个状态$S_(t+1)$，即时奖励$R_t$，是否结束，_
+    next_state, reward, done, _ = env.step(action)
+    # $[R_0, R_1, dots.c, R_T]$
+    episode_rewards.append(reward)
+
+# 逆序计算$G_t = R_t + gamma G_(t+1)$
+for r in episode_rewards[::-1]:
+    total_reward = r + gamma * total_reward
+
+print("total_reward:", total_reward)
+env.close()
+```
+
+#tip(title: [动态规划思想])[
+  #tip(title: [回报（总奖励的逆序计算）])[
+    - 从时间0开始的回报为$G_0 = R_0 + gamma R_1 + gamma^2R_2 + gamma^3R_3 = R_0 + gamma G_1$
+    - 从时间1开始的回报为$G_1 = R_1 + gamma R_2 + gamma^2R_3 = R_1 + gamma G_2$
+    - 从时间2开始的回报为$G_2 = R_2 + gamma R_3 = R_2 + gamma G_3$
+    - 从时间3开始的回报为$G_3 = R_3$
+
+    所以有：$G_t = R_t + gamma G_(t+1)$
+
+    所以我们要进行逆序计算。
+  ]
+  #tip(title: [霍纳法则（秦九韶算法）])[
+    $
+        & a_0 + a_1 x + a_2 x^2 + dots.c + a_n x^n \
+      = & a_0 + x(a_1 + x(a_2 + x(a_3 + dots.c + x(a_(n-1) + x a_n) dots.c )))
+    $
+  ]
+  #tip(title: [动态规划])[
+    - 前向过程：采样一条轨迹，得到每个时刻的即时奖励。
+    - 反向过程：逆序计算回报。
+  ]
+]
+
+然后我们将创建一个函数`show_animation`来将倒立摆环境的每一帧保存成动画，后续就可以播放了。代码如下：
+
+```python
+def show_animation(imgs):
+    rc("animation", html="jshtml")
+    fig, ax = plt.subplots(1, 1, figsize=(5, 3))
+    frames = []
+
+    text = ax.text(10, 20, "", fontsize=12, color="black")
+
+    for i, img in enumerate(imgs):
+        frame = [ax.imshow(img, animated=True)]
+        frame.append(ax.text(10, 20, f"Step: {i+1}", animated=True))  # Step数表示
+        frames.append(frame)
+
+    ax.axis("off")
+
+    ani = animation.ArtistAnimation(fig, frames, interval=100, blit=True)
+
+    # 保存动画
+    ani.save("cartpole.mp4", writer="ffmpeg")
+    ani.save("cartpole.gif", writer="pillow")
+
+    plt.close(fig)
+    return ani
+```
+
+然后我们播放动画。
+
+```python
+show_animation(frames)
+```
+
+由于我们使用的是*随机策略*，所以倒立摆游戏很快就结束了。
+
+== 马尔可夫决策过程
+
+=== 基本概念
+
+马尔可夫决策过程（MDP，Markov Decision Process）。决策过程是智能体通过与环境互动决定其行动的过程。
+
+智能体所处的环境根据其行动而发生改变。在强化学习中，这种情况被称为环境的"状态"（state）。在MDP中，状态的变化取决于智能体的行动，智能体在环境的状态迁移后执行新的行动。
+
+在MDP中，我们需要"时间"的概念。在某一时刻，智能体会采取行动并因此迁移到一个新的状态。此时的时间单位叫作"时间步"。由于时间步是智能体做出决定的间隔时间，因此它的实际单位取决于问题。
+
+智能体要考虑的是将来获得的奖励总和，而不是眼前的奖励。换句话说，智能体的目标是实现奖励总和最大化。
+
+在MDP中，智能体与环境之间会进行互动。要点在于当智能体采取行动时，状态会发生迁移，随之获得的奖励也会相应改变。
+
+参见@fig-rl-loop 。
+
+假设在时刻 $t$ 的状态是 $S_t$ 。基于这个状态 $S_t$ ，智能体执行行动 $A_t$ ，获得奖励 $R_t$ 并迁移到下一个状态 $S_(t+1)$ 。智能体与环境之间的这种实际的互动产生了以下迁移。
+
+$
+  S_0,A_0,R_0,S_1,A_1,R_1,S_2,A_2,R_2,dots.c
+$
 
 #part("基于人类反馈的强化学习")
 
