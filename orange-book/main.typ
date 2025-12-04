@@ -10,6 +10,7 @@
 #import "@preview/algo:0.3.6": algo, code, comment, d, i
 #import "@preview/fletcher:0.5.8" as fletcher
 #import "@preview/suiji:0.5.0" as suiji
+#import "@preview/neural-netz:0.2.0": draw-network
 #show: codly-init.with()
 
 #codly(languages: codly-languages)
@@ -791,6 +792,324 @@ $
 在倒立摆环境中，我们如何选择智能体的"策略"来让木杆多坚持一段时间呢？
 
 接下来我们来学习*策略梯度法*（policy gradient method）。
+
+#chapter("策略梯度法", image: image("./orange2.jpg"), l: "rl-pg")
+
+== 原始策略梯度法
+
+=== 理论介绍
+
+在倒立摆游戏的环境中，我们唯一能控制的，就是推车所采用的*策略*。而环境和奖励函数我们是无法控制的。
+
+#figure(
+  table(
+    columns: 3,
+    table.cell(
+      fill: green.lighten(60%),
+    )[我们可以控制的],
+    table.cell(
+      fill: red.lighten(60%),
+    )[我们无法控制的],
+    table.cell(
+      fill: red.lighten(60%),
+    )[我们无法控制的],
+    [策略函数], [环境], [奖励函数],
+    [推车的策略], [倒立摆环境], [保持平衡，奖励为1],
+  ),
+  caption: [只有策略函数是我们可以控制的，环境和奖励我们无法控制],
+)
+
+现在通行的做法就是策略函数是一个神经网络。输入是环境的状态，输出是动作的概率分布。
+
+#figure(
+  fletcher.diagram(
+    let blob(pos, label, tint: white, ..args) = fletcher.node(
+      pos,
+      align(center, label),
+      width: 28mm,
+      fill: tint.lighten(60%),
+      stroke: 1pt + tint.darken(20%),
+      corner-radius: 5pt,
+      ..args,
+    ),
+    blob((-3, 1), [推车的位置], tint: green, shape: fletcher.shapes.rect),
+    blob((-3, 1.5), [推车的速度], tint: green, shape: fletcher.shapes.rect),
+    blob((-3, 2), [木杆的角度], tint: green, shape: fletcher.shapes.rect),
+    blob((-3, 2.5), [木杆的角速度], tint: green, shape: fletcher.shapes.rect),
+
+    blob((-1, 1), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <A>),
+    blob((-1, 1.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <B>),
+    blob((-1, 2), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <C>),
+    blob((-1, 2.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <D>),
+
+    blob((0, 1.25), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <AA>),
+    blob((0, 1.75), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <BB>),
+    blob((0, 2.25), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <CC>),
+
+    blob((1, 1.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <AAA>),
+    blob((1, 2), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <BBB>),
+
+    blob((3, 1.5), [向左推0.7], tint: purple, shape: fletcher.shapes.rect, name: <AAAA>),
+    blob((3, 2), [向右推0.3], tint: purple, shape: fletcher.shapes.rect, name: <BBBB>),
+
+    fletcher.edge((-3, 1), (-1, 1), "-|>", stroke: 0.1em),
+    fletcher.edge((-3, 1.5), (-1, 1.5), "-|>", stroke: 0.1em),
+    fletcher.edge((-3, 2), (-1, 2), "-|>", stroke: 0.1em),
+    fletcher.edge((-3, 2.5), (-1, 2.5), "-|>", stroke: 0.1em),
+
+    for i in (<A>, <B>, <C>, <D>) {
+      for j in (<AA>, <BB>, <CC>) {
+        fletcher.edge(i, j, "->")
+        for k in (<AAA>, <BBB>) {
+          fletcher.edge(j, k, "->")
+        }
+      }
+    },
+
+    fletcher.edge(<AAA>, <AAAA>, "-|>", stroke: 0.1em),
+    fletcher.edge(<BBB>, <BBBB>, "-|>", stroke: 0.1em),
+  ),
+  caption: [输出的动作是概率],
+)
+
+上图就是一个例子。玩倒立摆游戏。策略函数是一个神经网络；输入是倒立摆环境的状态，一个浮点数数组；输出是我们可以执行的动作，有几个动作，输出层就有几个神经元。假设我们现在可以执行的动作有2个，输出层就有2个神经元，每个神经元对应一个可以采取的动作。输入一个东西后，策略神经网络会给每一个可以采取的动作一个分数。我们可以把这个分数当作概率，智能体根据概率的分布来决定它要采取的动作，比如0.7的概率向左推、0.3的概率向右推。概率分布不同，推车采取的动作就会不一样。
+
+如下面的式子所示，首先，环境是一个函数，我们可以把倒立摆环境看成一个函数，虽然它不一定是神经网络，可能是基于规则的（rule-based）模型，但我们可以把它看作一个函数。
+
+$
+  "倒立摆环境"(S_t,A_t) arrow (S_(t+1),R_t)
+$
+
+倒立摆环境就是一个基于规则的函数，只要推车不倒下，就返回奖励1。
+
+讲了这么多策略有关的东西，大家应该明白策略是什么东西了。
+
+而通过神经网络等方法将策略模型化，并使用梯度来优化策略的方法叫作*策略梯度法*（policy gradient method）。
+
+研究者们提出了各种基于策略梯度法的算法。本章首先介绍最简单的策略梯度法。然后，在改进这个简单的策略梯度法的过程中，我们推导出了被称为*REINFORCE*的算法。接下来，在进一步改进REINFORCE的过程中， 我们又推导出了*带基线*的REINFORCE方法和Actor-Critic（演员-评论家） 方法。
+
+随机性策略用数学式可以表示为$pi(a|s)$。$pi(a|s)$是在状态$s$下采取动作$a$的概率。这里采用神经网络对策略进行建模。此时用符号$theta$来汇总表示神经网络的所有权重参数（$theta$是将所有参数的元素排成一列的向量）。另外，可以将基于神经网络的策略表示为$pi_theta (a|s)$，如下所示。
+
+$
+  \
+  \
+  \
+  \
+  markhl(pi, tag: #<p1>, color: #blue)_markhl(theta, tag: #<p2>, color: #orange) ( markhl(a, tag: #<p3>, color: #green) | markhl(s, tag: #<p4>, color: #red) )
+  \
+  \
+  \
+  \
+  #annot(<p1>, pos: top + left, dy: -1.5em, leader-connect: "elbow")[策略神经网络]
+  #annot(<p2>, pos: bottom + left, dy: 1.5em, leader-connect: "elbow")[神经网络的参数]
+  #annot(<p3>, pos: bottom + right, dy: 1.5em, leader-connect: "elbow")[在状态$s$下，采取的动作$a$]
+  #annot(<p4>, pos: top + right, dy: -1.5em, leader-connect: "elbow")[当前状态$s$]
+$
+
+还是倒立摆环境，每当倒立摆环境处于某个状态 $s$ 时，我们就会使用神经网络 $pi_theta$ 来决定要采取什么动作。
+
+那么，问题是：策略神经网络怎么训练？
+
+#tip(title: [神经网络的训练])[
+  想要训练一个神经网络，需要有*输入-输出*对。例如，MNIST手写数字数据集，要训练一个可以识别手写数字的卷积神经网络，需要构建一个网络结构，然后提供输入（图片）以及输出（分类标签）。
+
+  当然，还得有*损失函数*，例如交叉熵损失函数或者均方误差损失函数，等等。
+]
+
+#let layers = (
+  (
+    type: "input",
+    image: "default",
+    height: 8,
+    depth: 8,
+    label: "input",
+    channels: (3, 224),
+  ),
+  (
+    type: "conv",
+    widths: (0.3, 0.3),
+    height: 8,
+    depth: 8,
+    label: "conv1",
+    channels: (64, 64, 224),
+    offset: 1.9,
+  ),
+  (
+    type: "pool",
+    height: 6,
+    depth: 6,
+    label: "pool1",
+  ),
+  (
+    type: "convres",
+    widths: (0.4, 0.4),
+    height: 6,
+    depth: 6,
+    label: "res2",
+    channels: (128, 128, 112),
+  ),
+  (
+    type: "pool",
+    height: 4,
+    depth: 4,
+    label: "pool2",
+  ),
+  (
+    type: "convres",
+    widths: (0.5, 0.5, 0.5),
+    height: 4,
+    depth: 4,
+    label: "res3",
+    channels: (256, 256, 256, 56),
+  ),
+  (
+    type: "pool",
+    height: 2,
+    depth: 2,
+    label: "pool3",
+  ),
+  (
+    type: "convres",
+    widths: (0.6, 0.6, 0.6),
+    height: 2,
+    depth: 2,
+    label: "res4",
+    channels: (512, 512, 512, 28),
+    offset: 1,
+  ),
+  (
+    type: "pool",
+    height: 1,
+    depth: 1,
+    label: "pool4",
+  ),
+  (
+    type: "convres",
+    widths: (0.6, 0.8, 0.8),
+    height: 1,
+    depth: 1,
+    label: "res5",
+    channels: (512, 512, 512, 14),
+    offset: 0.8,
+  ),
+  (
+    type: "pool",
+    height: 0.5,
+    depth: 0.5,
+    label: "pool4",
+  ),
+  (
+    type: "fc",
+    label: "fc",
+    channels: (4096,),
+    height: 5,
+    depth: 0.3,
+    offset: 0.8,
+  ),
+  (
+    type: "fc",
+    label: "fc",
+    channels: (4096,),
+    height: 5,
+    depth: 0.3,
+    offset: 0.5,
+  ),
+  (
+    type: "fc",
+    label: "fc",
+    channels: (1000,),
+    height: 4,
+    depth: 0.3,
+    offset: 0.5,
+  ),
+  (
+    type: "softmax",
+    label: "softmax",
+    height: 4,
+    depth: 0.3,
+    offset: 0.9,
+  ),
+)
+
+#figure(
+  draw-network(
+    layers,
+    show-relu: true,
+  ),
+  caption: [ResNet18],
+)
+
+但是对于倒立摆环境，想要训练推车的策略神经网络，输入是什么，输出是什么？以及损失函数又是什么？
+
+首先回顾一下第一章的知识。
+
+首先明确问题的设定。这里考虑的是回合制任务，并基于策略$pi_theta$选择动作的情况。在这种情况下，假定得到了以下由"状态、动作、奖励"构成的时间序列数据。
+
+$
+  tau = (S_0, A_0, R_0, S_1, A_1, R_1, dots.c, S_(T+1))
+$
+
+这个$tau$也叫作轨迹（trajectory）。
+
+而一条轨迹发生的概率是：
+
+$
+  "Pr"(tau) & = p(S_0) pi_theta (A_0|S_0) p(S_1|S_0,A_0) pi_theta (A_1|S_1) p(S_2|S_1,A_1) dots.c pi_theta (A_T|S_T) p(S_(T+1)|S_T,A_T) \
+  &= p(S_0) product_(t=1)^T pi_theta (A_t|S_t)p(S_(t+1)|S_t,A_t)
+$
+
+此时可以使用折扣因子$gamma$对回报（Return，收益）作如下定义。
+
+$
+  G(tau) = R_0 + gamma R_1 + gamma^2 R_2 + dots.c + gamma^T R_T
+$
+
+为了表明回报可以由$tau$计算出来，上面的式子将其表示为了$G(tau)$。此时，目标函数$J(theta)$可以表示为下面的式子。
+
+#definition(name: [强化学习的目标函数])[
+  $
+    J(theta) = EE_(tau tilde pi_theta)[G(tau)]
+  $
+]
+
+回报$G(tau)$是随机变动的，所以它的期望值是目标函数。上式中期望值$EE$的下标为$tau tilde pi_theta$ ，这个下标表示$tau$是基于$pi_theta$ 生成的。
+
+#figure(
+  $
+    \
+    \
+    \
+    \
+    J(markhl(theta, tag: #<pgo1>, color: #blue))=EE_markhl(tau tilde pi_theta, tag: #<pgo2>, color: #orange) [ markhl(G(tau), tag: #<pgo3>, color: #red) ]
+    \
+    \
+    \
+    \
+    #annot(<pgo1>, pos: bottom + left, [策略神经网络的参数], leader-connect: "elbow", dy: 1.5em)
+    #annot(<pgo2>, pos: bottom + right, [轨迹由策略$pi$生成], leader-connect: "elbow", dy: 1.5em)
+    #annot(<pgo3>, pos: top + left, [轨迹$tau$的回报], leader-connect: "elbow", dy: -1.5em)
+  $,
+  caption: [策略梯度法的目标函数],
+)
+
+我们的目标是让$J(theta) = EE_(tau tilde pi_theta) [G(tau)]$最大。但是我们发现$G(tau)$这个轨迹的回报无法求导，换句话说就是对目标函数*无法进行优化*。
+
+目标函数可以优化的意思其实就是可以求导。
+
+在神经网络的训练中，我们的目的是让*损失函数*最小。而在策略梯度法中，我们的目的是让*目标函数*最大。所以都可以使用梯度法。让损失函数最小，使用梯度下降法。让目标函数最大，使用梯度上升法。
+
+所以，我们还是得求解$J(theta)$的梯度。需要求导的参数是$theta$。
+
+确定了目标函数后，下一步是计算它的梯度。这里将参数$theta$的梯度表示为$nabla_theta$。我们的目标是求$nabla_theta J(theta)$。$nabla$是梯度符号。
+
+#theorem(name: [策略梯度定理])[
+  $
+    nabla_theta J(theta) & = nabla_theta EE_(pi tilde pi_theta) [G(tau)] \
+                         & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)]
+  $
+]
+
+
 
 #part("基于人类反馈的强化学习")
 
