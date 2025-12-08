@@ -1106,8 +1106,487 @@ $
   $
     nabla_theta J(theta) & = nabla_theta EE_(pi tilde pi_theta) [G(tau)] \
                          & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)]
+  $ <pg-theorem>
+]
+
+上面的式子中值得注意的是，$nabla_theta$在$EE$中（梯度计算的部分是$nabla_theta log pi_theta(A_t|S_t)$）。后面会对此做详细介绍。求出$nabla_theta J(theta)$之后，接下来更新神经网络的参数。最优化方法多种多样，下面的式子表示的是一种简单的方法。
+
+#figure(
+  $
+    theta arrow.l theta + alpha nabla_theta J(theta)
+  $,
+  caption: [策略梯度法的梯度上升算法],
+)
+
+上面的式子朝着梯度的方向更新参数$theta$。更新的值与$alpha$相关。这里的$alpha$表示学习率。这是属于梯度上升法的算法。
+
+只要沿着梯度上升的方向更新参数$theta$，那么目标函数$J(theta)$就会越来越大，也就是所有轨迹的期望就会越来越大，那么就是我们的策略越来越好了。
+
+#danger[
+  策略梯度法求得的梯度是一个期望值，而期望值无法计算。
+]
+
+这里有一个问题，那就是*真正的期望*是无法准确求出来的。因为期望是所有的轨迹得到的奖励计算出来的。而轨迹有无数条。如果我们能够走满倒立摆的200步，那么不同轨迹的数量可能是$2^(200)$，如下图所示，这是一个天文数字。所以我们希望能够求出*近似*期望值的数值。比如利用*大数定理*，多采样几条轨迹，那么就会比较接近期望值。
+
+#figure(
+  $
+    & S_0^tau_0 arrow A_0^tau_0 arrow S_1^tau_0 arrow A_1^tau_0 arrow dots.c \
+    & S_0^tau_1 arrow A_0^tau_1 arrow S_1^tau_1 arrow A_1^tau_1 arrow dots.c \
+    & S_0^tau_2 arrow A_0^tau_2 arrow S_1^tau_2 arrow A_1^tau_2 arrow dots.c \
+    & \
+    & dots.c dots.c
+  $,
+  caption: [无数条轨迹],
+)
+
+#tip(title: [大数定律])[
+  样本数量越多，则其算术平均值就有越高的概率接近期望。
+
+  例如，抛掷一颗均匀的6面的骰子，1，2，3，4，5，6应等概率出现，所以每次扔出骰子后，出现点数的期望是
+  $
+    (1+2+3+4+5+6)/6=3.5
+  $
+  根据大数定理，如果多次抛掷骰子，随着抛掷次数的增加，平均值（样本平均值）应该接近3.5。
+
+  如果随机变量$X_1,X_2,dots$是独立同分布，且期望$EE(X_1)=EE(X_2)=dots.c=mu$。那么
+  $
+    overline(X)_n=1/n (X_1+X_2+dots.c+X_n)
+  $
+  当$n arrow infinity$时, 收敛于真值
+  $
+    overline(X)_n arrow mu
   $
 ]
+
+#figure(
+  $
+    & S_0^tau_0 arrow A_0^tau_0 arrow S_1^tau_0 arrow A_1^tau_0 arrow dots.c \
+    & colred(S_0^tau_1 arrow A_0^tau_1 arrow S_1^tau_1 arrow A_1^tau_1 arrow dots.c) \
+    & S_0^tau_2 arrow A_0^tau_2 arrow S_1^tau_2 arrow A_1^tau_2 arrow dots.c \
+    & colred(S_0^tau_3 arrow A_0^tau_3 arrow S_1^tau_3 arrow A_1^tau_3 arrow dots.c) \
+    & S_0^tau_4 arrow A_0^tau_4 arrow S_1^tau_4 arrow A_1^tau_4 arrow dots.c \
+    & \
+    & dots.c dots.c
+  $,
+  caption: [只采样$n$条轨迹],
+)
+
+如@pg-theorem 所示，$nabla_theta J(theta)$表示期望值。接下来我们来计算期望值。这里，我们令策略$pi_theta$的智能体实际采取动作，得到$n$个轨迹$tau$，如上图所示。此时，通过对每个$tau$计算式子的期望值内部的式子（$sum_(t=0)^T G(tau)nabla_theta log pi_theta(A_t|S_t)$），并求出其平均值，从而近似得到$nabla_theta J(theta)$。数学式如下所示。
+
+$
+  "采样": tau^((i)) tilde pi_theta space space (i=1,2,dots.c,n) \
+  x^((i)) = sum_(t=0)^T G(tau^((i)))nabla_theta log pi_theta (A_t^((i))|S_t^((i))) \
+  nabla_theta J(theta) approx (x^((1))+x^((2))+dots.c+x^((n)))/n
+$
+
+上面式子中的$tau^((i))$，表示在第$i$回合得到的轨迹，$A_t^((i))$表示在第$i$回合的时刻$t$的动作，$S_t^((i))$表示在第$i$回合的时刻$t$的状态。
+
+另外，再思考一下蒙特卡洛方法的样本数为$1$，即上式中$n=1$的情况，如下图所示。
+
+#figure(
+  $
+    & S_0^tau_0 arrow A_0^tau_0 arrow S_1^tau_0 arrow A_1^tau_0 arrow dots.c \
+    & colred(S_0^tau_1 arrow A_0^tau_1 arrow S_1^tau_1 arrow A_1^tau_1 arrow dots.c) \
+    & S_0^tau_2 arrow A_0^tau_2 arrow S_1^tau_2 arrow A_1^tau_2 arrow dots.c \
+    & S_0^tau_3 arrow A_0^tau_3 arrow S_1^tau_3 arrow A_1^tau_3 arrow dots.c \
+    & S_0^tau_4 arrow A_0^tau_4 arrow S_1^tau_4 arrow A_1^tau_4 arrow dots.c \
+    & \
+    & dots.c dots.c
+  $,
+  caption: [只采样$1$条轨迹],
+)
+
+在这种情况下，数学式可以简化为如下形式。
+
+$
+  "采样": tau tilde pi_theta \
+  nabla_theta J(theta) approx sum_(t=0)^T G(tau)nabla_theta log pi_theta (A_t|S_t)
+$
+
+为了简单起见，本章将使用以上面的式子为对象的策略梯度法。上面的式子的计算就是对所有时刻（$t=0 tilde T$）求$nabla_theta log pi_theta (A_t|S_t)$，然后将各梯度乘以作为权重的回报$G(tau)$，最后求它们的和。这个计算过程如下图所示。
+
+#figure(
+  image("rl-figures/使用一条轨迹计算策略梯度.svg"),
+  caption: [使用一条轨迹计算策略梯度],
+)
+
+=== 代码实现
+
+接下来，我们用代码来实现一下策略梯度法。
+
+我们讲一些实现细节。我们可以把强化学习想成一个分类问题，这个分类问题就是输入倒立摆的状态，输出某个类。在解决分类问题时，我们要收集一些训练数据，数据中要有输入与输出的对。在实现的时候，我们把倒立摆的状态当作分类器的输入，就像在解决图像分类的问题，只是现在的类不是图像里面的东西，而是看到倒立摆的状态我们要采取什么样的动作，每一个动作就是一个类。比如第一个类是向左，第二个类是向右。
+
+在解决分类问题时，我们要有输入和正确的输出，要有训练数据。但在强化学习中，我们通过采样来获得训练数据。假设在采样的过程中，在某个状态下，我们采样到要采取动作 $A$， 那么就把动作 $A$ 当作标准答案（ground truth）。比如，我们在某个状态下，采样到要向左。因为是采样，所以向左这个动作不一定概率最高。假设我们采样到向左，在训练的时候，让智能体调整网络的参数，如果看到某个状态，我们就向左。在一般的分类问题里面，我们在实现分类的时候，目标函数都会写成最小化交叉熵（cross entropy），最小化交叉熵就是最大化对数似然（log likelihood）。
+
+#tip(title: [从极大似然估计的角度看策略梯度])[
+  $
+    J(theta) & = sum_(t=0)^T G(tau) log pi_theta (A_t|S_t) \
+             & = G(tau) log (product_(t=0)^T pi_theta (A_t|S_t))
+  $
+  最大化目标就会提升某些状态对应的动作的概率。
+]
+
+#codly(header: [策略神经网络$pi_theta$])
+```python
+class PolicyNet(nn.Module):
+    def __init__(self, action_size):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128) # 推车环境中状态是一个4维数组
+        self.l2 = nn.Linear(128, action_size) # 输出是一个2维数组
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = F.softmax(self.l2(x), dim=1)
+        return x # 输出：$[pi_theta (a="向左推"|s),pi_theta (a="向右推"|s)]$
+```
+
+上面的代码实现的神经网络模型由两层全连接层构成。最终输出的元素数是动作的数量（`action_size`）。由于这个最终输出是`softmax`函数的输出，因此可以得到每个动作的概率。
+
+这个网络结构就是我们要训练的策略神经网络$pi_theta$。其中$theta$就是神经网络的参数。
+
+我们还记得，策略神经网络的输入是环境的状态，输出是要采取的动作的概率分布。所谓动作的概率分布就是：向左推的概率是多少，向右推的概率是多少。
+
+而我们的网络结构输入的张量的维度是4。为什么呢？因为倒立摆环境的状态有4个维度。
+
+输出是`action_size`个维度。也就是动作的数量个维度。
+
+#tip(title: [softmax])[
+  如果将具有$n$个元素的向量输入到softmax函数中，那么输出的同样是具有$n$个元素的向量。此时，第$i$个输出$y_i$的式子如下所示。
+  $
+    y_i = (upright(e)^(x_i))/(sum_(k=1)^n upright(e)^(x_k))
+  $
+  这里的$upright(e)$是自然常数(值为$2.718 28...$的无限小数)。softmax函数的输出值全部为$0$以上$1$以下的实数，它们的合计值为$1$（$sum_(i=1)^n y_i = 1$）。因此，softmax函数的输出可以作为概率使用。
+]
+
+下面是`Agent`类的代码。首先显示初始化和`get_action`方法。
+
+#figure(caption: [智能体代码])[
+  ```python
+  class Agent:
+      def __init__(self):
+          self.gamma = 0.98 # 折扣因子$gamma$
+          self.lr = 0.0002 # 学习率$alpha$
+          self.action_size = 2 # 两个动作
+
+          self.pi = PolicyNet(self.action_size) # 策略神经网络$pi_theta$
+          self.optimizer = optim.Adam(self.pi.parameters(), lr=self.lr)
+
+      def get_action(self, state):
+          probs = self.pi(torch.tensor(state).unsqueeze(0)).squeeze(0)
+          # 根据动作的概率分布创建一个二项分布
+          m = Categorical(probs)
+          # 使用二项分布采样动作$pi_theta (a_t|s_t)$
+          action = m.sample().item()
+
+          # (采样的动作, [向左推的概率, 向右推的概率])
+          return action, probs
+  ```
+] <agent-code-1>
+
+`get_action`方法决定了在`state`状态下采取的动作。为此，可以通过`self.pi(state)`进行神经网络的前向传播，得到概率分布`probs`。然后，基于该概率分布，进行一次动作的采样。该方法还返回了所有动作的概率（上面代码中的`probs`）。
+
+下面来试用一下`get_action`方法。代码如下所示。
+
+#codly(header: [执行1步动作然后反向传播，观察结果])
+```python
+env = gym.make("CartPole-v0")
+state = env.reset() # $S_0$
+agent = Agent()
+
+action, probs = agent.get_action(state)
+print("动作：", action) # $A_0$
+print("动作的概率：", probs[action].item()) # $pi_theta (A_0|S_0)$
+
+G = 100.0 # $G(tau)$
+J = -G * probs[action].log() # $-G(tau) log pi_theta (A_0|S_0)$
+print("J: ", J)
+
+J.backward() # 求导（梯度）$- nabla_theta G(tau) log pi_theta (A_0|S_0)}$
+agent.optimizer.step() # 梯度下降：$theta=theta+alpha nabla_theta G(tau) log pi_theta (A_0|S_0)$
+# 在相同的状态state下，采取动作的概率变大了
+# （测试一下）将G变为负值，也就是负的奖励，会发现采取动作的概率下降了
+_, probs = agent.get_action(state)
+print("动作：", action)
+print("动作的概率：", probs[action].item())
+```
+
+上面的代码取出了初始状态下的动作及其概率。另外，它还显示了使用虚拟的权重来计算由下面的式子表示的梯度的代码（这是从式子取出的$t = 0$的相关项的式子）。
+
+$
+  G(tau) nabla_theta log pi_theta (A_0|S_0)
+$
+
+作为参考，下面对照列出了上面的代码中出现的变量与相应的数学式。
+
+- `probs[action]`：$pi_theta (A_0|S_0)$
+- `G`：$G(tau)$
+- `J`：$G(tau) log pi_theta (A_0|S_0)$
+
+求出`J`之后，通过`J.backward()`求$G(tau) nabla_theta log pi_theta (A_0|S_0)$。下面是`Agent`类剩下的代码。
+
+我们先来编写采集一条轨迹的详细信息的代码。
+
+#figure(caption: [采集一条轨迹的详细数据，接@agent-code-1])[
+  ```python
+  class Agent:
+      ...
+
+      def collect_trajectory(self, env):
+          state = env.reset()
+          states, actions, rewards = [], [], []
+          done = False
+
+          while not done:
+              action, _ = self.get_action(state)
+              next_state, reward, done, _ = env.step(action)
+              states.append(state) # $S_t$
+              actions.append(action) # $A_t$
+              rewards.append(reward) # $R_t$
+              state = next_state # $S_t arrow S_(t+1)$
+          # $[S_0, S_1, dots.c, S_T]$
+          # $[A_0, A_1, dots.c, A_T]$
+          # $[R_0, R_1, dots.c, R_T]$
+          return states, actions, rewards
+  ```
+] <agent-code-2>
+
+然后编写更新策略的代码：
+
+#figure(caption: [更新策略的代码，接@agent-code-2])[
+  ```python
+  class Agent:
+      ...
+
+      def update(self, trajectory):
+          states, actions, rewards = trajectory
+          # 逆序计算$G(tau)$
+          G = 0
+          for r in rewards[::-1]:
+              G = r + self.gamma * G
+          loss = 0
+          for s, a in zip(states, actions):
+              probs = self.pi(torch.tensor(s).unsqueeze(0)).squeeze(0)
+              log_prob = torch.log(probs)[a] # $log pi_theta (A_t|S_t)$
+              loss += -log_prob * G # $-sum_(t=0)^T G(tau) log pi_theta (A_t|S_t)$
+
+          self.optimizer.zero_grad()
+          loss.backward() # $nabla_theta { -sum_(t=0)^T G(tau) log pi_theta (A_t|S_t) }$
+          self.optimizer.step() # $theta=theta-alpha nabla_theta { -sum_(t=0)^T G(tau) log pi_theta (A_t|S_t) }$
+  ```
+] <agent-code-3>
+
+在训练神经网络时，通常要设置损失函数。对于这个例子，我们可以将目标函数$J(theta)$乘以$-1$所得到的$-J(theta)$作为损失函数，此时可以通过梯度下降法的最优化方法（SGD、Adam等）更新参数。
+
+@agent-code-3 中第10 #sym.tilde 14 行可以改写成并行版本，代码如下：
+
+```python
+states = torch.tensor(states)
+actions = torch.tensor(actions).view(-1, 1)
+log_probs = torch.log(self.pi(states).gather(1, actions))
+loss = -torch.sum(log_probs) * G
+```
+
+最后在倒立摆环境中训练智能体。代码如下所示。
+
+```python
+env = gym.make("CartPole-v0")
+agent = Agent()
+return_list = []
+episode_list = []
+
+for episode in range(3000):
+    trajectory = agent.collect_trajectory(env)
+    reward_list = trajectory[2]
+    return_list.append(sum(reward_list))
+    episode_list.append(episode)
+
+    agent.update(trajectory)
+
+    if episode % 100 == 0:
+        print("回合:{}, 总奖励:{:.1f}".format(episode, sum(reward_list)))
+```
+
+首先，在`while`语句中，增加智能体获得的奖励（`reward`）和行动的概率（`prob`）。然后在离开`while`语句后（回合结束时），通过`agent.update()`更新策略。
+
+运行此代码，随着回合的推进，获得的奖励也会增加。下图是结果的示意图。
+
+绘制示意图的代码如下：
+
+```python
+def plot_loss(episode_list, return_list, filename):
+    f = plt.figure()
+    plt.plot(episode_list, return_list)
+    plt.xlabel("Episodes")
+    plt.ylabel("Returns")
+    plt.title("CartPole-v0")
+    plt.show()
+    f.savefig(filename, bbox_inches="tight")
+
+plot_loss(episode_list, return_list, "pg-loss.pdf")
+```
+
+通过观察绘制出来的图像，我们发现每回合的奖励随着训练震荡的很厉害，但是随着训练的进行，每回合获得的总奖励确实越来越多了。
+
+#figure(
+  image("rl-figures/pg-loss.svg"),
+  caption: [策略梯度算法获得的奖励],
+)
+
+我们可以测试一下训练的策略神经网络。看看倒立摆能不能坚持很长时间。
+
+```python
+def test_agent(agent, env):
+    state = env.reset()
+    done = False
+    frames = []
+
+    while not done:
+        frames.append(env.render(mode="rgb_array"))
+        action, _ = agent.get_action(state)
+        next_state, _, done, _ = env.step(action)
+        state = next_state
+
+    env.close()
+    show_animation(frames)
+
+test_agent(agent, env)
+```
+
+我们大概可以知道，随着回合的推进，奖励的总和会逐渐增加。但即使经历了 3000 个回合，依然没有达到这次任务的上限值 200，所以似乎还有改进的余地。下面让我们来改进一下这里推导的最简单的策略梯度法。这个改进算法就是著名的#underline("REINFORCE")算法。
+
+=== 深入讨论
+
+采样一条轨迹的梯度是$nabla_theta J(theta) approx sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)$。
+
+如果将梯度符号去掉，可以得到如下：
+
+$
+  J(theta) & approx sum_(t=0)^T G(tau) log pi_theta (A_t|S_t) \
+           & = G(tau) sum_(t=0)^T log pi_(theta) (A_t|S_t) \
+           & = G(tau) (log pi_theta (A_0|S_0) + log pi_theta (A_1|S_1) + dots.c)
+$
+
+我们的目标是让$J(theta)$越大越好，那么在经过梯度上升算法之后，$J(theta)$会变大，那么肯定有的$log pi_theta (A_t|S_t)$变大了，也可能有的$log pi_theta (A_(t')|S_(t'))$变小了，但总和肯定变大了。也就是说，策略梯度法的本质是，我们使用*当前策略*$pi_theta$采样一条轨迹$tau$，如果采样的轨迹的回报$G(tau)$很高，那么说明我们在某个状态$S_t$采取的动作$A_t$比较好，导致了总的奖励也就是回报比较高。那么通过梯度上升法，更新$theta$之后，新的策略$pi_theta_"new"$会提升在$S_t$时执行$A_t$的概率。例如$A_t$是"向左推车"，那么在$S_t$状态下策略采取"向左推车"的概率就会提升，而同时策略采取"向右推车"的概率就会下降。
+
+举一个最简单的例子，我们采样的轨迹只执行了一步动作，就结束了。那么有如下公式
+
+$
+  J(theta) = G(tau) log pi_theta (A_0|S_0)
+$
+
+- 如果$G>0$，那么对$J(theta)$优化之后，策略$pi_theta$在状态$S_0$时采取动作$A_0$的概率一定会变大。
+- 如果$G<0$，那么对$J(theta)$优化之后，策略$pi_theta$在状态$S_0$时采取动作$A_0$的概率一定会变小。
+
+如果$G$特别大，例如$G=10000$，或者$G$特别小，例如$G=-10000$，那么梯度上升算法的步长$alpha G nabla_theta log pi_theta (A_0|S_0)$的绝对值一定会很大，进而导致策略的参数$theta$更新幅度巨大，进而导致策略$pi_theta$爆炸式的更新。
+
+换句话说，我们只是提高了在状态$S_0=s$是采取动作$A_0$的概率，但是在玩倒立摆游戏时，并不能保证状态$s$经常出现。碰到其它的状态，更新后的策略表现可能非常的差。好比一个人，突然间中了1000万，那么如此大的奖励会直接彻底改变这个人的策略，他的策略彻底变成了靠运气生活。或者一个人犯了一点点小错误，却得到了巨大的惩罚，如此大的惩罚也会让一个人信心崩溃。这就是策略崩溃的例子。
+
+#figure(
+  image("rl-figures/梯度爆炸式更新.svg"),
+  caption: [梯度爆炸式更新],
+)
+
+== REINFORCE
+
+=== REINFORCE算法原理
+
+REINFORCE是对上一节的策略梯度法的改进算法。本节首先会基于数学式推导REINFORCE算法，然后会通过修改之前的部分代码的做法来实现REINFORCE。
+
+#tip[
+  REINFORCE这个名字是"REward Increment = Nonnegative Factor $times$ Offset Reinforcement $times$ Characteristic Eligibility"（奖励增量=非负因子$times$偏移强化$times$特征资格）的首字母缩写。
+]
+
+先来复习一下第一节。最简单的梯度策略法是基于下面的公式实现的。
+
+$
+  nabla_theta J(theta) & = nabla_theta EE_(tau tilde pi_theta) [G(tau)] \
+                       & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)]
+$
+
+上面的式子中的$G(tau)$是目前为止获得的所有奖励的总和（准确地说是"带折扣因子"的奖励的总和）。这里要思考的问题是，无论在哪个时刻$t$，式子中都是$G(tau) nabla_theta log pi_theta (A_t|S_t)$，我们始终会使用固定不变的权重$G(tau)$来增加（或减少）采取行动$A_t$的概率。
+
+智能体行动的好坏是根据行动之后获得的奖励总和来评估的（回顾一下价值函数的定义）。反过来说，采取某个行动之前获得的奖励与该行动的好坏无关。如果要评估在某个时刻$t$采取的行动$A_t$，那么在此之前做了什么以及获得了多少奖励都无所谓。我们是根据采取行动$A_t$之后的结果（在时刻$t$以后获得的奖励的总和）来判断行动$A_t$的好坏的。
+
+上面的式子中行动$A_t$的权重是$G(tau)$。这个权重$G(tau)$包括在时刻$t$之前的奖励。也就是说，原本不相关的奖励作为噪声数据包含在内了。为了改进这一点（去除噪声数据），可以对权重$G(tau)$作如下修改。
+
+#theorem(name: [REINFORCE版策略梯度定理])[
+  $
+    nabla_theta J(theta) & = EE_(tau tilde pi_theta) [sum_(t=0)^T G_t nabla_theta log pi_theta (A_t|S_t)] \
+                     G_t & = R_t + gamma R_(t+1) + dots.c + gamma^(T-1) R_T
+  $
+]
+
+如上式所示，权重变成了$G_t$。权重$G_t$是在时刻$t tilde T$获得的奖励的总和。因此，选择行动$A_t$的概率将由不包含时刻$t$之前的奖励的权重$G_t$增强。这就是改进第一节的策略梯度法的思路。基于上式的算法叫作#underline[REINFORCE]。
+
+#tip[
+  基于上式的REINFORCE算法优于最简单的策略梯度法（基于第一节的公式的算法）。通过无限增加的样本数，两个公式都会收敛到正确的$nabla_theta J(theta)$（可以说是无偏差的）。但第一个公式的方差更大，因为公式中的权重包含了无关的数据（噪声）。
+]
+
+=== REINFORCE的代码实现
+
+由于REINFORCE的方差小，因此即使数据样本少，也能高精度地近似数据。下面我们来实现REINFORCE以验证其精度。REINFORCE的代码与上一节中的代码基本相同，不同之处只有`Agent`类的`update`方法。下面仅列出了不同部分的代码。
+
+```python
+class Agent:
+    ...
+
+    def update(self, trajectory):
+        states, actions, rewards = trajectory
+        G, loss = 0, 0
+        for r, s, a in zip(rewards[::-1], states[::-1], actions[::-1]):
+            G = r + self.gamma * G # $G_t=R_t+gamma G_(t+1)$
+            probs = self.pi(torch.tensor(s).unsqueeze(0)).squeeze(0)
+            log_prob = torch.log(probs)[a] # $log pi_theta (A_t|S_t)$
+            loss += -log_prob * G # $-sum_(t=0)^T G_t log pi_theta (A_t|S_t)$
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+```
+
+我们使用可视化代码将回合和奖励绘制出来。
+
+```python
+plot_loss(episode_list, return_list, "reinforce-pg-loss.pdf")
+test_agent(agent, env)
+```
+
+从上图中可以看出，随着回合的推进，奖励的总和会逐渐增加。与上一次的结果相比，不但训练稳定了，训练速度也提高了。
+
+#figure(
+  image("rl-figures/reinforce-pg-loss.svg"),
+  caption: [REINFORCE策略梯度算法获得的奖励],
+)
+
+== 带基线（baseline）的策略梯度法
+
+前面介绍的REINFORCE玩倒立摆有一个问题，那就是不管我们怎么推车，获得的奖励都是正奖励。也就是说不管怎么玩，我们都会提升某个状态采取某个动作的概率，即使奖励很少也是如此。其实我们在玩倒立摆时，获得的奖励很少时，应该降低某个状态下采取某个动作的概率。也就是说，我们应该在获得的奖励很多时，给予策略正的奖励，而在获得奖励很少时，给予策略负的奖励。这样会更加的合理。这就是*基线*的技术。
+
+倒立摆环境中只要倒立摆没有倒，给出的奖励总是1。也就是不管策略多么的差劲，采样出的轨迹的回报一定是正的。也就是说，即使轨迹的回报很低，也会提升在$S_t$采取$A_t$的概率，只是可能提升的不大。
+
+如果加入基线，那么如果轨迹的回报很低，权重就会成为负值，从而在策略更新之后，直接降低在$S_t$采取$A_t$的概率。所以训练速度会加快。
+
+下面介绍基线（baseline）技术，该技术可以改进REINFORCE。让我们先通过一个简单的例子来了解一下基线的思路，然后再将基线应用于REINFORCE。
+
+下式是REINFORCE的数学式。
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T G_t nabla_theta log pi_theta (A_t|S_t)]
+$
+
+将基线应用于这个REINFORCE的数学式如下式所示。
+
+#theorem(name: [带基线的REINFORCE策略梯度定理])[
+  $
+    nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t-b(S_t)) nabla_theta log pi_theta (A_t|S_t)]
+  $
+]
+
+上式用$G_t-b(S_t)$代替了$G_t$。这里$b(S_t)$可以是任何函数。也就是说，只要输入是$S_t$，$b(S_t)$是什么函数都行。这个$b(S_t)$就是基线（baseline）。
+
+上式中的$b(S_t)$可以是任何函数。例如，在状态$S_t$下，可以考虑使用之前获得的奖励的平均值作为$b(S_t)$。实践中经常使用的是价值函数，数学式为$b(S_t)=V_(pi_theta) (S_t)$。如果能够使用基线减小方差，那么就可以进行样本效率更高的训练。另外，将价值函数作为基线使用时，我们是不知道真正的价值函数$v_(pi_theta) (S_t)$的。这种情况下还需要训练价值函数神经网络。
+
+最后，我们再通过直观介绍补充说明一下为什么使用基线更好。这里以倒立摆为例，思考下图的状态。
 
 
 
