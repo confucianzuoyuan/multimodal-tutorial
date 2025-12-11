@@ -53,6 +53,7 @@
 ))
 
 #let colred(x) = text(fill: red, $#x$)
+#let colblue(x) = text(fill: blue, $#x$)
 
 #set list(marker: ([•], [‣]))
 
@@ -1587,6 +1588,485 @@ $
 上式中的$b(S_t)$可以是任何函数。例如，在状态$S_t$下，可以考虑使用之前获得的奖励的平均值作为$b(S_t)$。实践中经常使用的是价值函数，数学式为$b(S_t)=V_(pi_theta) (S_t)$。如果能够使用基线减小方差，那么就可以进行样本效率更高的训练。另外，将价值函数作为基线使用时，我们是不知道真正的价值函数$v_(pi_theta) (S_t)$的。这种情况下还需要训练价值函数神经网络。
 
 最后，我们再通过直观介绍补充说明一下为什么使用基线更好。这里以倒立摆为例，思考下图的状态。
+
+#figure(
+  image("rl-figures/不管怎么推都会倒下.svg"),
+  caption: [无论怎么推，倒立摆都会在3步之后倒下],
+)
+
+上图表示游戏结束之前的杆子失去平衡的状态。在这种状态下，无论采取什么样的行动，在几个时间步之后游戏都将结束。
+
+设图的状态为$s$，在此状态下采取的行动为$a$。假定从状态$s$开始几个时间步（比如3个时间步）后游戏一定会结束。在这种情况下，状态$s$的回报$G$为$3$（这里设折扣因子$gamma$为$1$。如果使用的是没有基线的REINFORCE，那么状态$s$下的行动$a$就会因为权重$3$而被增强（状态$s$下选择行动$a$的概率会变高）。但无论采取什么样的行动，3个时间步之后游戏一定会结束，所以可以说这种提高行动$a$被选择的概率的工作是无意义的。
+
+此时就要用到基线了。这里使用价值函数作为基线，假设我们已经知道图中的例子中的$V_(pi_theta) (S_t)=3$。此时的权重为$G_t-V_(pi_theta)$所以是0。由于权重是0，因此无论选择什么行动，采取那个行动的概率都不会变大，也不会变小。像这样使用基线，有望减少无谓的训练。
+
+== Actor-Critic（演员-评论家架构）
+
+如果在上节介绍的带基线的REINFORCE中使用价值函数作为基线，那么就可以将其视为基于价值且基于策略的方法。本节将进一步改进带基线的REINFORCE，推导一个叫作Actor-Critic的算法。Actor-Critic也是基于价值且基于策略的方法。
+
+#figure(
+  image("rl-figures/演员评论家漫画.jpg", width: 60%),
+  caption: [演员评论家架构],
+)
+
+=== Actor-Critic的数学推导
+
+首先从复习带基线的REINFORCE开始。带基线的REINFORCE的目标函数的梯度的数学式如下所示。
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t-b(S_t))nabla_theta log pi_theta (A_t|S_t)]
+$
+
+上式中的$G_t$表示回报，$b(S_t)$表示基线。可以使用任何函数作为基线。这里我们使用基于神经网络建模的价值函数作为基线。因此，我们要用到以下这些新的记号。
+
+- $omega$：表示价值函数的神经网络的所有权重参数。
+- $V_omega (S_t)$：将价值函数模型化的神经网络。
+
+此时目标函数的梯度的数学式如下式所示
+
+#theorem(name: "Actor-Critic架构的REINFORCE策略梯度定理")[
+  $
+    nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t - b(S_t))nabla_theta log pi_theta (A_t|S_t)]
+  $
+]
+
+上式中存在一个问题，即只要没抵达目标，就无法确定回报$G_t$的值。也就是说，在抵达目标之前，无法更新策略和价值函数。如果这是基于蒙特卡洛方法的算法，那么二者无法更新就是它的缺点。
+
+#tip(title: [蒙特卡洛采样])[
+  我们之前使用的是*蒙特卡洛采样*，也就是采样出一条完整的轨迹。然后更新策略神经网络$pi_theta$。
+]
+
+消除这个缺点的方法是*时序-差分方法*（TD方法，Time Difference Method）。使用TD方法训练价值函数时，使用1个时间步（或$n$个时间步）后的结果就能进行更新，如图所示。
+
+#figure(
+  image("rl-figures/蒙特卡洛方法和TD方法对比.svg", width: 50%),
+  caption: [蒙特卡洛方法和TD方法对比],
+)
+
+如图所示，在训练价值函数$V_omega (S_t)$时，蒙特卡洛方法使用的是回报$G_t$，而TD方法使用的是$R_t+gamma V_omega (S_(t+1))$ 。
+
+#tip(title: [时序差分误差])[
+  使用神经网络对价值函数建模时，我们以接近$R_t+gamma V_omega (S_(t+1))$为目标训练$V_omega (S_t)$的值。具体来说就是将$V_omega (S_t)$和$R_t+gamma V_omega (S_(t+1))$的均方差作为损失函数，通过梯度下降法更新神经网络的权重。
+
+  贝尔曼期望方程：$V_omega (S_t)=EE_pi [ R_t + gamma V_omega (S_(t+1)) | S_t ]$
+
+  可以看到$V_omega (S_t) arrow R_t+gamma V_omega (S_(t+1))$是由贝尔曼期望方程而来的。
+]
+
+下面将基于蒙特卡洛方法的公式切换为TD方法，其中，代替$G_t$的是$R_t+gamma V_omega (S_(t+1))$。此时得到的式子如下所示。
+
+#theorem(name: [1步TD误差的Actor-Critic策略梯度定理])[
+  $
+    nabla_theta J(theta)=EE_(tau tilde pi_theta) [sum_(t=0)^T (R_t+gamma V_omega (S_(t+1))-V_omega (S_t)) nabla_theta log pi_theta (A_t|S_t)]
+  $
+]
+
+1步TD误差经常表示为$delta = R_t + gamma V_omega (S_(t+1)) - V_omega (S_t)$。
+
+基于上面的公式的算法就是Actor-Critic。策略$pi_theta$和价值函数$V_omega$是神经网络，我们要同时训练这两个神经网络。具体来说，对于策略$pi_theta$要基于上面的公式进行训练；而对于价值函数$V_omega$，则通过TD方法，以接近$R_t+gamma V_omega (S_(t+1))$为目标训练$V_omega (S_t)$这个神经网络。
+
+#tip[
+  Actor-Critic中的Actor是*演员*（采取动作的人）的意思，也就是采取动作的人，相当于策略$pi_theta$。而Critic是*评论家*的意思，相当于价值函数$V_omega$。因此，Actor-Critic的意思是"使用$V_omega$，来评论基于策略$pi_theta$采取的动作的好坏"。
+]
+
+=== Actic-Critic的代码实现
+
+下面实现Actor-Critic。策略和价值函数这两个神经网络的代码如下所示。
+
+#codly(header: [策略网络和价值网络])
+```python
+class PolicyNet(nn.Module):
+    def __init__(self, action_size):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, action_size)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = F.softmax(self.l2(x), dim=1)
+        return x
+
+class ValueNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, 1)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = self.l2(x)
+        return x
+```
+
+上面的代码将策略的网络实现为了`PolicyNet`类，将价值函数的网络实现为了`ValueNet`类。策略的最终输出是`Softmax`函数的输出，所以输出的是概率。接下来是`Agent`类的代码。
+
+#codly(header: [演员评论家架构中的智能体])
+```python
+class Agent:
+    def __init__(self):
+        self.gamma = 0.98 # 折扣因子$gamma$
+        self.lr_pi = 0.0002 # 策略网络的学习率$alpha_"actor"$
+        self.lr_v = 0.0005 # 价值网络的学习率$alpha_"critic"$
+        self.action_size = 2
+        # 初始化策略网络（演员网络）$pi_theta$
+        self.pi = PolicyNet(self.action_size)
+        # 初始化价值函数网络（评论家网络）$V_omega$
+        self.v = ValueNet()
+
+        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=self.lr_pi)
+        self.optimizer_v = optim.Adam(self.v.parameters(), lr=self.lr_v)
+
+    def get_action(self, state):
+        probs = self.pi(torch.tensor(state).unsqueeze(0)).squeeze(0)
+        m = Categorical(probs)
+        action = m.sample().item()
+        return action, probs
+
+    def update(
+        self,
+        state, # $S_t$
+        action_prob, # $pi_theta (A_t|S_t)$
+        reward, # $R_t$
+        next_state, # $S_(t+1)$
+        done
+    ):
+        state = torch.tensor(state).unsqueeze(0) # $S_t$
+        next_state = torch.tensor(next_state).unsqueeze(0) # $S_(t+1)$
+
+        # ① self.v的损失：均方差
+        # $"TD目标"=R_t+gamma V_omega (S_(t+1))$
+        target = reward + self.gamma * self.v(next_state) * (1 - done)
+        # 从计算图中剥离，不参与反向传播
+        target.detach()
+        v = self.v(state) # $V_omega (S_t)$
+        loss_fn = nn.MSELoss() # $(R_t+gamma V_omega (S_(t+1))-V_omega (S_t))^2 arrow 0$
+        loss_v = loss_fn(v, target)
+
+        # ② self.pi的损失
+        delta = target - v # $delta=R_t+gamma V_omega (S_(t+1)) - V_omega (S_t)$
+        # $-(R_t+gamma V_omega (S_(t+1)) - V_omega (S_t) ) log pi_theta (A_t|S_t)$
+        loss_pi = -torch.log(action_prob) * delta.item()
+
+        self.optimizer_v.zero_grad()
+        self.optimizer_pi.zero_grad()
+        loss_v.backward() # $nabla_omega (R_t+gamma V_omega(S_(t+1))-V_omega (S_t))^2$
+        loss_pi.backward() # $-( R_t+gamma V_omega(S_(t+1))-V_omega (S_t))nabla_theta log pi_theta (A_t|S_t)$
+        self.optimizer_v.step()
+        self.optimizer_pi.step()
+```
+
+`get_action`方法可以基于策略取出动作。需要注意的是，由于输入到神经网络中的数据将作为小批量进行处理，因此在处理其中一个数据（状态）时需要小批量的轴。另外，`get_action`方法返回了两个值，即选择的动作及其概率。选择动作的概率将在稍后的损失函数计算中使用。
+
+`update`方法可以训练价值函数和策略。在代码①处为价值函数(`self.v`)计算损失。为此要计算TD目标（target），求出当前状态下其与价值函数（v）的均方差。然后，在代码②处为策略（`self.pi`）计算损失。需要将其乘以$-1$的值作为损失。剩下的就是一直以来的神经网络的训练代码。
+
+#codly(header: [训练循环])
+```python
+env = gym.make("CartPole-v0")
+agent = Agent()
+return_list = []
+episode_list = []
+
+for episode in range(2000):
+    state = env.reset()
+    done = False
+    total_reward = 0
+
+    while not done:
+        action, probs = agent.get_action(state)
+        next_state, reward, done, info = env.step(action)
+        # 执行完一个动作，立即更新$pi_theta$和$V_omega$这两个网络
+        agent.update(state, probs[action], reward, next_state, done)
+
+        state = next_state
+        total_reward += reward
+
+    return_list.append(total_reward)
+    episode_list.append(episode)
+    if episode % 100 == 0:
+        print("回合:{}, 总奖励:{:.1f}".format(episode, total_reward))
+
+plot_loss(episode_list, return_list, "actor-critic-pg-loss.pdf")
+test_agent(agent, env)
+```
+
+== 广义优势估计
+
+#tip[
+  广义优势估计：Generalized Advantage Estimation，GAE
+]
+
+上面的1步TD误差表示为：$delta = R_t + gamma V_omega (S_(t+1)) - V_omega (S_t)$。在很多强化学习文献中，这个叫做优势$A$（Advantage）。
+
+也就是1步TD目标$R_t + gamma V_omega (S_(t+1))$相对于基线$V_omega (S_t)$的优势是多少。
+
+我们在上一节的Actor-Critic中使用1步TD误差来作为优势。而现在常用的一种方法是针对*多步TD误差*计算指数加权平均的方式来估算优势，也就是*广义优势估计*。
+
+首先，$t$时刻的1步TD误差是：
+
+$
+  delta_t = R_t + gamma V(s_(t+1)) - V(s_t)
+$
+
+其中$V$是价值函数神经网络$V_omega$。那么我们计算一下多步TD误差：
+
+$
+  A_t^((1)) &= delta_t &&= -V(s_t)+R_t + gamma V(s_(t+1)) \
+  A_t^((2)) &= delta_t+gamma delta_(t+1) &&= -V(s_t)+R_t+gamma R_(t+1)+gamma^2 V(s_(t+2)) \
+  A_t^((3)) &= delta_t + gamma delta_(t+1) + gamma^2 delta_(t+2) &&= -V(s_t)+R_t+gamma R_(t+1) + gamma^2 R_(t+2) + gamma^3 V(s_(t+3)) \
+  &space dots.v && space space dots.v \
+  A_t^((k)) &= sum_(l=0)^(k-1) gamma^l delta_(t+l) &&= -V(s_t)+R_t+gamma R_(t+1)+dots.c+gamma^(k-1) R_(t+k-1)+gamma^k V(s_(t+k))
+$
+
+然后，GAE将这些不同步数的优势估计进行指数加权平均：
+
+$
+  A_t^"GAE" &= (1-lambda)(A_t^((1))+lambda A_t^((2))+lambda^2 A_t^((3))+ dots.c) \
+  &= (1-lambda)( delta_t+lambda(delta_t+gamma delta_(t+1)) + lambda^2 (delta_t+gamma delta_(t+1) + gamma^2 delta_(t+2))+ dots.c) \
+  &= (1-lambda)(delta_t (1+lambda+lambda^2+dots.c)+gamma delta_(t+1) (lambda+lambda^2+lambda^3+dots.c)+gamma^2 delta_(t+2) (lambda^2+lambda^3+lambda^4+dots.c)+ dots.c) \
+  &= (1-lambda) ( delta_t 1/(1-lambda)+gamma delta_(t+1) lambda/(1-lambda)+gamma^2 delta_(t+2) lambda^2 / (1-lambda) + dots.c ) \
+  &= sum_(l=0)^infinity (gamma lambda)^l delta_(t+l)
+$
+
+其中，$lambda in [0,1]$是在GAE中额外引入的一个超参数。当$lambda=0$时，$A_t^"GAE"= delta_t=R_t+gamma V(s_(t+1))-V(s_t)$ ，也就是仅仅只看一步差分得到的优势；当$lambda=1$时，$A_t^"GAE"=sum_(l=0)^infinity gamma^l delta_(t+l)=sum_(l=0)^infinity gamma^l R_(t+l)-V(s_t)$，则是看每一步差分得到的优势的完全平均值。
+
+有上面的式子，我们还可以推导出一个递推公式
+
+$
+  A_t^"GAE" = delta_t + gamma lambda A_(t+1)^"GAE"
+$
+
+下面是计算GAE的过程，给定 $gamma$ 和 $lambda$ 以及每个时间步的 $delta_t$ 之后，我们可以根据公式直接进行优势估计。
+
+先前向（forward）计算每一个时刻的*1步TD误差*，然后再逆向（backward）计算每一个时刻的GAE。
+
+首先，我们有 $n$ 个1步TD误差。
+
+$
+  "TD"_delta = [ delta_t, delta_(t+1), dots.c, delta_(t+n) ]
+$
+
+先把数组逆序
+
+$
+  "TD"_delta = [ delta_(t+n), delta_(t+n-1), dots.c, delta_t]
+$
+
+然后遍历逆序数组，有如下结果：
+
+$
+    A_(t+n)^"GAE" & = delta_(t+n} \
+  A_(t+n-1)^"GAE" & = delta_(t+n-1) + gamma lambda A_(t+n)^"GAE" \
+  A_(t+n-2)^"GAE" & = delta_(t+n-2) + gamma lambda A_(t+n-1)^"GAE" \
+           dots.v \
+        A_t^"GAE" & = delta_t + gamma lambda A_(t+1)^"GAE"
+$
+
+这样每一个时间步的广义优势估计就计算出来了。
+
+#tip(title: [GAE目标])[
+  $"GAE Target" = A_t^"GAE" + V(S_t)$
+]
+
+#theorem(name: [GAE的Actor-Critic策略梯度定理])[
+  $
+    nabla_theta J(theta)=EE_(tau tilde pi_theta) [sum_(t=0)^T A^"GAE"_t nabla_theta log pi_theta (a_t|s_t)]
+  $
+]
+
+#tip[
+  为了使符号更清晰，将动作$A_t$改为$a_t$，将状态$S_t$改为$s_t$。$A^"GAE"_t$中的$A$表示"Advantage"（优势）。
+]
+
+== 相关数学证明
+
+=== 策略梯度法的证明
+
+当$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$时，其梯度如下面的式子所示。
+
+$
+  nabla_theta J(theta)=EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau)nabla_theta log pi_theta (A_t|S_t)]
+$
+
+下面对上面的式子进行证明。
+
+$
+  nabla_theta J(theta) &= nabla_theta EE_(tau tilde pi_theta) [G(tau)] \
+  &= nabla_theta sum_tau "Pr"(tau|theta) G(tau) colblue("（展开期望值）") \
+  &= sum_tau nabla_theta ("Pr"(tau|theta)G(tau)) colblue("（将"nabla_theta"移动到"sum"中）") \
+  &= sum_tau { G(tau)nabla_theta"Pr"(tau|theta) + "Pr"(tau|theta)nabla_theta G(tau) } colblue("（积的微分）") \
+  &= sum_tau G(tau)nabla_theta"Pr"(tau|theta) colblue("（"nabla_theta G(tau)"永远为0）") \
+  &= sum_tau G(tau)"Pr"(tau|theta) colred((nabla_theta"Pr"(tau|theta))/("Pr"(tau|theta))) colblue("（乘以""Pr"(tau|theta)/"Pr"(tau|theta)"）") \
+  &= sum_tau G(tau)"Pr"(tau|theta) colred(nabla_theta log"Pr"(tau|theta)) colblue("（"log"梯度技巧）") \
+  &= EE_(tau tilde pi_theta) [G(tau)nabla_theta log"Pr"(tau|theta)]
+$ <pgproof>
+
+这里对"log梯度的技巧"进行说明。这个技巧利用了以下等式。
+
+$
+  nabla_theta log"Pr"(tau|theta)=(nabla_theta"Pr"(tau|theta))/("Pr"(tau|theta))
+$
+
+#tip(title: [log梯度技巧])[
+  $
+    (log f(x))' = (f'(x))/f(x)
+  $ <logtrick>
+]
+
+根据上面的式子，我们就知道
+
+$
+  nabla_theta"Pr"(tau|theta)="Pr"(tau|theta)nabla_theta log"Pr"(tau|theta)
+$
+
+这就是著名的*log梯度的技巧*。是机器学习领域常用的数学式的变形形式。
+
+接下来，我们将利用以下等式进一步展开@pgproof。
+
+$
+  "Pr"(tau|theta) & = p(S_0)pi_theta (A_0|S_0)p(S_1|S_0,A_0)dots.c pi_theta (A_T|S_T)p(S_(T+1)|S_T,A_T) \
+                  & = p(S_0)product_(t=0)^T pi_theta (A_t|S_t)p(S_(t+1)|S_t,A_t)
+$
+
+#tip(title: [轨迹的概率])[
+  轨迹是：$tau=(S_0,A_0,S_1,A_1,S_2,A_2,S_3)$，那么轨迹的概率如下计算：
+  $
+    "Pr"(tau) & = p(S_0,A_0,S_1,A_1,S_2,A_2,S_3) \
+              & = p(S_3|S_0,A_0,S_1,A_1,S_2,A_2)p(S_0,A_0,S_1,A_1,S_2,A_2) \
+              & = p(S_3|S_2,A_2)p(S_0,A_0,S_1,A_1,S_2,A_2) \
+              & = p(S_3|S_2,A_2)p(A_2|S_0,A_0,S_1,A_1,S_2)p(S_0,A_0,S_1,A_1,S_2) \
+              & = p(S_3|S_2,A_2)p(A_2|S_2)p(S_0,A_0,S_1,A_1,S_2) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_0,A_0,S_1,A_1,S_2) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_0,A_0,S_1,A_1)p(S_0,A_0,S_1,A_1) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)p(S_0,A_0,S_1,A_1) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)p(A_1|S_0,A_0,S_1)p(S_0,A_0,S_1) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)p(A_1|S_1)p(S_0,A_0,S_1) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)pi_theta (A_1|S_1)p(S_0,A_0,S_1) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)pi_theta (A_1|S_1)p(S_1|S_0,A_0)p(S_0,A_0) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)pi_theta (A_1|S_1)p(S_1|S_0,A_0)p(A_0|S_0)p(S_0) \
+              & = p(S_3|S_2,A_2)pi_theta (A_2|S_2)p(S_2|S_1,A_1)pi_theta (A_1|S_1)p(S_1|S_0,A_0)pi_theta (A_0|S_0)p(S_0)
+  $
+]
+
+这里，$p(S_0)$表示初始状态$S_0$的概率。上面的式子表明，得到轨迹$tau$的概率可以用初始状态的概率、策略以及下一个状态的迁移概率的乘积来表示。另外，我们可以用下面的式子来表示$log"Pr"(tau|theta)$。
+
+$
+  log"Pr"(tau|theta)=log p(S_0) + sum_(t=0)^T log p(S_(t+1)|S_t,A_t) + sum_(t=0)^T log pi_theta (A_t|S_t)
+$
+
+由于$log x y = log x + log y$，所以可以像上面的式子那样表示为和的形式。基于上面的式子，可以将$nabla_theta log"Pr"(tau|theta)$展开为如下形式。
+
+$
+  nabla_theta log"Pr"(tau|theta) &= nabla_theta { log p(S_0) + sum_(t=0)^T log p(S_(t+1)|S_t,A_t)} + sum_(t=0)^T log pi_theta (A_t|S_t)} \
+  &= nabla_theta sum_(t=0)^T log pi_theta (A_t|S_t)
+$
+
+$nabla_theta$是对$theta$的梯度。与$theta$无关的元素的梯度$nabla_theta log p(S_0)$和$nabla_theta sum_(t=0)^T log p(S_(t+1)|S_t,A_t)}$为0。因此，从上面的式子可以得到下列式子。
+
+$
+  nabla_theta J(theta) & =EE_(tau tilde pi_theta) [G(tau) nabla_theta log"Pr"(tau|theta)] \
+                       & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau)nabla_theta log pi_theta (A_t|S_t)]
+$
+
+这样我们就完成了$nabla_theta J(theta)$的推导。
+
+#tip(title: [从极大似然估计的角度看策略梯度])[
+  $
+    J(theta) & = sum_(t=0)^T G(tau) log pi_theta (A_t|S_t) \
+             & = G(tau)log(product_(t=0)^T pi_theta (A_t|S_t))
+  $
+  最大化目标就会提升某些状态对应的动作的概率。
+]
+
+=== 基线（Baseline）的推导
+
+$
+  nabla_theta J(theta) & = EE_(tau tilde pi_theta) [sum_(t=0)^T G_t nabla_theta log pi_theta (A_t|S_t)] \
+  & = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t-b(S_t)) nabla_theta log pi_theta (A_t|S_t)] \
+  &= EE_(tau tilde pi_theta) [sum_(t=0)^T G_t nabla_theta log pi_theta (A_t|S_t)] - underbrace(EE_(tau tilde pi_theta) [sum_(t=0)^T b(S_t) nabla_theta log pi_theta (A_t|S_t)], "证明这一项等于0即可") \
+  &= EE_(tau tilde pi_theta) [sum_(t=0)^T G_t nabla_theta log pi_theta (A_t|S_t)]
+$
+
+如上面的式子所示，我们可以使用$G_t-b(S_t)$代替$G_t$。$b(S_t)$是*任何函数*，我们称之为"基线"。下面进行上式的推导。
+
+首先，证明以下式子成立。
+
+$
+  EE_(x tilde P_theta) [nabla_theta log P_theta (x)] = 0
+$ <baselineproof-1>
+
+这里假设随机变量$x$是基于概率分布$P_theta (x)$生成的。$P_theta (x)$会根据参数$theta$改变概率分布的形状。此时有以下式子成立。
+
+$
+  sum_x P_theta (x) = 1
+$
+
+由于$P_theta (x)$是概率分布，因此所有$x$的值的和为1。然后，求这个式子的梯度。
+
+$
+  nabla_theta sum_x P_theta (x) = nabla_theta 1 = 0
+$
+
+接下来，使用log梯度的技巧将式子展开，过程如下所示。
+
+$
+  0 & = nabla_theta sum_x P_theta (x) \
+    & = sum_x nabla_theta P_theta (x) \
+    & = sum_x P_theta (x) nabla_theta log P_theta (x) colblue("（log梯度技巧）") \
+    & = EE_(x tilde P_theta) [nabla_theta log P_theta (x)]
+$
+
+@baselineproof-1 证明完毕。接下来将证明的式子用于我们的问题。具体来说，用$A_t$代替@baselineproof-1 中的$x$，然后使用$pi_theta (dot.c|S_t)$代替$P_theta (dot.c)$。这样就可以得到以下式子。
+
+$
+  EE_(A_t tilde pi_theta) [nabla_theta log pi_theta (A_t|S_t)] = 0
+$ <baselineproof-2>
+
+上面的式子是对$A_t$的期望值。因此，我们可以像下面的式子那样，将任何函数$b(S_t)$放入期望值中。$E[x]=0 arrow E[c x]=c dot.c 0 = 0$。
+
+$
+  EE_(A_t tilde pi_theta) [b(S_t) nabla_theta log pi_theta (A_t|S_t)] = 0
+$ <baselineproof-3>
+
+$b(S_t)$是以$S_t$为参数的函数，即使$A_t$发生变化，它的值也不会改变。由于@baselineproof-3 是对$A_t$的期望值，因此即使在期望值中加入函数$b(S_t)$，等式也成立。
+
+#danger[
+  动作$A_t$的变化会导致收益$G_t$的变化，因此以下式子不成立。
+  $
+    EE_(A_t tilde pi_theta) [G_t nabla_theta log pi_theta (A_t|S_t)] = 0
+  $
+]
+
+@baselineproof-3 在整个$t=0 tilde T$的范围都成立，所以可以得到以下式子。
+
+$
+  EE_(A_t tilde pi_theta) [sum_(t=0)^T b(S_t) nabla_theta log pi_theta (A_t|S_t)] = 0
+$
+
+所以基线证明完毕。
+
+== 总结
+
+在本章中，我们学习了基于策略的方法——策略梯度法。具体来说，我们学习了几种策略梯度法的算法。它们的统一的数学式如下所示。
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T Phi_t nabla_theta log pi_theta (A_t|S_t)]
+$
+
+$
+  "1." space space space & Phi_t=G(tau)                          & "（最简单的策略梯度法）" \
+  "2." space space space & Phi_t=G_t                             &          "（REINFORCE）" \
+  "3." space space space & Phi_t=G_t-b(S_t)                      &  "（带基线的REINFORCE）" \
+  "4." space space space & Phi_t = R_t + gamma V(S_(t+1))-V(S_t) &       "（Actor-Critic）" \
+  "5." space space space & Phi_t = A_t^"GAE"                     &       "（广义优势估计）"
+$
+
+上面几种方法的权重$Phi_t$各不相同。最简单的策略梯度法在所有时刻的权重都是$G(tau)$。对它进行改进，将时刻$t$的收益$G_t$作为权重进行评估的是REINFORCE。另外，通过加入"基线"这一方法，减小了方差的方法是带基线的REINFORCE。Actor-Critic是一种除了策略之外，对价值函数也用神经网络建模的方法。期待$(1) arrow (2) arrow (3) arrow (4) arrow (5)$这样的编号一直延续下去，从而有更高级的方法出现，产生更好的结果。
+
+#tip(title: [优势函数])[
+  $Phi_t$也叫做优势函数（Advantage Function），优势函数经常在文献中表示为$A(s,a)$，也就是在状态$s$采取动作$a$时，策略的优势是多少。
+
+  强化学习中的很多花活儿都是针对如何改进$Phi_t$而来的。比如GRPO算法使用的*组相对优势*。
+]
 
 
 
