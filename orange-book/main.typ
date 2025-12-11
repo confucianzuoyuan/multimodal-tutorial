@@ -2068,7 +2068,261 @@ $
   强化学习中的很多花活儿都是针对如何改进$Phi_t$而来的。比如GRPO算法使用的*组相对优势*。
 ]
 
+#chapter("近端策略优化（PPO）", image: image("./orange2.jpg"), l: "rl-ppo")
 
+#tip[
+  PPO: Proximal Policy Optimization，近端策略优化
+]
+
+== 策略梯度法存在的问题
+
+回顾一下策略梯度法的公式。
+
+$
+  nabla_theta J(theta) & = nabla_theta EE_(tau tilde pi_theta) [G(tau)] \
+                       & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)]
+$
+
+还有梯度上升算法
+
+$
+  theta arrow.l theta + alpha nabla_theta J(theta)
+$
+
+*步子迈得太大会导致灾难*。但如果步子太小，模型学习速度就会太慢。把奖励函数想象成高耸的山峰。如果新策略走得太远，它采取的行动可能会差之毫厘，最终从悬崖上掉下来。当我们重新开始探索时，我们从一个表现不佳的状态开始，采用局部糟糕的策略。性能会崩溃，而且需要很长时间才能恢复。
+
+#figure(
+  image("rl-figures/策略梯度法步子太大.png"),
+  caption: [梯度上升算法中步幅太大，策略直接崩溃了],
+)
+
+#figure(
+  image("rl-figures/策略梯度法的问题.png"),
+  caption: [左图是步幅太大，中间的图是理想的步幅，右边的图是方向不对],
+)
+
+#tip(title: [为什么在深度学习中这个问题没有那么严重呢？])[
+  深度学习中，使用的训练数据集是固定不变的。换句话说，不管神经网络的参数怎么变，训练数据集是不会变的。也就是说，神经网络的参数和训练数据集没关系。
+
+  而强化学习中，训练数据是每一轮根据策略来采样的新的轨迹。而采样的轨迹的质量好坏无法控制。也就是说训练数据集和策略神经网络的参数是有关系的。这就麻烦了。
+]
+
+在强化学习中很难找到合适的学习率。假设学习率是专门针对上图黄点调整的。该区域相对平坦，因此为了获得良好的学习速度，学习率应该高于平均值。但是，一步走错，我们就会从悬崖上掉到红点。红点处的梯度很高，当前的学习率会触发爆炸式策略更新。由于学习率对地形不敏感，策略梯度算法的收敛问题非常严重。
+
+#figure(
+  image("rl-figures/策略梯度法问题-1.png"),
+  caption: [梯度爆炸更新],
+)
+
+#danger(title: [策略梯度法存在的问题是训练出来的新策略可能比旧策略还要差])[
+  能否找到一个算法，使得训练出来的新策略#underline("一定")比旧策略好呢？也就是能否保证下面的式子成立呢？
+  $
+    J(theta_"new") - J(theta_"old") >= 0
+  $
+]
+
+== 近端策略优化
+
+在最优化理论中，优化方法主要有两种：*线搜索*和*置信域*。梯度下降算法是一种线搜索。我们首先确定下降方向，然后朝该方向迈出一步。
+
+#tip[
+  Trust Region Method: 置信域方法
+]
+
+#figure(
+  image("rl-figures/线搜索和置信域比较.png"),
+  caption: [左图为线搜索，右图为置信域],
+)
+
+而在置信域中，我们确定想要探索的最大步长，然后在该置信域内找到最优点。
+
+#figure(
+  image("rl-figures/置信域.png"),
+  caption: [置信域方法],
+)
+
+也就是，我们在梯度上升的时候，先周围看一圈，然后找一个安全的步长，然后进行梯度上升。
+
+为了实现这个目的，我们的梯度公式$nabla_theta J(theta)$就要改变了。
+
+PPO算法是Actor-Critic架构的，也就是演员-评论家架构。
+
+所以我们先来回顾一下策略梯度法的演员-评论家架构的梯度公式。
+
+策略梯度法的目标函数如下
+
+$
+  J(theta) = EE_(tau tilde pi_theta) [G(tau)]
+$
+
+策略梯度法的目标函数的梯度如下
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T A_t^(pi_theta) nabla_theta log pi_theta (a_t|s_t)]
+$
+
+其中$A_t^(pi_theta)$为估计的优势。这里的$A$表示优势，也就是Advantage。表示当前策略采取动作$a_t$之后，相对于价值函数评估的价值的优势是多少。
+
+#danger[
+  为了不和前面的公式混淆，我们将动作的数学符号由$A_t$改为$a_t$，将状态的数学符号由$S_t$改为$s_t$。这样$A$就代表优势了。
+]
+
+而PPO的目标函数变成了下式，也就是*替代目标函数*（surrogate objection function）。
+
+#theorem(name: [带裁剪的PPO目标函数])[
+  #math.equation(
+    $
+      \
+      \
+      \
+      \
+      \
+      \
+      \
+      J(theta)^"ppo-clip" = EE_(markhl(tau tilde pi_(theta_"old"), tag: #<tau>, color: #blue)) [sum_(t=0)^T [min ( markhl((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)), tag: #<ratio1>) markhl(A_t^(pi_(theta_"old")), tag: #<piold1>, color: #green), markhl("clip", tag: #<clip>, color: #gray)( markhl((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)), tag: #<ratio2>), 1-epsilon, 1+epsilon) markhl(A_t^(pi_(theta_"old")), tag: #<piold2>, color: #green))]]
+      \
+      \
+      \
+      \
+      \
+      \
+      \
+      #annot((<ratio1>, <ratio2>), pos: top, dy: -1.5em, leader-connect: [elbow])[针对同一个状态$s_t$，\ 新策略采取动作$a_t$的概率 \ 和旧策略采取动作$a_t$的概率的比值]
+      #annot((<piold1>, <piold2>), dx: -1.5em, dy: 1.5em, leader-connect: [elbow])[旧策略 \ 采取动作$a_t$ \ 的优势估计]
+      #annot((<clip>), dx: 4.5em, dy: 1.5em, leader-connect: [elbow])[将比值裁剪到范围$(1-epsilon,1+epsilon)$]
+      #annot((<tau>), pos: bottom + left, dx: -1.5em, dy: 2.5em, leader-connect: [elbow])[旧策略产生的轨迹]
+    $,
+    number-align: bottom,
+    block: true,
+  )
+]
+
+只要计算出这个目标函数，然后进行反向传播（`.backward()`也就是求$nabla_theta J(theta)^"ppo-clip"$）就可以更新策略神经网络了。
+
+当我们运行旧策略$pi_(theta_"old")$玩一局倒立摆游戏时，会产生一条轨迹$tau=(s_0,a_0,R_0,s_1,a_1,R_1,dots.c)$。将这条轨迹保存下来，我们可以使用新策略$pi_theta$来计算在每个状态$s_t$，新策略采取动作$a_t$的概率$pi_theta (a_t|s_t)$是多少。
+
+例如：当我们使用旧策略玩了一把倒立摆游戏之后，保存的轨迹中
+
+$
+  pi_(theta_"old") (a_1|s_1)=["向左推的概率"=0.3, "向右推的概率"=0.7]
+$
+
+那么新策略也可以针对$s_1$计算一下采取动作的概率分布。
+
+#danger[
+  在训练最开始时，新策略和旧策略相同，所以比值为$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)) =1$，也就是这个比值不会被裁剪。
+
+  所以在训练最开始时，也就是PPO的目标函数第一次进行反向传播时，有如下成立：
+  $
+    J(theta)^"ppo-clip" = EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T (pi_theta (a_t|s_t)|_(theta=theta_"old"))/(pi_(theta_"old") (a_t|s_t)) A_t^(pi_(theta_"old"))]
+  $
+  对两边进行求导，注意这里求导时$theta=theta_"old"$。所以有如下：
+  $
+    nabla_theta J(theta)^"ppo-clip" &= nabla_theta EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T (pi_theta (a_t|s_t)|_(theta=theta_"old"))/(pi_(theta_"old") (a_t|s_t)) A_t^(pi_(theta_"old"))] \
+    &= EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T (nabla_theta pi_theta (a_t|s_t)|_(theta=theta_"old"))/(pi_(theta_"old") (a_t|s_t)) A_t^(pi_(theta_"old"))] colblue("（log梯度技巧）") \
+    &= EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A_t^(pi_(theta_"old")) nabla_theta log pi_theta (a_t|s_t) ]
+  $
+  我们会发现，PPO的第一次反向传播，等价于原始的策略梯度法#emoji.swimming。
+]
+
+如果新策略与旧策略的概率比超出$(1-epsilon)$和$(1+epsilon)$的范围，则优势将被剪裁。在PPO论文中的实验中，$epsilon$设置为$0.2$。
+
+#figure(
+  image("rl-figures/PPO目标函数中的比值.svg"),
+  caption: [PPO目标函数中的比值],
+)
+
+实际上，如果策略发生重大变化超出了我们的舒适区，那么这将阻碍策略的实现。
+
+我们假设比率
+
+$
+  p_t (theta) = (pi_theta (a_t|s_t)) / (pi_(theta_"old") (a_t|s_t))
+$
+
+#figure(
+  table(
+    columns: 7,
+    table.cell(
+      fill: red.lighten(60%),
+    )[],
+    table.cell(
+      fill: red.lighten(60%),
+    )[$p_t (theta) > 0$],
+    table.cell(
+      fill: red.lighten(60%),
+    )[$A_t$],
+    table.cell(
+      fill: red.lighten(60%),
+    )[min函数的结果],
+    table.cell(
+      fill: red.lighten(60%),
+    )[目标函数是否被裁剪？],
+    table.cell(
+      fill: red.lighten(60%),
+    )[目标函数的符号],
+    table.cell(
+      fill: red.lighten(60%),
+    )[梯度],
+    [1],[$p_t (theta) in [1-epsilon,1+epsilon]$],[+],[$p_t (theta) A_t$],[否],[+],[$checkmark$],
+    [2],[$p_t (theta) in [1-epsilon,1+epsilon]$],[-],[$p_t (theta) A_t$],[否],[-],[$checkmark$],
+    [3],[$p_t (theta) < 1-epsilon$],[+],[$p_t (theta) A_t$],[否],[+],[$checkmark$],
+    [4],[$p_t (theta) < 1-epsilon$],[-],[$(1-epsilon)A_t$],[是],[-],[$0$],
+    [5],[$p_t (theta) > 1+epsilon$],[+],[$(1+epsilon)A_t$],[是],[+],[$0$],
+    [6],[$p_t (theta) > 1+epsilon$],[-],[$p_t (theta) A_t$],[否],[-],[$checkmark$],
+  ),
+  caption: [对PPO目标函数根据比值的不同进行分情况讨论],
+)
+
+
+我们有6种不同的情况，见上面的表。首先记住，我们取裁剪目标和非裁剪目标中的最小值。
+
+- *情况1和2：比率介于裁剪范围之内*
+
+在情况1和2中，由于比例介于范围$[1-epsilon,1+epsilon]$之间，因此目标函数不会被裁剪。
+
+在情况1中，我们具有正优势：该动作优于该状态下所有动作的平均值。因此，我们应该鼓励当前策略提高在该状态下采取该动作的概率。
+
+由于该比率是在区间之间的，因此我们可以增加我们的策略在该状态下采取该行动的概率。
+
+在情况2中，我们有一个负优势：该动作比该状态下所有动作的平均值更差。因此，我们应该阻止当前策略在该状态下采取该动作。
+
+由于该比率是在区间之间的，因此我们可以降低我们的策略在该状态下采取该行动的概率。
+
+- *情况3和4：比率小于$1-epsilon$*
+
+如果概率比低于$1-epsilon$，则当前策略在该状态下采取该行动的概率比旧策略低得多。
+
+如果像情况3中一样，优势估计为正（$A>0$），那么我们希望增加在该状态下采取该行动的概率。
+
+但是，如果像情况4那样，优势估计为负，我们不想进一步降低在该状态下采取该行动的概率。因此，$"梯度"=0$（因为我们在一条平线上），所以我们不会更新权重。
+
+- *情况5和6：比率大于$1+epsilon$*
+
+如果概率比高于$1+epsilon$，则当前策略中该状态下采取该行动的概率远高于前一策略。
+
+如果像情况 5 那样，优势为正，我们不应该太贪心。因为在当前状态下，我们采取该行动的概率已经比之前的策略更高了。因此，梯度 = 0（因为我们在一条平线上），所以我们不会更新权重。
+
+如果像情况 6 中那样，优势是负的，我们希望降低在该状态下采取该行动的概率。
+
+总结一下，我们只用未裁剪的目标函数部分来更新策略。当最小值是裁剪后的目标函数部分时，我们不会更新策略权重，因为梯度将等于0。
+
+因此，我们仅在以下情况下更新我们的策略：
+
+- 比率在 $(1-epsilon,1+epsilon)$ 之内
+- 比率不在 $(1-epsilon,1+epsilon)$ 范围内，但优势使我们更接近这个范围。
+  - 比率小于 $1-epsilon$ ，但优势 > 0 。
+  - 比率大于 $1+epsilon$ ，但优势 < 0 。
+
+你可能会想，为什么当最小值是截断比率时，梯度为0。当比率被截断时，在这种情况下的导数将不是 $p_t (theta) A_t$ 的导数。而是 $(1-epsilon)A_t$ 或者 $(1+epsilon)A_t$ 的导数，而两者的导数都是0。
+
+#tip[
+$A_t$不是$theta$的函数。所以对$theta$求导为0。
+]
+
+总而言之，得益于这个裁剪的替代目标函数（替换了原来的简单优美的目标函数（$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$），我们限制了当前策略与旧策略之间的差异范围。因为我们消除了比率超出区间的诱因，因为裁剪会对梯度产生影响。如果比率为$>1+epsilon$或$<1-epsilon$，则梯度将等于$0$。
+
+PPO增加了一个软约束（裁剪机制），可以通过一阶优化器（求一阶导数）进行优化。我们偶尔可能会做出一些错误的决策，但它在优化速度上取得了良好的平衡。实验结果证明，这种平衡能够以最简单的方式实现最佳性能。
 
 #part("基于人类反馈的强化学习")
 
