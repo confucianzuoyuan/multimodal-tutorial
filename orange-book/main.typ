@@ -240,6 +240,12 @@ $
   G_t = R_t + gamma R_(t+1) + gamma^2 R_(t+2) + dots.c
 $
 
+由上面的式子可以推导出如下递推公式：
+
+$
+  G_t = R_t gamma G_(t+1)
+$
+
 $gamma$ 叫做折扣因子。随着时间的推移，奖励会被 $gamma$ 指数级削弱。这个 $gamma$ 被称为折扣因子（discount rate），其被设定为 $0.0$ 和 $1.0$ 之间的实数。如果折扣因子是 $0.9$，那么有以下式子成立。
 
 $
@@ -349,15 +355,15 @@ env = gym.make("CartPole-v0")
 
 继续执行下面的代码
 
-#figure(caption: [打印初始状态和动作空间维度])[
-  ```python
-  state = env.reset() # 重置环境的状态为$S_0$
-  print(state) # 初始状态$S_0$
-  action_space = env.action_space # 推车有几个动作？（向左推，向右推）
-  print(action_space) # 动作空间的维度=2
-  ```] <print-state-action>
+#codly(header: [打印初始状态和动作空间维度])
+```python
+state = env.reset() # 重置环境的状态为$S_0$
+print(state) # 初始状态$S_0$
+action_space = env.action_space # 推车有几个动作？（向左推，向右推）
+print(action_space) # 动作空间的维度=2
+```
 
-@print-state-action 通过```python state = env.reset()```获得了初始状态。观察它的输出，你会发现它是拥有 4 个元素的数组。作为参考，下面依次列出这 4 个元素。
+上面的代码通过```python state = env.reset()```获得了初始状态。观察它的输出，你会发现它是拥有 4 个元素的数组。作为参考，下面依次列出这 4 个元素。
 
 - 推车的位置
 - 推车的速度
@@ -664,15 +670,15 @@ $
 下面将递推公式代入状态价值函数的定义式中。状态价值函数是收益的期望值，其数学式的定义如下所示。
 
 $
-  v_pi(s) = EE_pi [G_t|S_t=s]
+  v_pi (s) = EE_pi [G_t|S_t=s]
 $
 
 如上面的公式所示，状态 $s$ 的价值函数被表示为 $v_pi (s)$ 。将递推公式带入上面的式子的 $G_t$ 中，得到下面的式子：
 
 $
-  v_pi(s) & = EE_pi [G_t|S_t=s] \
-          & = EE_pi [R_t+gamma G_(t+1)|S_t=s] \
-          & = EE_pi [R_t|S_t=s] + gamma EE_pi [G_(t+1)|S_t=s]
+  v_pi (s) & = EE_pi [G_t|S_t=s] \
+           & = EE_pi [R_t+gamma G_(t+1)|S_t=s] \
+           & = EE_pi [R_t|S_t=s] + gamma EE_pi [G_(t+1)|S_t=s]
 $
 
 #tip(title: [期望的线性性质])[
@@ -704,9 +710,9 @@ $ <bellman-left>
   那么即时奖励的期望是：
   #math.equation(
     $
-      E & = 0.2 times 0.3 times 10 + 0.2 times 0.7 times 20 + 0.8 times 0.5 times 30 + 0.8 times 0.5 times 40 \
-        & = 0.6 + 2.8 + 12.0 + 16.0 \
-        & = 31.4
+      EE & = 0.2 times 0.3 times 10 + 0.2 times 0.7 times 20 + 0.8 times 0.5 times 30 + 0.8 times 0.5 times 40 \
+         & = 0.6 + 2.8 + 12.0 + 16.0 \
+         & = 31.4
     $,
     block: true,
     numbering: none,
@@ -741,10 +747,10 @@ $
 因此，我们首先要将$t+1$代入上面的式子的$t$中。式子变化如下。
 
 $
-  v_pi (s) = EE_pi [G_(t+1)|S_(t+1)=s]
+  v_pi (s') = EE_pi [G_(t+1)|S_(t+1)=s']
 $
 
-这就是状态$S_(t+1)=s$时的价值函数。接下来要关注的是$EE_pi [G_(t+1)|S_t=s]$。这是在当前时刻为$t$时，下一个时刻$(t+1)$的收益期望值。解决的关键在于将条件$S_t=s$变为$S_(t+1)=s$的形式。换句话说，就是要进入下一个时刻。
+这就是状态$S_(t+1)=s'$时的价值函数。接下来要关注的是$EE_pi [G_(t+1)|S_t=s]$。这是在当前时刻为$t$时，下一个时刻$(t+1)$的收益期望值。解决的关键在于将条件$S_t=s$变为$S_(t+1)=s$的形式。换句话说，就是要进入下一个时刻。
 
 通过观察可以得到
 
@@ -1069,7 +1075,7 @@ $
 
 #definition(name: [强化学习的目标函数])[
   $
-    J(theta) = EE_(tau tilde pi_theta)[G(tau)]
+    J(theta) = EE_(tau tilde pi_theta) [G(tau)]
   $
 ]
 
@@ -1110,7 +1116,7 @@ $
   $ <pg-theorem>
 ]
 
-上面的式子中值得注意的是，$nabla_theta$在$EE$中（梯度计算的部分是$nabla_theta log pi_theta(A_t|S_t)$）。后面会对此做详细介绍。求出$nabla_theta J(theta)$之后，接下来更新神经网络的参数。最优化方法多种多样，下面的式子表示的是一种简单的方法。
+上面的式子中值得注意的是，$nabla_theta$在$EE$中（梯度计算的部分是$nabla_theta log pi_theta (A_t|S_t)$）。后面会对此做详细介绍。求出$nabla_theta J(theta)$之后，接下来更新神经网络的参数。最优化方法多种多样，下面的式子表示的是一种简单的方法。
 
 #figure(
   $
@@ -1172,7 +1178,7 @@ $
   caption: [只采样$n$条轨迹],
 )
 
-如@pg-theorem 所示，$nabla_theta J(theta)$表示期望值。接下来我们来计算期望值。这里，我们令策略$pi_theta$的智能体实际采取动作，得到$n$个轨迹$tau$，如上图所示。此时，通过对每个$tau$计算式子的期望值内部的式子（$sum_(t=0)^T G(tau)nabla_theta log pi_theta(A_t|S_t)$），并求出其平均值，从而近似得到$nabla_theta J(theta)$。数学式如下所示。
+如@pg-theorem 所示，$nabla_theta J(theta)$表示期望值。接下来我们来计算期望值。这里，我们令策略$pi_theta$的智能体实际采取动作，得到$n$个轨迹$tau$，如上图所示。此时，通过对每个$tau$计算式子的期望值内部的式子（$sum_(t=0)^T G(tau)nabla_theta log pi_theta (A_t|S_t)$），并求出其平均值，从而近似得到$nabla_theta J(theta)$。数学式如下所示。
 
 $
   "采样": tau^((i)) tilde pi_theta space space (i=1,2,dots.c,n) \
@@ -1262,6 +1268,12 @@ class PolicyNet(nn.Module):
 下面是`Agent`类的代码。首先显示初始化和`get_action`方法。
 
 #figure(caption: [智能体代码])[
+  #show raw.where(lang: "python"): it => {
+    show regex("\$(.*?)\$"): re => {
+      eval(re.text, mode: "markup")
+    }
+    it
+  }
   ```python
   class Agent:
       def __init__(self):
@@ -1328,6 +1340,12 @@ $
 我们先来编写采集一条轨迹的详细信息的代码。
 
 #figure(caption: [采集一条轨迹的详细数据，接@agent-code-1])[
+  #show raw.where(lang: "python"): it => {
+    show regex("\$(.*?)\$"): re => {
+      eval(re.text, mode: "markup")
+    }
+    it
+  }
   ```python
   class Agent:
       ...
@@ -1354,6 +1372,12 @@ $
 然后编写更新策略的代码：
 
 #figure(caption: [更新策略的代码，接@agent-code-2])[
+  #show raw.where(lang: "python"): it => {
+    show regex("\$(.*?)\$"): re => {
+      eval(re.text, mode: "markup")
+    }
+    it
+  }
   ```python
   class Agent:
       ...
@@ -2264,12 +2288,12 @@ $
     table.cell(
       fill: red.lighten(60%),
     )[梯度],
-    [1],[$p_t (theta) in [1-epsilon,1+epsilon]$],[+],[$p_t (theta) A_t$],[否],[+],[$checkmark$],
-    [2],[$p_t (theta) in [1-epsilon,1+epsilon]$],[-],[$p_t (theta) A_t$],[否],[-],[$checkmark$],
-    [3],[$p_t (theta) < 1-epsilon$],[+],[$p_t (theta) A_t$],[否],[+],[$checkmark$],
-    [4],[$p_t (theta) < 1-epsilon$],[-],[$(1-epsilon)A_t$],[是],[-],[$0$],
-    [5],[$p_t (theta) > 1+epsilon$],[+],[$(1+epsilon)A_t$],[是],[+],[$0$],
-    [6],[$p_t (theta) > 1+epsilon$],[-],[$p_t (theta) A_t$],[否],[-],[$checkmark$],
+    [1], [$p_t (theta) in [1-epsilon,1+epsilon]$], [+], [$p_t (theta) A_t$], [否], [+], [$checkmark$],
+    [2], [$p_t (theta) in [1-epsilon,1+epsilon]$], [-], [$p_t (theta) A_t$], [否], [-], [$checkmark$],
+    [3], [$p_t (theta) < 1-epsilon$], [+], [$p_t (theta) A_t$], [否], [+], [$checkmark$],
+    [4], [$p_t (theta) < 1-epsilon$], [-], [$(1-epsilon)A_t$], [是], [-], [$0$],
+    [5], [$p_t (theta) > 1+epsilon$], [+], [$(1+epsilon)A_t$], [是], [+], [$0$],
+    [6], [$p_t (theta) > 1+epsilon$], [-], [$p_t (theta) A_t$], [否], [-], [$checkmark$],
   ),
   caption: [对PPO目标函数根据比值的不同进行分情况讨论],
 )
@@ -2317,12 +2341,462 @@ $
 你可能会想，为什么当最小值是截断比率时，梯度为0。当比率被截断时，在这种情况下的导数将不是 $p_t (theta) A_t$ 的导数。而是 $(1-epsilon)A_t$ 或者 $(1+epsilon)A_t$ 的导数，而两者的导数都是0。
 
 #tip[
-$A_t$不是$theta$的函数。所以对$theta$求导为0。
+  $A_t$不是$theta$的函数。所以对$theta$求导为0。
 ]
 
 总而言之，得益于这个裁剪的替代目标函数（替换了原来的简单优美的目标函数（$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$），我们限制了当前策略与旧策略之间的差异范围。因为我们消除了比率超出区间的诱因，因为裁剪会对梯度产生影响。如果比率为$>1+epsilon$或$<1-epsilon$，则梯度将等于$0$。
 
 PPO增加了一个软约束（裁剪机制），可以通过一阶优化器（求一阶导数）进行优化。我们偶尔可能会做出一些错误的决策，但它在优化速度上取得了良好的平衡。实验结果证明，这种平衡能够以最简单的方式实现最佳性能。
+
+#figure(
+  algo(
+    line-numbers: true,
+    strong-keywords: false,
+    comment-prefix: [#sym.triangle.stroked.r ],
+    comment-styles: (fill: rgb(100%, 0%, 0%)),
+    header: [#box(stroke: 0.1em, inset: 0.3em)[带裁剪的PPO算法]],
+  )[
+    输入：初始化策略参数$theta_0$ \
+    初始化裁剪阈值参数$epsilon=0.2$ \
+    *for* $k=0,1,2,dots.c$ *do* #i \
+    使用策略$pi_(theta_k)$采集一条轨迹数据$cal(D)_k$ \
+    计算优势$A_t^(pi_(theta_k))$ #comment[使用广义优势估计（GAE）] \
+    更新策略 #comment[执行N步的梯度下降] \
+    $theta'_1=theta_k$ #comment[将$theta_k$作为梯度更新的起点]\
+    *for* $i=1,2,dots.c,N$ *do* #comment[更新N次梯度] #i\
+    $p=(pi_(theta'_i) (a_t|s_t))/(pi_(theta_k) (a_t|s_t))$ #comment[计算比值]\
+    $"clipped"="clip"(p,1-epsilon,1+epsilon)$ #comment[裁剪比值]\
+    $J(theta'_i)=sum_(t=0)^T [min (p dot.c A_t^(pi_(theta_k)), "clipped" dot.c A_t^(pi_(theta_k)))]$ #comment[累加所有时间步的最小值]\
+    $theta'_(i+1)=theta'_i+alpha nabla_(theta'_i) J(theta'_i)$ #d #comment[更新梯度]\
+    $theta_(k+1)=theta'_N$ #comment[将$theta'_N$作为下一次更新的起点]\
+  ],
+  caption: [带裁剪的PPO算法伪代码],
+)
+
+#chapter("PPO实战", image: image("./orange2.jpg"), l: "rl-ppo-cart-pole")
+
+== 网络结构的定义
+
+- 演员网络：策略网络
+- 评论家网络：价值函数网络
+
+#codly(header: [策略网络和价值函数网络的定义])
+```python
+class PolicyNet(nn.Module):
+    def __init__(self, action_size):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, action_size)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = F.softmax(self.l2(x), dim=1)
+        return x
+
+class ValueNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, 1)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = self.l2(x)
+        return x
+```
+
+== PPO算法的实现
+
+我们来实现Agent，代码如下：
+
+```python
+class Agent:
+    def __init__(self):
+        self.gamma = 0.98
+        self.lr_pi = 0.001
+        self.lr_v = 0.02
+        self.action_size = 2
+
+        self.pi = PolicyNet(self.action_size)
+        self.v = ValueNet()
+
+        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=self.lr_pi)
+        self.optimizer_v = optim.Adam(self.v.parameters(), lr=self.lr_v)
+
+    def get_action(self, state):
+        probs = self.pi(torch.tensor(state).unsqueeze(0)).squeeze(0)
+        m = Categorical(probs)
+        action = m.sample().item()
+        return action, probs
+
+    def collect_trajectory(self, env):
+        """采集一条轨迹"""
+        state = env.reset()
+        states, next_states, actions, action_probs, rewards, dones = [], [], [], [], [], []
+        done = False
+
+        while not done:
+            action, probs = self.get_action(state)
+            next_state, reward, done, _ = env.step(action)
+            states.append(state) # $s_t$
+            actions.append(action) # $a_t$
+            action_probs.append(probs[action]) # $pi(a_t|s_t)$
+            next_states.append(next_state) # $s_(t+1)$
+            rewards.append(reward) # $R_t$
+            dones.append(done) # $"done"_t$
+            state = next_state # 状态转移
+
+        return states, next_states, actions, action_probs, rewards, dones
+```
+
+接下来我们要实现智能体的更新（`update`）代码，在PPO算法中，我们需要用到旧策略采样的轨迹。所以需要保存旧策略采样的轨迹的完整信息。
+
+我们采样的轨迹是：
+
+$
+  tau = [ s_0, a_0, R_0, s_1, a_1, R_1, dots.c, s_T, a_T, R_T ]
+$
+
+那么我们使用元组来保存一条轨迹的信息。结构如下
+
+$
+  "一条轨迹的详细信息" = cases(
+    "states": [s_0,s_1,dots,s_(T-1)],
+    "next_states": [s_1,s_2,dots,s_T],
+    "actions": [a_0,a_1,dots,a_(T-1)],
+    "action_probs": [pi_(theta_"old") (a_0|s_0),pi_(theta_"old") (a_1|s_1),dots,pi_(theta_"old") (a_(T-1)|s_(T-1))],
+    "rewards": [R_0,R_1,dots,R_(T-1)],
+    "dones": ["False","False",dots,"True"]
+  )
+$
+
+有了旧策略采样的轨迹的所有详细信息，我们就可以来实现PPO算法了。代码如下。
+
+```python
+class Agent:
+    ...
+
+    def update(self, trajectory):
+        states, next_states, actions, action_probs, rewards, dones = trajectory
+        # $[s_0,s_1,dots,s_(T-1)]$
+        states = torch.tensor(states)
+        # $[a_0,a_1,dots,a_(T-1)]$
+        actions = torch.tensor(actions).view(-1, 1)
+        # $[R_0,R_1,dots,R_(T-1)]$
+        rewards = torch.tensor(rewards).view(-1, 1)
+        # $[s_1,s_2,dots,s_T]$
+        next_states = torch.tensor(next_states)
+        # $["False"_1, "False"_2, dots, "True"_T]$
+        dones = torch.tensor(dones, dtype=torch.float).view(-1, 1)
+        # $[V(s_0),V(s_1),dots,V(s_(T-1))]$
+        V = self.v(states).detach()
+        # $"TD-target"_t=R_t+gamma V(s_(t+1))$
+        # $["TD-target"_0, "TD-target"_1, dots, "TD-target"_(T-1)]$
+        td_target = rewards + self.gamma * self.v(next_states) * (1 - dones)
+        # 一步TD误差：$delta_t=R_t+gamma V(s_(t+1))-V(s_t)$
+        # $[delta_0, delta_1, dots, delta_(T-1)]$
+        td_delta = td_target - V
+        # 计算每个时刻t的广义优势估计（GAE）
+        # $[A^"GAE"_0,A^"GAE"_1,dots,A^"GAE"_(T-1)]$
+        gae = compute_gae(self.gamma, td_delta.cpu())
+        # 冻结一份旧策略采取动作的对数概率$log pi_(theta_"old") (a_t|s_t)$
+        # $[log pi_(theta_"old") (a_0|s_0),log pi_(theta_"old") (a_1|s_1),dots,log pi_(theta_"old") (a_(T-1)|s_(T-1))]$
+        old_probs = torch.tensor(action_probs).view(-1, 1)
+        old_log_probs = torch.log(old_probs).detach()
+        # 每条轨迹使用10次，也就是更新10次策略网络
+        for _ in range(10):
+            # 新策略采取动作的对数概率：$log pi_theta (a_t|s_t)$
+            # $[log pi_theta (a_0|s_0),log pi_theta (a_1|s_1),dots,log pi_theta (a_(T-1)|s_(T-1))]$
+            log_probs = torch.log(self.pi(states).gather(1, actions))
+            # 计算比率：$p_t (theta)=(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$
+            ratio = torch.exp(log_probs - old_log_probs)
+            # $p_t (theta)A^(pi_(theta_"old"))_t$
+            # $[p_0 A^(pi_(theta_"old"))_0,p_1 A^(pi_(theta_"old"))_1,dots,p_(T-1) A^(pi_(theta_"old"))_(T-1)]$
+            surr1 = ratio * gae
+            # $"clip"(p_t (theta),1-epsilon,1+epsilon)A^(pi_(theta_"old"))_t|_(epsilon=0.2)$
+            # $["clip"(p_0)A^"GAE"_0,"clip"(p_1)A^"GAE"_1,dots,"clip"(p_(T-1))A^"GAE"_(T-1)]$
+            surr2 = torch.clamp(ratio, 1 - 0.2, 1 + 0.2) * gae
+            # $pi_"loss"=-1/T sum_(t=0)^(T-1) min("surr1"_t,"surr2"_t)$
+            pi_loss = torch.mean(-torch.min(surr1, surr2))
+            # $V_"loss"=1/T sum_(t=0)^(T-1)(V(s_t)-(A_t^"GAE"+V(s_t)))$
+            v_loss = torch.mean(F.mse_loss(self.v(states), gae + V))
+            self.optimizer_pi.zero_grad()
+            self.optimizer_v.zero_grad()
+            pi_loss.backward()
+            v_loss.backward()
+            self.optimizer_pi.step()
+            self.optimizer_v.step()
+```
+
+#tip(title: [比值的计算方法])[
+  $
+    & because A=e^(log A) \
+    & therefore A/B = e^(log A - log B) = (e^(log A))/(e^(log B))
+  $
+]
+
+== 广义优势估计的计算
+
+```python
+def compute_gae(gamma, td_delta):
+    # $delta_t$
+    td_delta = td_delta.detach().numpy()
+    gae_list = []
+    last_gae = 0.0
+    lmbda = 0.95
+    # $A_t=delta_t+gamma lambda A_(t+1)$
+    for delta in td_delta[::-1]:
+        last_gae = gamma * lmbda * last_gae + delta
+        gae_list.append(last_gae)
+    gae_list.reverse()
+    return torch.tensor(gae_list)
+```
+
+== 训练循环
+
+```python
+def train(env, agent):
+    return_list = []
+    episode_list = []
+    for episode in range(500):
+        trajectory = agent.collect_trajectory(env)
+        agent.update(trajectory)
+        # 统计信息
+        episode_reward = sum(trajectory[4])
+        return_list.append(episode_reward)
+        episode_list.append(episode)
+
+        if (episode + 1) % 10 == 0:
+            print(f"回合：{episode}, 回报：{episode_reward}")
+
+    return return_list, episode_list
+
+def main():
+    env = gym.make("CartPole-v0")
+    env.seed(0)
+    torch.manual_seed(0)
+    agent = Agent()
+    return_list, episode_list = train(env, agent)
+    plot_loss(episode_list, return_list, "ppo-loss.pdf")
+    test_agent(agent, env)
+
+if __name__ == "__main__":
+    main()
+```
+
+获得的奖励可视化如下：
+
+#figure(
+  image("rl-figures/ppo-loss.svg"),
+  caption: [PPO算法获得的奖励],
+)
+
+#chapter("PPO背后的数学", image: image("./orange2.jpg"), l: "rl-ppo-math")
+
+在使用策略梯度算法训练智能体时，一个挑战是它们容易出现性能崩溃：智能体会突然表现很差。这种情况很难恢复，因为智能体会开始生成质量较差的轨迹，而这些轨迹又被用于进一步训练策略。我们还看到，on-policy（同策略）算法的样本效率较低，因为它们无法重用数据。
+
+Schulman等人提出的近端策略优化（Proximal Policy Optimization, PPO）是一类优化算法，用来解决这两个问题。PPO的核心思想是在目标函数中引入一个代理（surrogate）目标，它通过保证策略的单调改进来避免性能崩溃。该目标还有一个好处，就是可以在训练过程中重用离策略（off-policy）数据。
+
+PPO可以通过将原始的目标函数$J(theta)$替换为修改后的PPO目标，来扩展REINFORCE或者Actor-Critic。此修改带来了更稳定、且样本效率更高的训练过程。
+
+在本章中，我们首先讨论性能崩溃问题。随后通过单调改进理论来应对该问题。我们将该理论应用于策略梯度目标，将其改造为一个代理目标。
+
+在介绍完理论基础后，我们讨论PPO算法。
+
+== 数学背景知识
+
+=== KL散度
+
+KL散度（Kullback-Leibler Divergence, KLD）非常重要。
+
+假设有一个连续型随机变量$x$，其概率密度表示为$p(x)$。此时，函数$f(x)$的期望值可以用下面的数学式表示。
+
+$
+  EE_(p(x)) [f(x)]=integral f(x)p(x) upright(d) x
+$
+
+关于概率分布$q(x)$的期望值可以用下面的数学式表示。
+
+$
+  EE_(q(x)) [f(x)]=integral f(x)q(x) upright(d) x
+$
+
+*KL散度的定义*
+
+衡量两个概率分布之间差异的一种方法是KL散度。当给定两个概率分布$p(x)$和$q(x)$时，KL散度可以用下面的数学式表示。
+
+#definition(name: [连续型随机变量的KL散度])[
+  $
+    D_"KL" (p parallel q) = integral p(x) log p(x)/q(x) upright(d) x
+  $
+]
+
+上面的式子是当$x$为连续型随机变量时的KL散度。当$x$为离散型随机变量时，数学式如下所示。
+
+#definition(name: [离散型随机变量的KL散度])[
+  $
+    D_"KL" (p parallel q) = sum_x p(x) log p(x)/q(x)
+  $
+]
+
+KL散度具有以下特性：
+
+- 两个概率分布的差异越大，KL散度的值就越大
+- KL散度的值大于或等于0，且仅当两个概率分布相同时，其值才为0
+- KL散度是非对称的衡量指标，因此$D_"KL" (p parallel q)$和$D_"KL" (q parallel p)$的值不同
+
+这些特性使得KL散度可以用来衡量两个概率分布的差异程度。下面我们通过具体的例子来了解这些特性。这里以抛硬币为例进行说明。假设一枚硬币正面朝上和反面朝上的概率是确定的，如下表所示。
+
+#figure(
+  table(
+    columns: 2,
+    [正面朝上的概率], [70%],
+    [反面朝上的概率], [30%],
+  ),
+  caption: [硬币的真实概率分布],
+)
+
+上表是硬币的"真实概率分布"，在这里我们用符号$p$来表示。假设有人对这枚硬币的概率分布做了如下估计。
+
+#figure(
+  table(
+    columns: 2,
+    [正面朝上的概率], [50%],
+    [反面朝上的概率], [50%],
+  ),
+  caption: [第一个人对硬币的概率分布做出的估计],
+)
+
+我们用$q$来表示这个估计的概率分布。此时，"真实概率分布$p$"和"估计概率分布$q$"之间的KL散度可以做如下计算。
+
+$
+  D_"KL" (p parallel q) & = 0.7 log 0.7/0.5 + 0.3 log 0.3/0.5 \
+                        & = 0.082 dots.c
+$
+
+KL散度约为0.082。假设另一个人对这枚硬币的概率分布做了如下估计。
+
+#figure(
+  table(
+    columns: 2,
+    [正面朝上的概率], [20%],
+    [反面朝上的概率], [80%],
+  ),
+  caption: [第二个人对硬币的概率分布做出的估计],
+)
+
+这与真实的概率分布值大相径庭。此时的KL散度的值如下所示。
+
+$
+  D_"KL" (p parallel q) & = 0.7 log 0.7/0.2 + 0.3 log 0.3/0.8 \
+                        & = 0.58 dots.c
+$
+
+这个值比第一个KL散度的值要大。最后，假设又有一个人对这枚硬币的概率分布做了如下估计。
+
+#figure(
+  table(
+    columns: 2,
+    [正面朝上的概率], [70%],
+    [反面朝上的概率], [30%],
+  ),
+  caption: [第三个人对硬币的概率分布做出的估计],
+)
+
+这个分布与真实的概率分布相同。此时的KL散度的值如下所示。
+
+$
+  D_"KL" & = 0.7 log 0.7/0.7 + 0.3 0.3/0.3 \
+         & = 0.7 log 1 + 0.3 log 1 space space space colblue((log 1 = 0)) \
+         & = 0
+$
+
+由于$p$和$q$是相同的概率分布，因此KL散度为0。
+
+从以上结果可以看出，KL散度可以用来衡量两个概率分布的差异程度。当两个概率分布相同时，KL散度取最小值0。两个概率分布的差异越大，KL散度的值就越大。
+
+=== 信息论
+
+信息量（Self-Information）：
+
+- 一个事件发生的信息量定义为：$I(x) = -log P(x)$
+- 概率越小的事件，包含的信息量越大
+- 例如："太阳从东边升起"（高概率）vs "中彩票"（低概率）
+
+熵（Entropy）：
+
+- 衡量随机变量的不确定性：$H(P) = -sum_i P(x_i) log P(x_i)$
+- 熵越大，不确定性越大
+
+交叉熵（Cross-Entropy）：
+
+- 衡量两个概率分布之间的差异：$H(P, Q) = -sum_i P(x_i) log Q(x_i)$
+- 其中 $P$ 是真实分布，$Q$ 是预测分布
+
+极大似然估计和交叉熵
+
+假设我们有训练数据 ${(x_1, y_1), (x_2, y_2), ..., (x_n, y_n)}$，其中 $y_i$ 是真实标签。
+
+似然函数：
+
+$
+  L(theta) = product_(i=1)^n P(y_i | x_i; theta)
+$
+
+对数似然：
+
+$
+  log L(theta) = sum_(i=1)^n log P(y_i | x_i; theta)
+$
+
+最大化对数似然 = 最小化负对数似然：
+
+$
+  "Loss" = -1/n sum_(i=1)^n log P(y_i | x_i; theta)
+$
+
+这就是*交叉熵损失*！
+
+KL散度和交叉熵
+
+KL散度衡量两个分布的差异：
+
+$
+  D_"KL" (P parallel Q) & = sum_i P(x_i) log (P(x_i))/(Q(x_i)) \
+                        & = sum_i P(x_i) log P(x_i) - sum_i P(x_i) log Q(x_i)
+$
+
+$
+  D_"KL" (P parallel Q) = -H(P) + H(P,Q)
+$
+
+$
+  (partial D_"KL" (P parallel Q))/(partial theta) = (partial H(P, Q))/(partial theta)
+$
+
+其中：
+
+- $H(P) = -sum_i P(x_i) log P(x_i)$ 是真实分布的熵（常数）
+- $H(P,Q) = -sum_i P(x_i) log Q(x_i)$ 是交叉熵
+
+最小化KL散度 = 最小化交叉熵（因为真实分布的熵是常数）
+
+=== 重要性采样（Importance Sampling）
+
+==== 什么是重要性采样？
+
+重要性采样利用从其他概率分布中采样的数据来计算某个概率分布的期望值。为了说明重要性采样，下面来看一个计算期望值$EE_pi [x]$的简单例子。设$x$是随机变量，$x$的概率用$pi(x)$表示。期望值的式子如下所示。
+
+$
+  EE_pi [x] = sum x pi(x)
+$
+
+我们先复习一下学过的内容。为了用蒙特卡洛方法近似这个期望值，我们从概率分布$pi$对$x$进行采样，并取其平均值。数学式如下所示：
+
+$
+  "采样": x^((i)) tilde pi space space space (i=1,2,dots.c,n) \
+  EE_pi [x] tilde.eq (x^((1)) + x^((2)) + dots.c + x^((n)))/n
+$
 
 #part("基于人类反馈的强化学习")
 
