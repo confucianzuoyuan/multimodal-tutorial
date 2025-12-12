@@ -9251,3 +9251,96 @@ for i in range(len(sample_captions)):
     + （训练阶段）模型的输入：$(x_(t=500)$, $t=500$, 条件=先验模型根据提示词预测的图片嵌入)。输出是预测的噪声。
     + unet里面加了*注意力模块*。使用注意力模块处理*提示词信息*，捕获图像和提示词的全局信息。
     + 反向扩散：输入是(白噪声$x_1000,t=1000$, 先验模型根据提示词预测的图片嵌入, 提示词(用来给注意力模块))。然后逐步去噪。
+
+#show: appendices.with("Appendices", hide-parent: false)
+
+#chapter("反向传播算法", image: image("./orange2.jpg"))
+
+== 损失函数
+
+$
+  sigma(x) = 1/(1+e^(-x))
+$
+
+$
+  sigma'(x) = sigma(x)(1-sigma(x))
+$
+
+$
+  y = sigma(w x+b)
+$
+
+$
+  cal(L) = (y - hat(y))^2
+$
+
+求导
+
+$
+  (partial cal(L))/(partial w) = ?
+$
+
+$
+  (partial cal(L))/(partial b) = ?
+$
+
+\
+
+训练数据：$(1,2)$和$(2,3)$
+
+初始化了一个神经网络参数$w=2.0,b=3.0$
+
+== 前向传播
+
+- 中间结果：$m_0 = w x = 2.0 times 1.0 = 2.0$
+- 中间结果：$m_1 = m_0 + b = 2.0 + 3.0 = 5.0$
+- 中间结果：$m_2 = sigma (m_1) = 0.9933071490757268$
+- 中间结果：$m_3 = m_2 - 2.0 = 0.9933071490757268-2.0 = -1.0066928509242732$
+- 最终结果：$cal(L)=m_3^2$
+
+== 反向传播
+
+$
+  (partial cal(L))/(partial w) &= (partial cal(L))/(partial m_3) dot.c (partial m_3)/(partial m_2) dot.c (partial m_2)/(partial m_1) dot.c (partial m_1)/(partial m_0) \
+  &=2 dot.c m_3 dot.c 1 dot.c m_2 dot.c (1-m_2) dot.c 1 dot.c x \
+  &=2 times (-1.0066928509242732) times 0.9933071490757268 times (1-0.9933071490757268) times 1.0 \
+  &= -0.013385102246024565
+$
+
+$ alpha = 50 $
+
+$ w = 2.0 - 50 * -0.013385102246024565 $
+
+== 代码实现
+
+```python
+import torch
+import torch.nn as nn
+
+x = torch.tensor([1.0])            # 形状 [N, 1]，每行一个标量输入
+# w = torch.randn(1, 1, requires_grad=True)  # 标量权重（等价于单个参数）
+w = torch.tensor([2.0], requires_grad=True)
+# b = torch.randn(1, requires_grad=True)     # 标量偏置
+b = torch.tensor([3.0], requires_grad=True)
+
+# 前向：y = sigmoid(w*x + b)
+y = torch.sigmoid(x @ w + b)     # 结果形状 [N, 1]
+# 构造标量损失以便反向传播
+target = torch.tensor([2.0])
+loss = nn.MSELoss()(y, target)
+
+# 反向传播
+loss.backward()
+
+print("loss:", loss.item())
+print("w:", w.item(), "b:", b.item())
+print("w.grad:", w.grad.item(), "b.grad:", b.grad.item())
+
+# 可选：一步手动更新
+lr = 0.1
+with torch.no_grad():
+    w -= lr * w.grad
+    b -= lr * b.grad
+    w.grad.zero_()
+    b.grad.zero_()
+```
