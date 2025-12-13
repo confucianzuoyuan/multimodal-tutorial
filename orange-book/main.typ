@@ -1404,6 +1404,7 @@ $
 
 @agent-code-3 中第10 #sym.tilde 14 行可以改写成并行版本，代码如下：
 
+#codly(header: [并行版本])
 ```python
 states = torch.tensor(states)
 actions = torch.tensor(actions).view(-1, 1)
@@ -1650,7 +1651,7 @@ $
 
 #theorem(name: "Actor-Critic架构的REINFORCE策略梯度定理")[
   $
-    nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t - b(S_t))nabla_theta log pi_theta (A_t|S_t)]
+    nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^T (G_t - V_omega (S_t))nabla_theta log pi_theta (A_t|S_t)]
   $
 ]
 
@@ -1980,7 +1981,7 @@ $
 由于$log x y = log x + log y$，所以可以像上面的式子那样表示为和的形式。基于上面的式子，可以将$nabla_theta log"Pr"(tau|theta)$展开为如下形式。
 
 $
-  nabla_theta log"Pr"(tau|theta) &= nabla_theta { log p(S_0) + sum_(t=0)^T log p(S_(t+1)|S_t,A_t)} + sum_(t=0)^T log pi_theta (A_t|S_t)} \
+  nabla_theta log"Pr"(tau|theta) &= nabla_theta { log p(S_0) + sum_(t=0)^T log p(S_(t+1)|S_t,A_t) + sum_(t=0)^T log pi_theta (A_t|S_t) } \
   &= nabla_theta sum_(t=0)^T log pi_theta (A_t|S_t)
 $
 
@@ -2797,6 +2798,144 @@ $
   "采样": x^((i)) tilde pi space space space (i=1,2,dots.c,n) \
   EE_pi [x] tilde.eq (x^((1)) + x^((2)) + dots.c + x^((n)))/n
 $
+
+式子中的符号$x^((i)) tilde pi$表示第$i$个数据$x(i)$是从概率分布$pi$中采样的。
+
+接下来回到正题。我们现在探讨的是从别的概率分布中采样$x$的场景。假设$x$是从概率分布$b$（而不是$pi$）中采样的。在这种情况下，期望值$EE_pi [x]$如何被近似呢？解决这个问题的关键在于下面这个式子的变形。
+
+$
+  EE_pi [x] & = sum x pi(x) \
+            & = sum x b(x)/b(x) pi(x) \
+            & = sum x pi(x)/b(x) b(x)
+$
+
+这里的要点是插入$b(x)/b(x)$。$b(x)/b(x)$总是为$1$，所以等式成立。然后，我们将式子变为$sum dots.c b(x)$的形式，如上面的式子所示，这样它就可以被视为概率分布$b(x)$的期望值了。实际上对上面的式子变形，可以得到以下式子。
+
+$
+  EE_pi [x] & = sum x pi(x)/b(x) b(x) \
+            & = EE_b [x pi(x)/b(x)]
+$
+
+这里需要注意的是式子中的$EE_b$，它表示的是概率分布$b$的期望值。另外每个$x$都要乘以$pi(x)/b(x)$这一点也很重要。如果$rho(x)=pi(x)/b(x)$，那么我们就可以把式子看作每个$x$都乘以权重$rho(x)$。根据以上探讨，基于式的蒙特卡洛方法如下所示。
+
+$
+  "采样": x^((i)) tilde b space space space (i=0,1,dots.c,n) \
+  EE_pi [x] tilde.eq (rho(x^((1)))x^((1)) + rho(x^((2)))x^((2)) + dots.c + rho(x^((n)))x^((n)))/n
+$
+
+这样我们就使用从不同于$pi$的概率分布$b$中采样的数据计算出了$EE_pi [x]$。下面来实现重要性采样的代码 。这里我们对下图所示的概率分布进行重要性采样。
+
+#figure(
+  image("rl-figures/重要性采样图1.svg"),
+  caption: [概率分布$pi$和$b$],
+)
+
+这里的目标是求出期望值$EE_pi [x]$。我们先尝试用普通的蒙特卡洛方法求概率分布$pi$的期望值。代码如下所示。
+
+#codly(header: [用普通的蒙特卡洛方法求概率分布$pi$的期望值])
+```python
+import numpy as np
+
+x = np.array([1, 2, 3])
+pi = np.array([0.1, 0.1, 0.8])
+
+# 期望值$EE_pi [x]$
+e = np.sum(x * pi)
+print("E_pi[x]", e) # 输出：E_pi[x] 2.7
+
+# 蒙特卡洛方法
+n = 100
+samples = []
+for _ in range(n):
+    s = np.random.choice(x, p=pi) # 使用pi进行采样
+    samples.append(s)
+
+mean = np.mean(samples)
+var = np.var(samples)
+print("MC: {:.2f} (var: {:.2f})".format(mean, var)) # 输出：MC: 2.78 (var: 0.27)
+```
+
+首先，套用定义式求期望值。求出的结果是$2.7$（这是真实的值）。然后，使用蒙特卡洛方法来求这个值。这里只基于概率分布`pi`采样100个数据，然后求平均值。为此，我们用NumPy的`np.mean`方法求出了平均值。结果是$2.78$，接近于真实值。作为参考，我们还使用NumPy的`np.var`方法求出了方差。方差的值是$0.27$。在与下一次重要性采样的结果进行比较时，这个值将被用作参考。方差用于表示数据的离散程度。期望值和方差之间的关系可以用以下式子表示。
+
+$
+  "Var"[X] = EE[(X-EE[X])^2]
+$
+
+方差是数据$X$和$X$的平均值$EE[X]$之间的差的平方的期望值。直观地说，它代表了数据的离散程度，如下图所示。
+
+#figure(
+  image("rl-figures/重要性采样图2.svg"),
+  caption: [将每个数据作为二维平面上的点时的方差的示意图（圆心是平均值）],
+)
+
+下面尝试用重要性采样的方法来求期望值。代码如下所示。
+
+#codly(header: [用重要性采样的方法来求期望值])
+```python
+b = np.array([1/3, 1/3, 1/3])
+n = 100
+samples = []
+
+for _ in range(n):
+    idx = np.arange(len(b)) # [0, 1, 2]
+    i = np.random.choice(idx, p=b) # 使用 b 进行采样
+    s = x[i]
+    rho = pi[i] / b[i] # $rho$
+    samples.append(rho * s)
+
+mean = np.mean(samples)
+var = np.var(samples)
+print("IS: {:.2f} (var: {:.2f})".format(mean, var)) # 输出：IS: 2.95 (var: 10.63)
+```
+
+这里使用概率分布`b`进行采样，不过进行采样的目标是`b`的索引`([0, 1, 2])`。这是因为在计算权重`rho`时，要用到的是采样得到的索引。
+
+接下来看看上面的结果。平均值是$2.95$，虽然与真实值$2.7$有一些差距，但也还算接近。此外，方差是$10.63$，这说明数据的离散程度大于蒙特卡洛方法的结果（使用蒙特卡洛方法时的方差是$0.27$）。
+
+==== 如何减小方差
+
+方差越小，用较少的样本得到的近似值就越准确。反之，方差越大，越需要更多的样本才能得到准确的近似值。下面介绍如何用重要性采样来减小方差。首先，我们结合下图来了解一下为什么重要性采样方法的方差会比较大。
+
+#figure(
+  image("rl-figures/重要性采样图3.svg"),
+  caption: [基于概率分布$b$采样$3$的例子],
+)
+
+上图展示了选择$3$作为样本数据的例子。此时的权重$rho$为$2.4$。因此，$3$这个值要乘以$2.4$。这意味着尽管我们得到的值是$3$，但实际得到的值是$3 times 2.4 = 7.2$。听起来可能有些奇怪，但这是有道理的。原因如下。
+
+- 由于$3$是概率分布$pi$的代表值，因此本来它应该被更频繁地采样。
+- 但在概率分布$b$中，$3$这个值并不经常出现。
+- 为了填补这个落差，当$3$被采样时，它会被调整为乘以权重，从而使该值变得更大。
+
+考虑到概率分布$pi$和$b$之间的差异，我们将采样值乘以其权重来调整采样值，这么做是合理的。可是，明明采样的值是$3$，它却被当作了$7.2$，如果这是第一个采样数据，那么此时的估计值就是$7.2$。与真正的值$2.7$相比，$7.2$的偏离较大。因此，通过权重$rho$对实际得到的值的填补越大，方差与真正的值的差异就越大。
+
+那么，怎样才能减小方差呢？一种方法是使两个概率分布（$b$和$pi$）更加接近。这样可以使权重$rho$的值更接近于$1$。下面来做个实验。与之前的代码相比，这次只有概率分布中的$b$的值被改变了。
+
+#codly(header: [减小方差的方法])
+```python
+b = np.array([0.2, 0.2, 0.6])
+n = 100
+samples = []
+
+for _ in range(n):
+    idx = np.arange(len(b)) # [0, 1, 2]
+    i = np.random.choice(idx, p=b) # 使用 b 进行采样
+    s = x[i]
+    rho = pi[i] / b[i] # $rho$
+    samples.append(rho * s)
+
+mean = np.mean(samples)
+var = np.var(samples)
+print("IS: {:.2f} (var: {:.2f})".format(mean, var)) # 输出：IS: 2.72 (var: 2.48)
+```
+
+上面的代码假设$b$的概率分布为`[0.2, 0.2, 0.6]`，其形状更接近于`pi`的概率分布。结果是，平均值为$2.72$，更接近于正确答案。另外，方差是$2.48$，比以前小。
+
+因此，在进行重要性采样时，可以通过使两个概率分布更加接近来减小方差。不过，强化学习的重点是让一个策略（概率分布）进行"探索"，另一个策略进行"利用"。在满足这个条件的基础上，就可以通过使两个概率分布尽可能地接近来减小方差了。
+
+以上就是对重要性采样的介绍。
+
+
 
 #part("基于人类反馈的强化学习")
 
