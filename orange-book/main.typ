@@ -1694,6 +1694,9 @@ $
   Actor-Critic中的Actor是*演员*（采取动作的人）的意思，也就是采取动作的人，相当于策略$pi_theta$。而Critic是*评论家*的意思，相当于价值函数$V_omega$。因此，Actor-Critic的意思是"使用$V_omega$，来评论基于策略$pi_theta$采取的动作的好坏"。
 ]
 
+#tip(title: [为什么可以用$R_t+gamma V_omega (S_(t+1))$替换掉$G_t$？])[
+  首先我们知道$G_t=R_t+gamma G_(t+1)$以及$V_omega (S_(t+1))=EE[G_(t+1)]$。这里我们假设训练到理想情况，$V_omega (S_(t+1))$接近于真实的$V(S_(t+1))$。所以我们做了替换。]
+
 === Actic-Critic的代码实现
 
 下面实现Actor-Critic。策略和价值函数这两个神经网络的代码如下所示。
@@ -1770,7 +1773,7 @@ class Agent:
         # ② self.pi的损失
         delta = target - v # $delta=R_t+gamma V_omega (S_(t+1)) - V_omega (S_t)$
         # $-(R_t+gamma V_omega (S_(t+1)) - V_omega (S_t) ) log pi_theta (A_t|S_t)$
-        loss_pi = -torch.log(action_prob) * delta.item()
+        loss_pi = -torch.log(action_prob) * delta.detach().item()
 
         self.optimizer_v.zero_grad()
         self.optimizer_pi.zero_grad()
@@ -1813,6 +1816,46 @@ for episode in range(2000):
 plot_loss(episode_list, return_list, "actor-critic-pg-loss.pdf")
 test_agent(agent, env)
 ```
+
+#figure(
+  image("rl-figures/actor-critic-pg-loss.svg"),
+  caption: [actor-critic每一轮的回报走势图],
+)
+
+== 多步TD误差
+
+每个时刻的1步TD误差计算如下：
+
+$
+      delta_t & = R_t + gamma V(S_(t+1)) - V(S_t) \
+  delta_(t+1) & = R_(t+1) + gamma V(S_(t+2)) - V(S_(t+1)) \
+  delta_(t+2) & = R_(t+2) + gamma V(S_(t+3)) - V(S_(t+2)) \
+  delta_(t+3) & = R_(t+3) + gamma V(S_(t+4)) - V(S_(t+3)) \
+       dots.c
+$
+
+1步TD误差为：
+
+$
+  A_t^((1)) & = R_t + gamma V(S_(t+1)) - V(S_t) \
+            & = -V(S_t) + R_t + gamma V(S_(t+1)) \
+            & = delta_t
+$
+
+#tip(title: [贝尔曼期望方程])[
+  $
+    V(S_(t+1)) = EE[R_(t+1) + gamma V(S_(t+2))]
+  $
+]
+
+将式子中的$V(S_(t+1))$由$R_(t+1)+gamma V(S_(t+2))$替换，得到如下式子，就是2步TD误差。
+
+$
+  A_t^((2)) & = -V(S_t) + R_t + gamma (R_(t+1) + gamma V(S_(t+2))) \
+  & = -V(S_t)+R_t+gamma R_(t+1)+gamma^2 V(S_(t+2)) \
+  & = underbrace(R_t + gamma V(S_(t+1)) - V(S_t), delta_t) + gamma (underbrace(R_(t+1) + gamma V(S_(t+2)) - V(S_(t+1)), delta_(t+1))) \
+  & = delta_t + gamma delta_(t+1)
+$
 
 == 广义优势估计
 
@@ -1879,7 +1922,7 @@ $
 然后遍历逆序数组，有如下结果：
 
 $
-    A_(t+n)^"GAE" & = delta_(t+n} \
+    A_(t+n)^"GAE" & = delta_(t+n) \
   A_(t+n-1)^"GAE" & = delta_(t+n-1) + gamma lambda A_(t+n)^"GAE" \
   A_(t+n-2)^"GAE" & = delta_(t+n-2) + gamma lambda A_(t+n-1)^"GAE" \
            dots.v \
@@ -2935,6 +2978,117 @@ print("IS: {:.2f} (var: {:.2f})".format(mean, var)) # 输出：IS: 2.72 (var: 2.
 
 以上就是对重要性采样的介绍。
 
+== 替代目标
+
+直观上，原始策略梯度法的问题出在步长上，因此可以通过加入一个约束，将步长限制在安全范围以防止性能崩塌。
+
+我们的目的是：
+
+$
+  J(theta) - J(theta_"old") >= 0
+$
+
+所以首先要将差值计算出来。差值计算出的结果如下：
+
+$
+  J(theta) - J(theta_"old") = EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))]
+$
+
+上式的证明如下。我们从反方向证明。
+
+$
+  & EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))] && (1) \
+  & = EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t (R_t + gamma V(S_(t+1)) - V(S_t))] && (2) \
+  & = EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t R_t + sum_(t=0)^T gamma^(t+1) V(S_(t+1)) - sum_(t=0)^T gamma^t V(S_t)] && (3) \
+  & = EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t R_t] + EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^(t+1) V(S_(t+1)) - sum_(t=0)^T gamma^t V(S_t)] space space && (4) \
+  & = J(theta) + EE_(tau tilde pi_theta) [sum_(colred(t=1))^T gamma^colred(t) V(S_colred(t)) - sum_(t=0)^T gamma^t V(S_t)] && (5) \
+  & = J(theta) - EE_(tau tilde pi_theta) [ V(S_0) ] && (6) \
+  & = J(theta) - EE_(tau tilde pi_theta) [ J(theta_"old") ] && (7) \
+  & = J(theta) - J(theta_"old") && (8)
+$
+
+第(6)步到第(7)步依赖了状态价值函数的定义：$V(S_0)=EE_(tau tilde pi_(theta_"old")) [G_0]=EE_(tau tilde pi_(theta_"old")) [G(tau)]=J(theta_"old")$。
+
+第(7)步到第(8)步依赖了期望的性质，也就是由于策略$pi_theta$和$pi_(theta_"old")$相互独立，所以$EE_(tau tilde pi_theta) [J(theta_"old")]=J(theta_"old")$。
+
+$J(theta)-J(theta_"old")$可作为度量策略改进的指标。若该差值为正，则新策略 $pi_theta$ 比旧策略 $pi_(theta_"old")$ 更优。在一次策略迭代过程中，理想情况下应选择使这一差值最大化的新策略$pi_theta$。因此，最大化目标 $J(theta)$ 等价于最大化该差值，两者均可通过梯度上升实现。
+
+$
+  max_(pi_theta) J(pi_theta) arrow.l.r.double.long max_(pi_theta) (J(pi_theta) - J(pi_(theta_"old")))
+$
+
+以这种方式刻画目标也意味着，每次策略迭代都应保证非负（单调）的改进——即$J(pi_theta) - J(pi_(theta_"old"))>=0$——因为在最坏情况下我们可以简单地令$pi_theta=pi_(theta_"old")$，也就是不改进策略。在此条件下，整个训练过程中将不会发生性能崩塌，这正是我们所期望的性质。
+
+然而，这一差值作为目标函数有一个限制使其无法直接使用。注意，在表达式$EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))]$中，期望要求使用新策略$pi_theta$采样轨迹以进行更新，但在完成更新之前，新策略$pi_theta$并不可用。为了解决这一悖论，我们需要设法将其改写为使用已可用的旧策略$pi_(theta_"old")$。
+
+#tip(title: [重要性采样复习])[
+  $
+    EE_(x tilde P) [f(x)] = EE_(x tilde Q) [P(x)/Q(x) f(x)] approx 1/(|D|) sum_(x in D) P(x)/Q(x) f(x), space space space D tilde Q
+  $
+  比值$P(x)/Q(x)$是$x$的*重要性采样权重*。
+  重要性采样估计器的方差是什么呢？
+  $
+    "var"(hat(mu)_Q) & = 1/N "var"(P(x)/Q(x) f(x)) \
+                     & = 1/N (EE_(x tilde Q) [(P(x)/Q(x) f(x))^2] - EE_(x tilde Q) [P(x)/Q(x) f(x)]^2) \
+                     & = 1/N (EE_(x tilde P) [Q(x)/P(x) (P(x)/Q(x) f(x))^2] - EE_(x tilde Q) [P(x)/Q(x) f(x)]^2) \
+                     & = 1/N (colred(EE_(x tilde P) [P(x)/Q(x) f(x)^2]) - EE_(x tilde P) [f(x)]^2)
+  $
+  红色部分很有问题！——如果$P(x)/Q(x)$在错误的地方很大，那么估计的方差直接炸了。
+  #tip(title: [方差的计算])[
+    $
+      "var"(X) = EE[X^2] - EE[X]^2
+    $
+  ]
+]
+
+这里就要用到重要性采样了。我们使用的重要性采样权重为$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$。也就是我们使用新旧策略采取动作的概率的比值来改进旧策略$pi_(theta_"old")$产生的轨迹的回报值。在新策略$pi_theta$下更可能发生的动作所对应的回报会被上调权重，而在$pi_theta$下相对不太可能的动作所对应的回报会被下调权重。该近似在下面的式子中给出。
+
+$
+  J(theta) - J(theta_"old") & = EE_(tau tilde colred(pi_theta)) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))] space space space colblue("（将"gamma^t"吸收进优势计算）") \
+  & approx EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] \
+  & = J^"CPI"_(pi_(theta_"old")) (theta)
+$
+
+上面的式子也就是$J^"CPI"_(pi_(theta_"old")) (theta)$叫做*替代目标*（surrogate objective）。因为新目标中包含了新旧策略的比值，所以叫做"替代目标"。上标CPI的意思是"保守策略迭代"（conservative policy iteration）。
+
+现在我们有了一个新的目标函数。要将其用于策略梯度算法，需要检查在该目标下进行优化是否仍然是在执行策略梯度上升。幸运的是，我们可以证明替代目标的梯度等于策略梯度，如下式所述。
+
+$
+  nabla_theta J^"CPI"_(pi_(theta_"old")) (theta) |_(theta=theta_"old") = nabla_theta J(theta)|_(theta=theta_"old")
+$
+
+上面的式子证明如下。也就是我们要证明代理目标的梯度等于策略梯度。
+
+$
+  nabla_theta J^"CPI"_(pi_(theta_"old")) (theta)|_(theta=theta_"old") &= nabla_theta EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t (pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))]|_(theta=theta_"old") \
+  &=EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t (nabla_theta pi_theta (a_t|s_t)|_(theta=theta_"old"))/(pi_(theta_"old") (a_t|s_t))] space space space colblue("log梯度技巧")\
+  &=EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t nabla_theta log pi_theta (a_t|s_t)|_(theta=theta_"old")] \
+  &= nabla_theta J(theta)|_(theta=theta_"old")
+$
+
+上式表明，代理目标的梯度等于策略梯度。这保证了在代理目标下进行的优化仍然是在执行策略梯度上升。这也很有用，因为现在可以直接度量策略改进，最大化该度量就意味着最大化策略改进。此外，我们还知道，在上式中，$J^"CPI"_(pi_(theta_"old")) (theta)$是对$J(theta)-J(theta_"old")$的线性近似，因为她们的一阶导数（梯度）相等。
+
+由于我们推导出了$J^"CPI"_(pi_(theta_"old")) (theta) approx J(theta)-J(theta_"old")$，注意这里是约等于。也就是
+
+$
+  (J(theta)-J(theta_"old")) - J^"CPI"_(pi_(theta_"old")) (theta) approx 0
+$
+
+这里的误差是因为引入重要性采样带来的，也就是说如果在某些时刻如果$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$很大，那么重要性采样的方差估计会爆炸！所以策略$pi_theta (a_t|s_t)$和$pi_(theta_"old") (a_t|s_t)$越接近，那么上面的式子越接近于0。
+
+而衡量两个分布的差异的数学手段是KL散度。所以上面的约等于0，可以建模为
+
+$
+  |(J(theta)-J(theta_"old")) - J^"CPI"_(pi_(theta_"old")) (theta)| <= C sqrt(EE_t ["KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))])
+$
+
+将绝对值展开可以得到如下式子
+
+$
+  J(theta)-J(theta_"old") >= underbrace( J^"CPI"_(pi_(theta_"old")) (theta) - C sqrt(EE_t ["KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))]), "下界函数")
+$
+
+其中$C$是超参数。如果我们想让上式中的左手边大于0，那么只需要保证右手边大于0就可以了。右手边的式子叫做*下界函数*。
 
 
 #part("基于人类反馈的强化学习")
