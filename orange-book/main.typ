@@ -32,6 +32,8 @@
   lowercase-references: false,
 )
 
+// #set par(leading: 1pt)
+
 #show raw.where(lang: "python"): it => {
   show regex("\$(.*?)\$"): re => {
     eval(re.text, mode: "markup")
@@ -3044,10 +3046,10 @@ $
 这里就要用到重要性采样了。我们使用的重要性采样权重为$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$。也就是我们使用新旧策略采取动作的概率的比值来改进旧策略$pi_(theta_"old")$产生的轨迹的回报值。在新策略$pi_theta$下更可能发生的动作所对应的回报会被上调权重，而在$pi_theta$下相对不太可能的动作所对应的回报会被下调权重。该近似在下面的式子中给出。
 
 $
-  J(theta) - J(theta_"old") & = EE_(tau tilde colred(pi_theta)) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))] space space space colblue("（将"gamma^t"吸收进优势计算）") \
-  & approx EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] \
+  J(theta) - J(theta_"old") & = EE_(tau tilde colred(pi_theta)) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))] \
+  & approx EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] space space space colblue("（为简单起见，将"gamma"设置为1）") \
   & = J^"CPI"_(pi_(theta_"old")) (theta)
-$
+$ <cpiformula>
 
 上面的式子也就是$J^"CPI"_(pi_(theta_"old")) (theta)$叫做*替代目标*（surrogate objective）。因为新目标中包含了新旧策略的比值，所以叫做"替代目标"。上标CPI的意思是"保守策略迭代"（conservative policy iteration）。
 
@@ -3079,17 +3081,280 @@ $
 而衡量两个分布的差异的数学手段是KL散度。所以上面的约等于0，可以建模为
 
 $
-  |(J(theta)-J(theta_"old")) - J^"CPI"_(pi_(theta_"old")) (theta)| <= C sqrt(EE_t ["KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))])
+  |(J(theta)-J(theta_"old")) - J^"CPI"_(pi_(theta_"old")) (theta)| <= C sqrt(1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))))
 $
 
 将绝对值展开可以得到如下式子
 
 $
-  J(theta)-J(theta_"old") >= underbrace( J^"CPI"_(pi_(theta_"old")) (theta) - C sqrt(EE_t ["KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))]), "下界函数")
+  J(theta)-J(theta_"old") >= underbrace(J^"CPI"_(pi_(theta_"old")) (theta) - C sqrt(1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t)))), "下界函数")
 $
 
 其中$C$是超参数。如果我们想让上式中的左手边大于0，那么只需要保证右手边大于0就可以了。右手边的式子叫做*下界函数*。
 
+当我们优化下界函数时，我们能保证优化完毕之后，右手边的式子大于等于0吗？
+
+现在，让我们看看策略迭代某一步中的最坏情况。考虑对新策略$pi_theta$的所有选择，其中也包含旧策略$pi_(theta_"old")$（参数更新幅度为0）。如果没有候选策略表现更好，就直接设定#text(baseline: -2pt)[$pi_theta=pi_(theta_"old")$]，并在该次迭代中不进行更新。在这种情况下，@cpiformula 告诉我们$J^"CPI"_(pi_(theta_"old")) (theta) = EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_(theta_"old") (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] = 0$。因为一个策略相对于自身没有期望优势。KL散度满足$"KL"(pi parallel pi)=0$。
+
+为了接受策略的变更，上面的式子表明，估计的策略改进$J^"CPI"_(pi_(theta_"old")) (theta)$必须大于$C sqrt(1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))))$。
+
+如果将误差上界作为惩罚项加入到优化问题中，我们就能保证策略的单调改进。此时优化问题变成了如下形式：
+
+$
+  op(
+    "argmax",
+    limits: #true
+  )_(pi_theta) (J^"CPI"_(pi_(theta_"old")) (theta) - C sqrt(1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))))) \
+  arrow.double.long J(theta) - J(theta_"old") >= 0
+$
+
+这一结果满足了我们的最终要求。它使我们能够避免在使用原始目标 $J(theta_"old")$ 时可能出现的性能崩溃。需要注意的一个关键区别是，单调改进并不保证收敛到最优策略 $pi^*$。例如，策略优化仍可能停留在一个局部极大值处，在该处每次策略迭代都不产生改进——即$J(theta)-J(theta_"old")=0$。保证收敛仍是一个困难的没有解决的问题。
+
+最后一步是考虑如何在实践中实现上式提出的优化问题。一个思路是直接约束KL散度的期望，如下式所示。
+
+$
+  1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))) <= delta
+$
+
+$delta$限制了KL散度的大小，因此实际上约束了新策略 $pi_theta$ 相对旧策略 $pi_(theta_"old")$ 能偏离的程度。只有策略空间中位于 $pi_(theta_"old")$ 附近的小邻域内的候选策略才会被考虑。这个邻域称为置信域（trust region），而上式称为置信域约束。需要注意的是，$delta$是一个需要调参的超参数。
+
+#figure(
+  image("rl-figures/使用下界函数优化目标函数.svg"),
+  caption: [使用下界函数优化目标函数],
+)
+
+将约束和替代目标合并以后，置信域策略优化问题如下所示。
+
+$
+  max_theta J^"CPI"_(pi_(theta_"old")) (theta) = max_theta EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A_t^(pi_(theta_"old")) (pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))] \
+  "需满足约束条件" space space 1/T sum_(t=0)^T ("KL"(pi_theta (a_t|s_t) parallel pi_(theta_"old") (a_t|s_t))) <= delta
+$
+
+上式中的约束条件非常的难以求解（需要求解二阶导数黑塞矩阵），所以我们不如将约束条件直接做进目标函数，从而有了PPO算法！
+
+#math.equation(
+  $
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    J(theta)^"ppo-clip" = EE_(markhl(tau tilde pi_(theta_"old"), tag: #<tau>, color: #blue)) [sum_(t=0)^T [min ( markhl((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)), tag: #<ratio1>) markhl(A_t^(pi_(theta_"old")), tag: #<piold1>, color: #green), markhl("clip", tag: #<clip>, color: #gray)( markhl((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)), tag: #<ratio2>), 1-epsilon, 1+epsilon) markhl(A_t^(pi_(theta_"old")), tag: #<piold2>, color: #green))]]
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    #annot((<ratio1>, <ratio2>), pos: top, dy: -1.5em, leader-connect: [elbow])[针对同一个状态$s_t$，\ 新策略采取动作$a_t$的概率 \ 和旧策略采取动作$a_t$的概率的比值]
+    #annot((<piold1>, <piold2>), dx: -1.5em, dy: 1.5em, leader-connect: [elbow])[旧策略 \ 采取动作$a_t$ \ 的优势估计]
+    #annot((<clip>), dx: 4.5em, dy: 1.5em, leader-connect: [elbow])[将比值裁剪到范围$(1-epsilon,1+epsilon)$]
+    #annot((<tau>), pos: bottom + left, dx: -1.5em, dy: 2.5em, leader-connect: [elbow])[旧策略产生的轨迹]
+  $,
+  number-align: bottom,
+  block: true,
+)
+
+#danger[
+  由于我们将硬约束条件变成软约束条件做进了目标函数，所以约束就没那么强了。这也是PPO偶尔会训练退化的原因了。
+]
+
+#chapter("组相对策略优化（GRPO）", image: image("./orange2.jpg"), l: "rl-grpo")
+
+== GRPO原理
+
+#tip(title: [GRPO])[
+  Group Relative Policy Optimization：组相对策略优化
+]
+
+#theorem(name: [GRPO的目标函数])[
+  $
+    J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ p A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] - beta D_"KL" [pi_theta parallel pi_(theta_"ref")] \
+    "其中比值" space space p = (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t)))
+  $
+]
+
+先来说明一下GRPO目标函数中每个数学符号的含义：
+
+- $pi_theta$表示正在更新的策略。
+- $pi_(theta_"old")$表示上一轮训练好的旧策略。
+- $pi_"ref"$表示冻结的参考模型。
+- $G$表示使用旧策略$pi_(theta_"old")$采样的一组轨迹的数量，也就是如果我们使用旧策略采样了10条轨迹，那么$G=10$。
+- $tau_i$表示第$i$条轨迹。
+- $abs(tau_i)$表示第$i$条轨迹的动作数量。
+- $pi_theta (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_theta$采取动作$a_(tau_i,t)$的概率。
+- $pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_(theta_"old")$采取动作$a_(tau_i,t)$的概率。
+- $A_(tau_i,t)$表示第$i$条轨迹的第$t$个时刻的动作的优势。
+- $beta$是超参数。$D_"KL" [pi_theta|pi_"ref"]$表示$pi_theta$和$pi_"ref"$而偏离程度，也就是KL散度。
+
+== 使用GRPO玩倒立摆游戏
+
+#codly(header: [策略网络])
+```python
+class PolicyNet(nn.Module):
+    def __init__(self, action_size):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, action_size)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = F.softmax(self.l2(x), dim=1)
+        return x
+```
+
+智能体代码如下：
+
+```python
+class Agent:
+    def __init__(self):
+        self.lr = 0.0002
+        self.action_size = 2
+        self.pi = PolicyNet(self.action_size)
+        self.optimizer = optim.Adam(self.pi.parameters(), lr=self.lr)
+
+    def get_action(self, state):
+        probs = self.pi(torch.tensor(state).unsqueeze(0)).squeeze(0)
+        m = Categorical(probs)
+        action = m.sample().item()
+
+        return action, probs
+```
+
+将采样一条轨迹封装为一个函数
+
+```python
+class Agent:
+    ...
+
+    def collect_trajectory(self, env):
+        """采样一条轨迹"""
+        state = env.reset()
+        states, log_probs, actions = [], [], []
+        episode_reward = 0
+        done = False
+
+        while not done:
+            action, probs = self.get_action(state)
+            next_state, reward, done, _ = env.step(action)
+
+            states.append(state)
+            actions.append(action)
+            log_prob = torch.log(probs)[action]
+            log_probs.append(log_prob.item())
+
+            state = next_state
+            episode_reward += reward
+
+        # 归一化奖励
+        normalized_reward = episode_reward / 200.0
+
+        return states, log_probs, actions, normalized_reward
+```
+
+这里的归一化奖励需要说一下，我们已经知道木杆坚持200步不倒下，游戏就成功结束了。那么如果木杆坚持了3步就倒下，这条轨迹的奖励应该如何计算呢？这里我们选择$3/200=0.015$。这就是我们给这条轨迹的奖励。
+
+GRPO的优势计算是和PPO的优势计算有区别的地方。PPO使用了价值函数网络评估每个动作的价值，并且使用了广义优势估计（GAE）。而GRPO创造性的提出了组相对优势。
+
+也就是轨迹$tau_i$相对于*组内*其它轨迹的优势是多少？也就是如下
+
+轨迹$tau_i$的归一化奖励是：
+
+$
+  R_(tau_i)^"normalized" = G(tau_i)/200
+$
+
+而一组轨迹的平均奖励是
+
+$
+  "reward"_"mean" = 1/G sum_(i=0)^G R_(tau_i)^"normalized"
+$
+
+那么轨迹$tau_i$相对于组内其它轨迹的优势为：
+
+$
+  A_(tau_i) = (R_(tau_i)^"normalized" - "reward"_"mean")/("reward"_"std")
+$
+
+```python
+class Agent:
+    ...
+
+    def calc_advantages_with_grpo(self, trajectories):
+        """使用一组轨迹计算某条轨迹的组内优势"""
+        # [轨迹0的归一化奖励，轨迹1的归一化奖励，...]
+        rewards = [r for o, l, a, r in trajectories]
+        mean_reward = sum(rewards) / len(rewards)
+        std_reward = np.std(rewards) + 1e-8
+        # [轨迹0的组相对优势，轨迹1的组相对优势，...]
+        advantages = [(r - mean_reward) / std_reward for r in rewards]
+    
+        return advantages
+```
+
+使用GRPO算法更新策略的代码如下
+
+```python
+class Agent:
+    ...
+
+    def update(self, trajectories):
+        advantages = self.calc_advantages_with_grpo(trajectories)
+
+        for step in range(20):
+            loss = 0.0
+            for traj, advantage in zip(trajectories, advantages):
+                """遍历组里面的每一条轨迹和对应的组内优势"""
+                states, log_probs, actions, _ = traj
+                states = torch.tensor(states)
+                log_probs = torch.tensor(log_probs).view(-1, 1)
+                actions = torch.tensor(actions).view(-1, 1)
+                new_log_probs = torch.log(self.pi(states).gather(1, actions))
+                ratio = torch.exp(new_log_probs - log_probs)
+                clipped_ratio = torch.clamp(ratio, 0.8, 1.2)
+                traj_loss = torch.mean(
+                    -torch.min(ratio * advantage, clipped_ratio * advantage))
+
+                loss += traj_loss
+            loss = loss / len(trajectories)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        return None
+```
+
+训练循环如下：
+
+```python
+def train(agent, env):
+    G = 5  # 一组轨迹有5条
+    trial_num = 0
+    while True:
+        for episode in range(20):
+            trajectories, episode_rewards = [], []
+            for _ in range(G):
+                states, log_probs, actions, normalized_reward = agent.collect_trajectory(
+                    env)
+                trajectories.append(
+                    (states, log_probs, actions, normalized_reward))
+                episode_rewards.append(normalized_reward * 200)
+            agent.update(trajectories)
+
+        # 一组轨迹的平均奖励
+        avg_reward = sum(episode_rewards) / len(episode_rewards)
+        trial_num += 1
+
+        if avg_reward > 195:
+            print("训练结束，训练回合数：", trial_num)
+            return
+        else:
+            print(f"训练回合数：{trial_num}，平均奖励：{avg_reward}")
+```
 
 #part("基于人类反馈的强化学习")
 
