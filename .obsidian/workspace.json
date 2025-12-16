@@ -253,6 +253,8 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "orange-book/rl-figures/RLHF常用算法.svg",
+    "orange-book/rl-figures/大语言模型训练流程.svg",
     "orange-book/rl-figures/使用下界函数优化目标函数.svg",
     "orange-book/rl-figures/actor-critic-pg-loss.svg",
     "orange-book/rl-figures/actor-critic-pg-loss.pdf",
@@ -263,8 +265,6 @@
     "orange-book/rl-figures/置信域.png",
     "orange-book/rl-figures/线搜索和置信域比较.png",
     "orange-book/rl-figures/策略梯度法问题-1.png",
-    "orange-book/rl-figures/策略梯度法的问题.png",
-    "orange-book/rl-figures/策略梯度法步子太大.png",
     "orange-book/main.pdfdQXJoh",
     "orange-book/rl-figures/reinforce-pg-loss.pdf",
     "orange-book/rl-figures/pg-loss.pdf",

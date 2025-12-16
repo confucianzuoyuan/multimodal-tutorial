@@ -3364,6 +3364,136 @@ def train(agent, env):
 
 #part("基于人类反馈的强化学习")
 
+#chapter("大语言模型训练概述", image: image("./orange2.jpg"), l: "rlhf-llm-pipeline")
+
+#figure(
+  image("rl-figures/大语言模型训练流程.svg"),
+  caption: [大语言模型训练流程],
+)
+
+监督微调（Supervised Fine-Tuning，SFT）通常也是采用"预测下一个词"（predict next token）的训练方式。
+
+- 基础模型训练：大多数语言模型（如GPT系列）本身就是通过自回归方式训练的，即在给定上下文的情况下预测下一个词（token）。
+- 监督微调（SFT）：在微调阶段，模型通常会使用带有标签的输入-输出对进行训练，比如对话数据、问答对等。训练目标依然是让模型在给定输入（上下文）的条件下，预测正确的下一个词。
+
+换句话说，SFT通过*有监督的数据*指导模型生成更符合特定任务或风格的输出，但训练目标仍然是最大化正确预测下一个词的概率。
+
+
+#figure(
+  table(
+    columns: 3,
+    [训练阶段], [训练方式], [目标],
+    [预训练], [自回归预测下一个词], [学习语言的通用统计规律],
+    [监督微调], [给定输入，预测下一个词], [让模型生成更符合特定任务的输出],
+  ),
+  caption: [预训练和监督微调],
+)
+
+所以通过SFT微调基础模型，可以让大模型输出我们喜欢的回答。
+
+#danger[
+  但是SFT无法让大模型*不输出我们不喜欢的回答*。
+]
+
+因为SFT的训练目标是"预测下一个token"，它本质上是拟合训练数据中的分布。如果训练数据中存在不理想的回答，模型可能仍然学到这些模式。
+
+所以我们要使用"强化学习"来对大语言模型进行微调，这就是"基于人类反馈的强化学习"。
+
+#tip(title: [RLHF])[
+  RLHF:  #underline([R])einforcement #underline[L]earning From #underline[H]uman #underline[F]eedback
+]
+
+当我们谈论大语言模型（LLM）的强化学习时，我们进入了一个完全不同的世界。我们不再训练智能体在倒立摆环境中的表现，而是对预训练好的大语言模型进行微调，使其符合人类的偏好。该模型不会与外部环境交互——它本质上是在探索自身的输出空间。
+
+正如OpenAI和其他科研人员所发现的，这种方法对于将原始语言模型转化为辅助系统至关重要。正如IBM研究人员指出的那样，"RLHF特别适合于目标复杂、定义不明确或难以指定的任务。"毕竟，如何用数学来定义"乐于助人"或"诚实"这样的概念呢？
+
+这里的根本转变是：
+
++ 我们正在优化大语言模型以适应人类的偏好，而不是对环境的掌控
++ 我们的数据来自人类的判断，而不是环境互动
++ 我们需要在奖励最大化与保持接近原始预训练行为之间取得平衡
+
+这种平衡行为使得 LLM 强化学习特别棘手，但也特别令人着迷！
+
+== RLHF的关键技术
+
+#figure(
+  image("rl-figures/RLHF常用算法.svg"),
+  caption: [RLHF常用算法],
+)
+
+=== 近端策略优化（PPO）
+
+PPO是LLM强化学习对齐技术的*重量级冠军*，因OpenAI开发的InstructGPT和ChatGPT而闻名。PPO于2017年开发，解决了强化学习中的一个关键挑战：如何在不破坏训练稳定性的情况下进行有意义的更新。
+
+PPO成功的秘诀在于其"近端"特性——它对策略进行保守更新，防止模型在单次迭代中发生过大变化。这是通过其目标函数中巧妙的裁剪机制实现的：
+
+$
+  J_"PPO" (theta)=EE[min((pi_theta (a|s))/(pi_theta_"old" (a|s))A, "clip"((pi_theta (a|s))/(pi_theta_"old" (a|s)),1-epsilon,1+epsilon})A)]
+$
+
+通过限制新旧策略之间的比例（通常在 $1 plus.minus 0.2$ 以内），PPO 可以确保模型在训练过程中不会偏离目标。
+
+PPO 一直是实现人类反馈强化学习 (RLHF) 的首选算法，该算法遵循以下三个步骤：
+
++ 从预训练模型开始
++ 监督微调
++ 根据人类偏好训练奖励模型
++ 使用PPO微调LLM，来最大化奖励，同时保持接近原来的LLM。
+
+=== 直接偏好优化（DPO）
+
+如果说PPO是一位谨慎的外科医生，能够精准地进行手术，那么DPO则是一位效率专家，他找到了通往同一目标的捷径。DPO于2023年在一篇题为《直接偏好优化：你的语言模型其实是一个奖励模型》的论文中首次提出，它彻底消除了对单独奖励模型的需求。
+
+DPO的精妙之处在于其数学洞察力：奖励函数与最优策略之间存在直接映射。通过利用这种关系，DPO将强化学习问题转化为基于人类偏好数据的更简单的分类问题。
+
+与传统的三步RLHF流程不同，DPO只需一个训练阶段即可实现相同的目标。这就像跳过中间环节，直接到达源头。
+
+DPO对从业者特别有吸引力的原因是：
+
++ 简单：无需训练单独的奖励模型
++ 效率：无需在训练期间进行昂贵的采样
++ 稳定性：组件越少，出错的可能性就越小
++ 性能：在控制输出属性方面，通常与PPO-RLHF相当或超过PPO-RLHF
+
+DPO的目标函数如下：
+
+$
+  \
+  \
+  \
+  \
+  \
+  \
+  J^"DPO" (markhl(pi_theta, tag: #<dpo1>);markhl(pi_"ref", tag: #<dpo2>)) = EE_((y_w,y_l,x) tilde markhl(cal(D), tag: #<dpo3>)) [log(markhl(sigma, tag: #<dpo4>)(markhl(beta, tag: #<dpo5>)(log (pi_theta (markhl(y_w, tag: #<dpo6>)|x))/(pi_theta (markhl(y_l, tag: #<dpo7>)|markhl(x, tag: #<dpo8>))) - log (pi_"ref" (y_w|x))/(pi_"ref" (y_l|x)))))]
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  #annot(<dpo1>, [正在训练的LLM], leader-connect: "elbow", pos: left + bottom, dx: -2em, dy: 1em)
+  #annot(<dpo2>, [冻结的参考LLM], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -1em)
+  #annot(<dpo3>, [偏好数据集], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -2em)
+  #annot(<dpo4>, [sigmoid函数], leader-connect: "elbow", pos: left + bottom, dx: -2em, dy: 2em)
+  #annot(<dpo5>, [超参数], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -2em)
+  #annot(<dpo6>, [人类偏好的回答], leader-connect: "elbow", pos: right + top, dx: 2em, dy: -2em)
+  #annot(<dpo7>, [人类厌恶的回答], leader-connect: "elbow", pos: right + bottom, dx: 2em, dy: 4em)
+  #annot(<dpo8>, [提示词], leader-connect: "elbow", pos: right + bottom, dx: 2em, dy: 2em)
+$
+
+DPO的目标是让$(pi_theta (y_w|x))/(pi_theta (y_l|x))$越大越好！
+
 #part("多模态")
 
 #chapter("Vision Transformer", image: image("./orange2.jpg"), l: "multimodal-chap1")
