@@ -3494,6 +3494,215 @@ $
 
 DPO的目标是让$(pi_theta (y_w|x))/(pi_theta (y_l|x))$越大越好！
 
+=== 组相对策略优化（GRPO）
+
+#figure(
+  $
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    J^"GRPO" (theta) = EE_(markhl(q tilde P(Q), tag: #<grpo1>, color: #blue), markhl({o_i}^G_(i=1) tilde pi_(theta_"old") (Q|q), tag: #<grpo2>, color: #red)) [markhl(cal(L)_"GRPO" (theta), tag: #<grpo3>)]
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    #annot(<grpo1>, pos: bottom, leader-connect: "elbow", dx: 2em, dy: 2em, [从分布$P(Q)$中采样一些问题$q$。\
+      $P(Q)$表示用来训练模型的问题数据集])
+    #annot(<grpo2>, pos: top, leader-connect: "elbow", dx: 2em, dy: -2em, [针对每个采样出来的问题$q$。\
+      使用旧策略生成$G$个不同的回答${o_1,o_2,dots,o_G}$])
+    #annot(<grpo3>, pos: right + bottom, leader-connect: "elbow", dx: 2em, dy: 2em, [替代损失函数])
+  $,
+  caption: [GRPO目标函数],
+)
+
+#figure(
+  $
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    cal(L)_"GRPO" (theta) = markhl(1/G sum^G_(i=1), tag: #<grpo4>, color: #red) markhl(1/abs(o_i) sum_(t=1)^abs(o_i), tag: #<grpo5>, color: #blue) min [p markhl(hat(A)_(i,t), tag: #<grpo6>), "clip"(p, 1-epsilon,1+epsilon)hat(A)_(i,t)] - beta D_"KL" [pi_theta parallel pi_"ref"]
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    \
+    "其中比值" space space space p = (pi_theta (o_(i,t)|q,o_(i,<t)))/(pi_(theta_"old") (o_(i,t)|q,o_(i,<t)))
+    #annot(<grpo4>, pos: top, leader-connect: "elbow", dx: 2em, dy: -2em, [裁剪替代损失的token平均损失
+      - 遍历$G$个采样的回答，并将每个回答的token平均损失相加
+      - 除以$G$，来获得所有采样的回答的平均值，这样保证了每个回答$o_i$的贡献的单位都一样])
+    #annot(<grpo5>, pos: right + bottom, leader-connect: "elbow", dx: 2em, dy: 4em, [某个回答的每个token都计算损失，并取平均值
+      - 将回答$o_i$的所有token都计算一遍损失，然后相加
+      - 除以token的数量：$abs(o_i)="len"(o_i)$，这样保证了每个token都有相同单位的贡献])
+    #annot(<grpo6>, pos: right + bottom, leader-connect: "elbow", dx: 2em, dy: 2em, [组内优势])
+  $,
+  caption: [GRPO替代损失函数],
+)
+
+现在，如果我们能将 PPO 的可靠性与更高的效率以及对推理能力提升的专注结合起来，会怎么样呢？GRPO 应运而生，它是强化学习领域的最新成果之一，由 DeepSeek 开发，并用于训练其令人印象深刻的 DeepSeek-Math 和 DeepSeek-R1 模型。
+
+GRPO 建立在 PPO 的基础上，但引入了几项巧妙的修改：
+
+- GRPO去掉了价值函数模型，减少了内存开销。
+- GRPO评估输出的一组回答而不是单个token。
+- GRPO直接将KL散度纳入损失函数。
+
+这种基于组（Group）的方法尤其巧妙。GRPO 不是单独评估每个token，而是将完整的答案作为一个整体来看待 #sym.arrow.double.long 这是一种评估推理能力更自然的方式，其中整个解答过程都很重要，而不仅仅是单个步骤。
+
+用 AWS 社区文章的话来说，"GRPO 用于计算优势的组相对方式与奖励模型的比较性质非常吻合，因为奖励模型通常是在同一问题的输出比较数据集上进行训练的。"
+
+== DPO：直接偏好优化
+
+#tip[
+  - DPO：Direct Preference Optimization
+  - 直接偏好优化：你的大语言模型实际上是一个奖励模型
+]
+
+=== 偏好数据集
+
+DPO需要偏好数据集来微调LLM。偏好数据集的格式如下：
+
+```json
+{
+  "prompt": "这部电影怎么样？",
+  "chosen": "这部电影很好看。",
+  "rejected": "这部电影不好看。"
+}
+```
+
+数据集构建的方法：
+
+- 针对同一个prompt，通过调整温度，让LLM输出不同的回答。然后让数据标注工程师来标注对不同回答的偏好。#link("https://blog.lukesalamone.com/posts/what-is-temperature/")[温度示例网站]。
+- 在使用ChatGPT时，你可能注意到，偶尔会被要求在两个相似的答案中选择一个来继续对话。这个偏好会被记录下来，并用于在未来的偏好调整中改进模型。同样。
+- 手工标注
+- 合成数据：通过写提示词来让LLM生成偏好数据集（需要人工审核）。
+- 使用网上的开源数据集
+- ...
+
+数据集容易存在的问题：
+
++ 正负例区分不明显
+
+```json
+{
+  "prompt": "这部电影怎么样？",
+  "chosen": "这部电影很好看。",
+  "rejected": "这部电影挺好看。"
+}
+```
+
+人类都无法识别哪个应该是正例，哪个应该是负例。
+
++ 数据集中存在偏好循环
+
+```json
+{
+  "prompt": "这部电影怎么样？",
+  "chosen": "这部电影很好看。",
+  "rejected": "这部电影很差。"
+},
+{
+  "prompt": "这部电影怎么样？",
+  "chosen": "这部电影很差。",
+  "rejected": "这部电影很好看。"
+}
+```
+
+当模型看到以上数据时，就不知道人类的偏好是什么了。无法学到任何东西。因为第一个人标注的数据的偏好是$A succ B$，第二个人标注的数据的偏好是$B succ A$，那么模型看到的偏好是$A succ B succ A$。这就是偏好循环。
+
+=== DPO目标函数
+
+$
+  \
+  \
+  \
+  \
+  \
+  \
+  J^"DPO" (markhl(pi_theta, tag: #<dpo1>);markhl(pi_"ref", tag: #<dpo2>)) = EE_((y_w,y_l,x) tilde markhl(cal(D), tag: #<dpo3>)) [log(markhl(sigma, tag: #<dpo4>)(markhl(beta, tag: #<dpo5>)(log (pi_theta (markhl(y_w, tag: #<dpo6>)|x))/(pi_theta (markhl(y_l, tag: #<dpo7>)|markhl(x, tag: #<dpo8>))) - log (pi_"ref" (y_w|x))/(pi_"ref" (y_l|x)))))]
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  \
+  #annot(<dpo1>, [正在训练的LLM], leader-connect: "elbow", pos: left + bottom, dx: -2em, dy: 1em)
+  #annot(<dpo2>, [冻结的参考LLM], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -1em)
+  #annot(<dpo3>, [偏好数据集], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -2em)
+  #annot(<dpo4>, [sigmoid函数], leader-connect: "elbow", pos: left + bottom, dx: -2em, dy: 2em)
+  #annot(<dpo5>, [超参数], leader-connect: "elbow", pos: left + top, dx: -2em, dy: -2em)
+  #annot(<dpo6>, [人类偏好的回答], leader-connect: "elbow", pos: right + top, dx: 2em, dy: -2em)
+  #annot(<dpo7>, [人类厌恶的回答], leader-connect: "elbow", pos: right + bottom, dx: 2em, dy: 4em)
+  #annot(<dpo8>, [提示词], leader-connect: "elbow", pos: right + bottom, dx: 2em, dy: 2em)
+$
+
+这里我们思考一下，给定提示词$x$的情况下，模型输出补全$y$的概率是多少呢？如下所示：
+
+$
+  pi_theta (y|x) & = P_("LLM"_theta) (y_0|x) P_("LLM"_theta) (y_1|x,y_0) dots.c P_("LLM"_theta) (y_t|x,y_(<t)) \
+                 & = product_(t=0)^abs(y) P_("LLM"_theta) (y_t|x,y_(<t))
+$
+
+然后根据log的性质也就是$log A/B = log A - log B$。可以推导出目标函数最内部的表达式的另一种形式。
+
+$
+  & log (pi_theta (y_w|x))/(pi_theta (y_l|x)) - log (pi_"ref" (y_w|x))/(pi_"ref" (y_l|x)) \
+  & = log pi_theta (y_w|x) - log pi_theta (y_l|x) - log pi_"ref" (y_w|x) + log log (pi_"ref" (y_l|x)) \
+  & = log pi_theta (y_w|x) - log pi_"ref" (y_w|x) - (log pi_theta (y_l|x) - log log (pi_"ref" (y_l|x))) \
+  & = log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - log (pi_theta (y_l|x))/(pi_"ref" (y_l|x))
+$
+
+通过观察目标函数，我们可以知道随着训练的进行，$(pi_theta (y_w|x))/(pi_theta (y_l|x))$会越来越大。因为$(pi_"ref" (y_w|x))/(pi_"ref" (y_l|x))$是一个常数（作为正则化项存在）。
+
+#danger(title: [DPO存在的问题])[
+  + $(pi_theta (y_w|x))/(pi_theta (y_l|x))$的分子和分母可能同时增大或者减小。例如分母增大了1.5倍，分子增大了3倍。那么就导致了LLM输出人类偏好的回答的概率和输出人类讨厌的回答的概率都增加了。
+  + $(pi_theta (y_w|x))/(pi_theta (y_l|x))$随着训练，分子越来越大，分母越来越小，结果导致了$pi_theta (y_w|x)$趋近于1，$pi_theta (y_l|x)$趋近于0，正则化项$(pi_"ref" (y_w|x))/(pi_"ref" (y_l|x))$没有起到作用，最终LLM彻底失去了探索能力。也就是出现了"过拟合"的问题。DPO容易过拟合，泛化能力不足。所以DPO的训练轮数不能太多。
+  + 数据集中存在的偏好循环会导致LLM学不到东西。例如数据集中存在$A succ B$和$B succ C$，那么模型可以学习到人类的偏好是$A succ B succ C$。如果这是还有一条数据中$C succ A$，那么模型就懵了，不知道人类的偏好是什么了。因为模型看到的是$A succ B succ C succ A$。也就是偏好循环。
+]
+
+尽管存在这些缺点，DPO仍然是一种非常有效的工具；许多最成功和性能最好的开源 LLM 都是使用 DPO 进行指令微调的。
+
+#danger[
+  个人认为DPO不算是强化学习，因为DPO需要训练数据集。而真正的强化学习的训练数据是由策略模型自己采样得来的。
+]
+
 #part("多模态")
 
 #chapter("Vision Transformer", image: image("./orange2.jpg"), l: "multimodal-chap1")
