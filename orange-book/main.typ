@@ -3291,7 +3291,7 @@ class Agent:
         std_reward = np.std(rewards) + 1e-8
         # [轨迹0的组相对优势，轨迹1的组相对优势，...]
         advantages = [(r - mean_reward) / std_reward for r in rewards]
-    
+
         return advantages
 ```
 
