@@ -3279,6 +3279,12 @@ $
   A_(tau_i) = (R_(tau_i)^"normalized" - "reward"_"mean")/("reward"_"std")
 $
 
+轨迹中每一个动作的优势就等于这个动作所在轨迹的优势，也就是：
+
+$
+  A_(tau_i,t) = A_(tau_i)
+$
+
 ```python
 class Agent:
     ...
