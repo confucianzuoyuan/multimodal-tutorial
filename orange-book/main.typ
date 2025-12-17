@@ -3366,10 +3366,121 @@ def train(agent, env):
 
 #chapter("大语言模型训练概述", image: image("./orange2.jpg"), l: "rlhf-llm-pipeline")
 
+== LLM训练流程
+
 #figure(
   image("rl-figures/大语言模型训练流程.svg"),
   caption: [大语言模型训练流程],
 )
+
+=== 预训练
+
+假设训练数据是"abcd"，那么预测下一个token的原理如下
+
+#table(
+  columns: 3,
+  [a], [b], [c],
+  [#sym.arrow.b], [#sym.arrow.b], [#sym.arrow.b],
+  [b], [c], [d],
+)
+
+也就是我们希望如下的目标函数越大越好
+
+$
+  J(theta) = pi_theta (b|a) pi_theta (c|a,b) pi_theta (d|a,b,c)
+$
+
+从这里我们可以看出，在LLM这个环境中
+
+- 策略$pi_theta$是LLM
+- 状态是上下文，例如$pi_theta (d|a,b,c)$的状态$S_t="字符串abc"$
+- 动作：$pi_theta (d|a,b,c)$表示在状态$S_t="字符串abc"$的情况下，$A_t$为输出字符"d"。
+- 动作概率：$pi_theta (d|a,b,c)$为采取动作的概率。
+
+=== 监督微调
+
+假设训练数据是"How are you? I am fine.\<eos_token\>"。
+
+其中指令部分为"How are you?"。
+
+回答部分为"I an fine.\<eos_token\>"。
+
+那么训练方式如下：
+
+#table(
+  columns: 8,
+  [How],
+  [are],
+  [you],
+  table.cell(
+    fill: green.lighten(60%),
+  )[?],
+  table.cell(
+    fill: green.lighten(60%),
+  )[I],
+  table.cell(
+    fill: green.lighten(60%),
+  )[am],
+  table.cell(
+    fill: green.lighten(60%),
+  )[fine],
+  table.cell(
+    fill: green.lighten(60%),
+  )[.],
+  [#sym.arrow.b],
+  [#sym.arrow.b],
+  [#sym.arrow.b],
+  table.cell(
+    fill: green.lighten(60%),
+  )[#sym.arrow.b],
+  table.cell(
+    fill: green.lighten(60%),
+  )[#sym.arrow.b],
+  table.cell(
+    fill: green.lighten(60%),
+  )[#sym.arrow.b],
+  table.cell(
+    fill: green.lighten(60%),
+  )[#sym.arrow.b],
+  table.cell(
+    fill: green.lighten(60%),
+  )[#sym.arrow.b],
+
+  [are],
+  [you],
+  [?],
+  table.cell(
+    fill: green.lighten(60%),
+  )[I],
+  table.cell(
+    fill: green.lighten(60%),
+  )[am],
+  table.cell(
+    fill: green.lighten(60%),
+  )[fine],
+  table.cell(
+    fill: green.lighten(60%),
+  )[.],
+  table.cell(
+    fill: green.lighten(60%),
+  )[\<eos_token\>],
+)
+
+只有绿色部分计算损失。也就是我们要让下面的式子越大越好
+
+$
+  J(theta) = & pi_theta ("I"|"How are you?") times \
+             & pi_theta ("am"|"How are you? I") times \
+             & pi_theta ("fine"|"How are you? I am") times \
+             & pi_theta ("."|"How are you? I am fine") times \
+             & pi_theta ("<eos_token>"|"How are you? I am fine.")
+$
+
+通过观察上面的目标函数，我们发现，如果SFT训练的轮数很多，那么会过拟合监督微调数据。模型会发生灾难性遗忘，因为在目标函数中没有约束新旧模型的偏差（KL散度）。
+
+#danger[
+  SFT一般不会训练很多轮！
+]
 
 监督微调（Supervised Fine-Tuning，SFT）通常也是采用"预测下一个词"（predict next token）的训练方式。
 
@@ -3429,7 +3540,7 @@ PPO是LLM强化学习对齐技术的*重量级冠军*，因OpenAI开发的Instru
 PPO成功的秘诀在于其"近端"特性——它对策略进行保守更新，防止模型在单次迭代中发生过大变化。这是通过其目标函数中巧妙的裁剪机制实现的：
 
 $
-  J_"PPO" (theta)=EE[min((pi_theta (a|s))/(pi_theta_"old" (a|s))A, "clip"((pi_theta (a|s))/(pi_theta_"old" (a|s)),1-epsilon,1+epsilon})A)]
+  J_"PPO" (theta)=EE[min((pi_theta (a|s))/(pi_theta_"old" (a|s))A, "clip"((pi_theta (a|s))/(pi_theta_"old" (a|s)),1-epsilon,1+epsilon)A)]
 $
 
 通过限制新旧策略之间的比例（通常在 $1 plus.minus 0.2$ 以内），PPO 可以确保模型在训练过程中不会偏离目标。
@@ -3578,7 +3689,9 @@ GRPO 建立在 PPO 的基础上，但引入了几项巧妙的修改：
 
 用 AWS 社区文章的话来说，"GRPO 用于计算优势的组相对方式与奖励模型的比较性质非常吻合，因为奖励模型通常是在同一问题的输出比较数据集上进行训练的。"
 
-== DPO：直接偏好优化
+#chapter("使用DPO微调大语言模型", image: image("./orange2.jpg"), l: "rlhf-dpo")
+
+== DPO理论介绍以及DPO存在的问题
 
 #tip[
   - DPO：Direct Preference Optimization
@@ -3702,6 +3815,504 @@ $
 #danger[
   个人认为DPO不算是强化学习，因为DPO需要训练数据集。而真正的强化学习的训练数据是由策略模型自己采样得来的。
 ]
+
+== DPO实战
+
+我们遵循RLHF的标准流程：预训练LLM #sym.arrow.double.long SFT #sym.arrow.double.long DPO
+
+=== 第一步：对预训练模型进行基于指令的监督微调（SFT）
+
+#tip[
+  - 基于指令的监督微调：Instruct SFT
+  - 目标：在给定问题（Question）的前提下，使得模型产生该回答（Answer）的概率最大化。
+]
+
+#figure(
+  image("rl-figures/sft-object.svg"),
+  caption: [SFT的损失函数],
+)
+
+我们要注意的是在*基于指令的监督微调*中，我们只针对*答案*部分计算损失。
+
+#figure(
+  image("rl-figures/只针对答案计算损失.svg"),
+  caption: [基于指令的监督微调只针对答案部分计算损失],
+)
+
+我们将损失的计算推广到批次（batch）。
+
+#figure(
+  image("rl-figures/推广到批次计算损失.svg"),
+  caption: [将只针对答案计算损失推广到批次],
+)
+
+首先导入需要的依赖。
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+import numpy as np
+import os
+from dataclasses import dataclass
+import datasets
+import time
+```
+
+接下来我们导入模型和分词器。
+
+```python
+device = "cuda"
+model_path = "./Qwen3-0.6B-Base"
+
+model = AutoModelForCausalLM.from_pretrained(model_path, dtype="auto", device_map="auto")
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+```
+
+然后我们设置一下生成文本的参数。保证测试的一致性。
+
+```python
+model.generation_config.do_sample = True
+model.generation_config.eos_token_id = [151645, 151643]
+model.generation_config.pad_token_id = 151643
+model.generation_config.temperature = 0.7
+model.generation_config.top_p = 0.8
+model.generation_config.top_k = 20
+model.generation_config.repetition_penalty = 1.05
+```
+
+然后我们定义一下SFT阶段的训练超参数。
+
+```python
+@dataclass
+class SFTConfig:
+    max_length = 2500
+    batch_size = 2
+    gradient_accumulation_steps = 8
+    log_iter = 400
+    max_lr = 2e-5
+    min_lr = 2e-6
+    warmup_steps = 1000
+```
+
+接下来我们导入训练数据并将训练数据转换成`input_ids`。
+
+```python
+ultrachat_200k_data = datasets.load_dataset("./ultrachat_200k")
+
+def tokenize_and_format(data):
+    """使用模型自带的聊天模板格式化训练数据"""
+    input_ids = tokenizer.apply_chat_template(
+        data,
+        tokenize = True,
+        add_generation_prompt = False,
+        truncation = True,
+        max_length = 2500,
+    )
+
+    return input_ids
+
+## 生成训练数据的input_ids
+train_data = []
+i = 0
+while True:
+    data = ultrachat_200k_data["train_sft"][i]["messages"]
+    # 添加系统提示词
+    data.insert(
+        0,
+        {"content": "You are a helpful assistant", "role": "system"}
+    )
+    input_ids = tokenize_and_format(data)
+    train_data.append(input_ids)
+    i += 1
+    if i % 1000 == 0:
+        print(f"已处理{i}条数据")
+    if i == 50000:
+        break
+```
+
+接下来我们编写一下学习率的线性预热和余弦衰减的函数。
+
+```python
+def linear_warmup(current_step, warmup_steps, max_lr):
+    if current_step < warmup_steps:
+        return max_lr * current_step / warmup_steps
+    else:
+        return max_lr
+
+def cosine_decay(current_step, warmup_steps, total_steps, max_lr, min_lr):
+    if current_step < warmup_steps:
+        return linear_warmup(current_step, warmup_steps, max_lr)
+    else:
+        progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+        decay = 0.5 * (1 + np.cos(np.pi * progress))
+        return (max_lr - min_lr) * decay + min_lr
+```
+
+#tip(title: [基于指令SFT的掩码设置])[
+  - SFT和预训练的区别核心就是掩码掉"问题"部分的损失，而只看"回答"部分的损失，并仅基于回答部分的损失进行优化
+  - 实现方式：构造损失掩码，仅针对每轮对话（含多轮）的模型"输出"部分（也就是回答部分）进行损失计算
+]
+
+假设我们的多轮对话数据是
+
+```json
+data = [
+    {
+        "content": "你是谁？",
+        "role": "user"
+    },
+    {
+        "content": "我是左元。",
+        "role": "assistant"
+    },
+    {
+        "content": "你会强化学习吗？",
+        "role": "user"
+    },
+    {
+        "content": "略知一二。",
+        "role": "assistant"
+    }
+]
+```
+
+经过模型的对话模板格式化之后是
+
+```
+<|im_start|>system
+You are a helpful assistant<|im_end|>
+<|im_start|>user
+你是谁？<|im_end|>
+<|im_start|>assistant
+我是左元。<|im_end|>
+<|im_start|>user
+你会强化学习吗？<|im_end|>
+<|im_start|>assistant
+<think></think>略知一二。<|im_end|>
+```
+
+代码如下：
+
+```python
+def create_answer_mask(input_ids, tokenizer):
+    """
+    创建仅对助手回答部分计算损失的掩码
+
+    Args:
+        input_ids: 输入token序列 [batch_size, seq_len]
+        tokenizer: 分词器
+
+    Returns:
+        answer_mask: 助手回答部分为1，其他部分为0的掩码
+    """
+    batch_size, seq_len = input_ids.shape
+    answer_mask = torch.zeros_like(input_ids)
+
+    # 获取结束标记的token id
+    eos_token_id = tokenizer.encode("<|im_end|>")[0]
+
+    for batch_idx in range(batch_size):
+        # 找到所有 <|im_end|> 的位置
+        eos_positions = torch.where(
+            input_ids[batch_idx] == eos_token_id
+        )[0].tolist()
+
+        if len(eos_positions) < 2:  # 至少需要user和assistant各一个结束标记
+            continue
+
+        # 解析对话轮次
+        user_ends, assistant_ends = \
+            _parse_conversation_turns(eos_positions)
+
+        # 为每个助手回答设置掩码
+        _set_answer_masks(
+            answer_mask[batch_idx],
+            user_ends,
+            assistant_ends,
+            seq_len
+        )
+
+    return answer_mask
+
+
+def _parse_conversation_turns(eos_positions):
+    """
+    解析对话轮次，分离用户和助手的结束位置
+
+    对话格式：
+    <|im_start|>user\n{user_msg}<|im_end|>\n<|im_start|>assistant\n{assistant_msg}<|im_end|>\n
+
+    eos_positions[0]: system结束 (如果有)
+    eos_positions[1]: 第1轮user结束
+    eos_positions[2]: 第1轮assistant结束
+    eos_positions[3]: 第2轮user结束
+    eos_positions[4]: 第2轮assistant结束
+    ...
+    """
+    # 跳过system系统提示词部分，从第一个user开始
+    conversation_eos = eos_positions[1:]  # 去掉system的<im_end>
+
+    # 偶数索引：user结束位置，奇数索引：assistant结束位置
+    user_ends = [pos + 1 for pos in conversation_eos[::2]] # 每隔2个取一个，从0开始
+    assistant_ends = [pos + 1 for pos in conversation_eos[1::2]] # 每隔2个取一个，从1开始
+
+    return user_ends, assistant_ends
+
+
+def _set_answer_masks(mask, user_ends, assistant_ends, seq_len):
+    """
+    为助手回答部分设置掩码
+
+    Args:
+        mask: 当前样本的掩码 [seq_len]
+        user_ends: 用户消息结束位置列表
+        assistant_ends: 助手消息结束位置列表
+        seq_len: 序列长度
+    """
+    num_user_turns = len(user_ends)
+    num_assistant_turns = len(assistant_ends)
+
+    if num_user_turns == num_assistant_turns:
+        # 完整对话：每轮都有用户问题和助手回答
+        for user_end, assistant_end in zip(user_ends, assistant_ends):
+            answer_start = user_end + 3  # 跳过 \n<|im_start|>assistant 这3个token
+            answer_end = assistant_end - 1  # 不包含 <|im_end|>
+            mask[answer_start:answer_end] = 1
+
+    elif num_user_turns == num_assistant_turns + 1:
+        # 未完成对话：最后一轮助手回答被截断
+
+        # 处理完整的对话轮次
+        for user_end, assistant_end in zip(user_ends[:-1], assistant_ends):
+            answer_start = user_end + 3
+            answer_end = assistant_end - 1
+            mask[answer_start:answer_end] = 1
+
+        # 处理最后一轮被截断的助手回答
+        last_user_end = user_ends[-1]
+        last_answer_start = last_user_end + 3
+        mask[last_answer_start:] = 1  # 到序列结尾
+```
+
+设置模型的训练超参数：
+
+```python
+batch_size = SFTConfig.batch_size
+gradient_accumulation_steps = SFTConfig.gradient_accumulation_steps
+log_iter = SFTConfig.log_iter
+max_lr = SFTConfig.max_lr
+min_lr = SFTConfig.min_lr
+warmup_steps = SFTConfig.warmup_steps
+total_steps = len(train_data) // batch_size
+optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
+```
+
+编写日志记录函数
+
+```python
+with open(f"log.txt", "a") as my_file:
+    my_file.write(f" \
+        time:{time.strftime("%Y-%m-%d, %H:%M:%S")}, \
+        batch_size:{batch_size}, \
+        warmup_steps:{warmup_steps}, \
+        max_lr:{max_lr}, \
+        min_lr:{min_lr}\n")
+
+#定义一个日志记录函数
+def log_call(iters, iters_average_loss):
+    with open(f"log.txt", "a") as my_file:
+        my_file.write(f" \
+            time:{time.strftime("%Y-%m-%d, %H:%M:%S")}, \
+            iters:{iters+1}, \
+            iters_average_Loss:{iters_average_loss:.4f}\n")
+```
+
+主训练循环如下
+
+```python
+model.train()
+training_losses = []
+model.zero_grad()  # 训练开始时清空梯度
+skipped_batches_count = 0
+
+total_batches = len(train_data) // batch_size
+
+for batch_idx in range(total_batches):
+    ## ==================== 数据准备阶段 ====================
+
+    # 获取当前批次的原始数据
+    current_batch_sequences = train_data[
+        batch_idx * batch_size : (batch_idx + 1) * batch_size
+    ]
+
+    # 计算当前批次的最大序列长度，用于padding对齐
+    max_sequence_length = max([len(sequence) for sequence in current_batch_sequences])
+
+    ### 对批次数据进行右填充，使所有序列长度一致以便并行计算
+    padded_sequences_list = []
+    pad_token_id = model.generation_config.eos_token_id[-1]
+
+    for seq_idx in range(batch_size):
+        # 原始的一条训练数据
+        original_sequence = current_batch_sequences[seq_idx]
+        # 要填充的长度
+        padding_length = max_sequence_length - len(original_sequence)
+
+        # 使用EOS token进行右填充
+        padded_sequence = torch.nn.functional.pad(
+            torch.tensor(original_sequence),
+            (0, padding_length),
+            mode='constant',
+            value=pad_token_id
+        ).tolist()
+
+        padded_sequences_list.append(padded_sequence)
+
+    # 转换为张量
+    batch_input_tensor = torch.tensor(padded_sequences_list)
+
+    ## ==================== 构建输入输出对 ====================
+
+    # 构建因果语言模型的输入输出对：x->y（下一个词预测）
+    model_inputs = batch_input_tensor[:, :-1].to(device)    # 输入：前n-1个token
+    target_labels = batch_input_tensor[:, 1:].to(device)    # 标签：后n-1个token
+
+    ## ==================== 构建训练掩码 ====================
+
+    # 构建掩码矩阵来控制损失计算范围
+    # 1. padding_mask：标识哪些位置是填充token（不计算损失）
+    # 2. answer_mask：标识哪些位置是助手回答部分（只对回答计算损失）
+
+    ### 【填充掩码】：非填充token为1，填充token为0
+    ### padding_mask中的问题部分的掩码也是1
+    padding_mask = torch.where(target_labels == pad_token_id, 0, 1)
+
+    ### 【回答掩码】：只有助手回答部分为1，其他部分为0
+    assistant_answer_mask = create_answer_mask(model_inputs, tokenizer)
+
+    ### 【组合掩码】：同时满足"非填充"且"是回答部分"的token才计算损失
+    ### 取出交集，就是真正要计算的回答部分
+    final_loss_mask = (assistant_answer_mask & padding_mask)
+
+    ## ==================== 批次有效性检查 ====================
+
+    # 检查当前批次是否有效：如果某个样本的回答部分完全为空，则跳过该批次
+    # 这种情况通常发生在问题过长导致回答部分被截断时
+    tokens_per_sample = final_loss_mask.sum(dim=-1)  # 每个样本的有效回答token数
+    min_answer_tokens = tokens_per_sample.min().item()  # 最少的有效token数
+
+    if min_answer_tokens == 0:
+        print(f"跳过第{batch_idx + 1}批次：回答部分数据不足")
+        skipped_batches_count += 1
+        continue  # 跳过当前批次
+
+    ## ==================== 模型前向传播 ====================
+
+    # 执行前向传播，获取模型预测的logits
+    # [batch_size, seq_length, vocab_size]
+    model_logits = model(model_inputs).logits
+
+    ## ==================== 损失计算 ====================
+
+    # 计算带掩码的交叉熵损失
+    # 步骤：logits -> softmax -> log -> gather -> 负对数似然 -> 掩码过滤 -> 平均
+
+    # 1. 计算每个token的负对数似然损失，
+    # 形状：[batch_size, seq_len, vocab_size]
+    log_probabilities = torch.log(torch.softmax(model_logits, dim=-1))
+    # 使用真正的目标token取出vocab_size长度的数组中token对应的对数概率
+    # 形状：[batch_size, seq_len]
+    gathered_log_probs = torch.gather(
+        log_probabilities,
+        dim=-1,
+        index=target_labels.unsqueeze(2)
+    )
+    negative_log_likelihood = gathered_log_probs * (-1)  # 负对数似然
+    token_losses = negative_log_likelihood.squeeze(2)
+
+    # 2. 应用掩码并计算每个样本的平均损失
+    masked_token_losses = torch.mul(token_losses, final_loss_mask)
+    sample_losses = masked_token_losses.sum(dim=-1) \
+                  / final_loss_mask.sum(dim=-1)
+
+    # 3. 计算批次平均损失并应用梯度累积
+    batch_average_loss = torch.nanmean(sample_losses) \
+                       / gradient_accumulation_steps
+
+    ## ==================== 反向传播和优化 ====================
+
+    # 反向传播计算梯度
+    batch_average_loss.backward()
+
+    # 动态调整学习率（余弦衰减 + 预热）
+    current_learning_rate = cosine_decay(
+        batch_idx,
+        warmup_steps,
+        total_steps,
+        max_lr,
+        min_lr
+    )
+
+    # 更新优化器的学习率
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = current_learning_rate
+
+    # 梯度累积：只在累积步数达到或最后一个批次时更新权重
+    is_accumulation_step = (batch_idx + 1) \
+                         % gradient_accumulation_steps == 0
+    is_final_batch = (batch_idx + 1) == total_batches
+
+    if is_accumulation_step or is_final_batch:
+        optimizer.step()        # 更新模型权重
+        optimizer.zero_grad()   # 清空梯度缓存
+
+    ## ==================== 训练日志记录 ====================
+
+    # 记录当前批次的损失（还原梯度累积的缩放）
+    actual_batch_loss =                   \
+        batch_average_loss.item()         \
+        *                                 \
+        gradient_accumulation_steps
+    training_losses.append(actual_batch_loss)
+
+    # 定期输出训练进度
+    should_log = (batch_idx + 1) % log_iter == 0 or is_final_batch
+
+    if should_log:
+        # 计算最近几个批次的平均损失
+        recent_losses = training_losses[-log_iter:]
+        recent_average_loss = np.nanmean(recent_losses)
+
+        # 输出训练状态
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"时间: {current_time} | "
+              f"批次: {batch_idx + 1}/{total_batches} | "
+              f"最近{len(recent_losses)}批次平均损失: {recent_average_loss:.4f} | "
+              f"学习率: {current_learning_rate:.2e}")
+
+        # 调用外部日志记录函数
+        log_call(batch_idx, recent_average_loss)
+
+## ==================== 训练完成总结 ====================
+
+print("训练完成!")
+print(f'训练统计:')
+print(f'   - 总批次数: {total_batches}')
+print(f'   - 跳过批次数: {skipped_batches_count}')
+print(f'   - 有效批次数: {total_batches - skipped_batches_count}')
+print(f'   - 最终平均损失: {np.nanmean(training_losses[-100:]):.4f}')
+
+if skipped_batches_count > 0:
+    skip_ratio = skipped_batches_count / total_batches * 100
+    print(f'跳过批次占比: {skip_ratio:.2f}%')
+    if skip_ratio > 10:
+        print('建议: 跳过批次过多，考虑增加最大序列长度或优化数据预处理')
+
+model.save_pretrained("./Qwen3-0.6B-SFT/")
+tokenizer.save_pretrained("./Qwen3-0.6B-SFT/")
+```
+
+=== 第二步：使用DPO算法对SFT后的模型进行微调
 
 #part("多模态")
 
@@ -10246,4 +10857,44 @@ with torch.no_grad():
     b -= lr * b.grad
     w.grad.zero_()
     b.grad.zero_()
+```
+
+#chapter("uv教程", image: image("./orange2.jpg"))
+
+
+```bash
+$ pip install uv
+$ uv venv rlhf-env # 创建虚拟环境
+$ source rlhf-env/bin/activate # 进入虚拟环境
+$ uv pip install jinja2
+$ uv pip install pandas
+$ uv pip install pyarrow
+$ uv pip install pyyaml
+$ uv pip install safetensors
+$ uv pip install tensorboard
+$ uv pip install tokenizers
+$ uv pip install torch
+$ uv pip install transformers
+```
+
+配置国内源
+
+```bash
+# 推荐使用清华源
+$ echo 'export UV_DEFAULT_INDEX="https://pypi.tuna.tsinghua.edu.cn/simple"'>> ~/.bashrc
+
+# 让配置立即生效
+$ source ~/.bashrc
+
+# 检查环境变量
+$ echo $UV_DEFAULT_INDEX
+```
+
+```bash
+$ uv pip install modelscope
+$ uv pip install addict
+$ uv pip install datasets==2.21.0
+$ uv pip install transformers[serving]
+
+$ modelscope download --model Qwen/Qwen3-0.6B-Base --local_dir ./
 ```
