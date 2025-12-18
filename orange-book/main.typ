@@ -3872,6 +3872,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 然后我们设置一下生成文本的参数。保证测试的一致性。
 
+其中151645为`<|im_end|>`，151643为`<|endoftext|>`。
+
 #figure(
   ```python
   model.generation_config.do_sample = True
@@ -4064,8 +4066,9 @@ You are a helpful assistant<|im_end|>
       conversation_eos = eos_positions[1:]  # 去掉system的<im_end>
 
       # 偶数索引：user结束位置，奇数索引：assistant结束位置
-      user_ends = [pos + 1 for pos in conversation_eos[::2]] # 每隔2个取一个，从0开始
-      assistant_ends = [pos + 1 for pos in conversation_eos[1::2]] # 每隔2个取一个，从1开始
+      # pos + 1 为跳过<im_end>，此时pos+1指向`\n`
+      user_ends = [pos + 1 for pos in conversation_eos[::2]] # 每隔2个取一个，从0开始，顺便跳过`<im_end>`
+      assistant_ends = [pos + 1 for pos in conversation_eos[1::2]] # 每隔2个取一个，从1开始，顺便跳过`<im_end>`
 
       return user_ends, assistant_ends
 
@@ -4086,9 +4089,9 @@ You are a helpful assistant<|im_end|>
       if num_user_turns == num_assistant_turns:
           # 完整对话：每轮都有用户问题和助手回答
           for user_end, assistant_end in zip(user_ends, assistant_ends):
-              answer_start = user_end + 3  # 跳过 \n<|im_start|>assistant 这3个token
-              answer_end = assistant_end - 1  # 不包含 <|im_end|>
-              mask[answer_start:answer_end] = 1
+              answer_start = user_end + 3  # 跳过 <|im_start|>assistant 这2个token，answer_start指向assistant后面的`\n`
+              answer_end = assistant_end - 1  # 不包含<im_end>后面的`\n`
+              mask[answer_start:answer_end] = 1 # 左闭右开区间，所以掩码不包含<im_end>
 
       elif num_user_turns == num_assistant_turns + 1:
           # 未完成对话：最后一轮助手回答被截断
@@ -4146,6 +4149,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
 
 主训练循环如下
 
+#codly(header: [SFT训练循环])
 ```python
 model.train()
 training_losses = []
@@ -4167,6 +4171,7 @@ for batch_idx in range(total_batches):
 
     ### 对批次数据进行右填充，使所有序列长度一致以便并行计算
     padded_sequences_list = []
+    ### 将<|endoftext|>设置为填充符
     pad_token_id = model.generation_config.eos_token_id[-1]
 
     for seq_idx in range(batch_size):
@@ -4179,7 +4184,7 @@ for batch_idx in range(total_batches):
         padded_sequence = torch.nn.functional.pad(
             torch.tensor(original_sequence),
             (0, padding_length),
-            mode='constant',
+            mode="constant",
             value=pad_token_id
         ).tolist()
 
@@ -4272,7 +4277,7 @@ for batch_idx in range(total_batches):
 
     # 更新优化器的学习率
     for param_group in optimizer.param_groups:
-        param_group['lr'] = current_learning_rate
+        param_group["lr"] = current_learning_rate
 
     # 梯度累积：只在累积步数达到或最后一个批次时更新权重
     is_accumulation_step = (batch_idx + 1) \
@@ -4313,21 +4318,70 @@ for batch_idx in range(total_batches):
 ## ==================== 训练完成总结 ====================
 
 print("训练完成!")
-print(f'训练统计:')
-print(f'   - 总批次数: {total_batches}')
-print(f'   - 跳过批次数: {skipped_batches_count}')
-print(f'   - 有效批次数: {total_batches - skipped_batches_count}')
-print(f'   - 最终平均损失: {np.nanmean(training_losses[-100:]):.4f}')
+print(f"训练统计:")
+print(f"   - 总批次数: {total_batches}")
+print(f"   - 跳过批次数: {skipped_batches_count}")
+print(f"   - 有效批次数: {total_batches - skipped_batches_count}")
+print(f"   - 最终平均损失: {np.nanmean(training_losses[-100:]):.4f}")
 
 if skipped_batches_count > 0:
     skip_ratio = skipped_batches_count / total_batches * 100
-    print(f'跳过批次占比: {skip_ratio:.2f}%')
+    print(f"跳过批次占比: {skip_ratio:.2f}%")
     if skip_ratio > 10:
-        print('建议: 跳过批次过多，考虑增加最大序列长度或优化数据预处理')
+        print("建议: 跳过批次过多，考虑增加最大序列长度或优化数据预处理")
 
 model.save_pretrained("./Qwen3-0.6B-SFT/")
 tokenizer.save_pretrained("./Qwen3-0.6B-SFT/")
 ```
+
+#figure(
+  image("rl-figures/只对答案部分计算损失示意图.svg"),
+  caption: [我们是从`model_inputs`中寻找回答部分，然后计算预测的损失],
+)
+
+为什么要取交集？也就是代码```python final_loss_mask = (assistant_answer_mask & padding_mask)```为什么要这么写？
+
+注意到```python padding_mask = torch.where(target_labels == pad_token_id, 0, 1)```是将`target_labels`中的填充符`pad_token`置为0。因为我们是*右*填充逻辑。
+
+在绝大多数标准场景下，这个"取交集"的操作确实是冗余的，但保留它也无伤大雅，甚至是一种防御性编程的好习惯。
+
+下面为你详细拆解为什么它是"冗余"的，以及为什么在某些边缘情况下它又是"必要"的。
+
+1. 为什么理论上是"没必要"的？（冗余性分析）
+
+SFT（有监督微调）的核心逻辑是：只计算 Assistant（助手）回答部分的 Loss。
+
+我们来看看这两个掩码的定义：
+
+- padding_mask：标记哪些是真实内容（1），哪些是填充内容（0）。
+- assistant_answer_mask：标记哪些是助手的回答内容（1），其他都是 0。
+
+在标准的*右填充（Right-padding）*数据处理流程中：
+
+- 所有的 Padding 都在句子的最末尾。
+- 所有的 Assistant 回答都在 Padding 之前。
+- 结论：`assistant_answer_mask` 为 1 的区域，必然是真实内容，因此该区域的 `padding_mask` 必然也是 1。
+
+数学上来说：$"Answer_Set" subset "Content_Set"$。
+
+既然回答集合是内容集合的子集，那么 `Answer & Content` 自然就等于 Answer。所以取交集不会改变 `assistant_answer_mask` 本身的值。
+
+2. 为什么保留它也是好的？（防御性编程）
+
+虽然逻辑上冗余，但在工程实践中，保留 `& padding_mask` 有两个好处：
+
+A. 防止掩码生成函数的Bug
+
+`create_answer_mask`是一个复杂的逻辑函数（涉及查找`<|im_start|>`，`<|im_end|>`索引）。如果这个函数写得有瑕疵，比如：
+
+- 索引计算错误，导致掩码划多了，划到了 Padding 区域。
+- 数据集本身有脏数据，导致解析错位。
+
+此时，`& padding_mask` 就像一道安全闸，强制把 Loss 计算限制在非 Padding 区域，防止模型去学习"预测 Padding Token"，避免模型变傻。
+
+B. 处理截断（Truncation）的边缘情况
+
+在代码中，我们使用了`truncation=True`。如果一条数据非常长，恰好在 Assistant 回答的一半被截断了，且后面紧接着就是 Padding（这种情况在我们的代码中不会出现！虽然在truncation后通常没有padding，但也取决于具体实现），双重掩码能确保万无一失。
 
 === 第二步：使用DPO算法对SFT后的模型进行微调
 
@@ -4417,7 +4471,7 @@ while True:
         print(f"偏好数据已处理{i}条数据")
     if i == 30000:
         break
-print('-' * 70)
+print("-" * 70)
 
 #############################################################################
 ## 生成不偏好数据的input_ids
@@ -4492,6 +4546,10 @@ def _compute_average_log_probability(logits, target_labels, mask):
 
     # 应用掩码并计算平均值
     masked_log_probs = torch.mul(gathered_log_probs, mask)
+
+    # $1/T (log pi(y_0|x) + log pi(y_1|x,y_0) + log pi(y_2|x,y_(<2)) + dots.c)$
+    # $=1/T (sum_(t=0)^T log pi(y_t|x,y_(<t))=log product_(t=0)^T pi(y_t|x,y_(<t)))^(1/T)$
+    # 这就是在提示词为x的条件下，生成一条回答y的概率。用强化学习的术语来说就是一条轨迹的概率。
     average_log_prob = masked_log_probs.sum(dim=-1) / mask.sum(dim=-1)
 
     return average_log_prob
@@ -4499,6 +4557,7 @@ def _compute_average_log_probability(logits, target_labels, mask):
 
 DPO训练循环如下：
 
+#codly(header: [DPO训练循环])
 ```python
 model.train()
 
@@ -4547,7 +4606,7 @@ for batch_idx in range(total_batches):
         padded_sequence = torch.nn.functional.pad(
             torch.tensor(original_sequence),
             (0, padding_length),
-            mode='constant',
+            mode="constant",
             value=pad_token_id
         ).tolist()
         # 将填充过的数据放入列表
@@ -4564,7 +4623,7 @@ for batch_idx in range(total_batches):
         padded_sequence = torch.nn.functional.pad(
             torch.tensor(original_sequence),
             (0, padding_length),
-            mode='constant',
+            mode="constant",
             value=pad_token_id
         ).tolist()
 
@@ -4577,10 +4636,11 @@ for batch_idx in range(total_batches):
     # 构建因果语言模型的输入输出对：x->y（下一个词预测）
     # 模型的输入：偏好的回答
     preferred_model_inputs = preferred_batch_tensor[:, :-1].to(device)
-    # 真实的标签
+    # 真实的标签$y_w$
     preferred_target_labels = preferred_batch_tensor[:, 1:].to(device)
 
     rejected_model_inputs = rejected_batch_tensor[:, :-1].to(device)
+    # 真实的标签$y_l$
     rejected_target_labels = rejected_batch_tensor[:, 1:].to(device)
 
     ## ==================== 构建训练掩码 ====================
@@ -4765,14 +4825,14 @@ for batch_idx in range(total_batches):
         print(f"时间: {current_time}")
         print(f"批次: {batch_idx + 1}/{total_batches}")
         print(f"最近{log_iter}批次指标：")
-        print(f'   - 平均损失: {recent_loss:.4f}')
-        print(f'   - 偏好对数概率: {recent_preferred_logprob:.4f}')
-        print(f'   - 拒绝对数概率: {recent_rejected_logprob:.4f}')
-        print(f'   - 偏好奖励: {recent_preferred_reward:.4f}')
-        print(f'   - 拒绝奖励: {recent_rejected_reward:.4f}')
-        print(f'   - 奖励边际: {recent_margin:.4f}')
+        print(f"   - 平均损失: {recent_loss:.4f}")
+        print(f"   - 偏好对数概率: {recent_preferred_logprob:.4f}")
+        print(f"   - 拒绝对数概率: {recent_rejected_logprob:.4f}")
+        print(f"   - 偏好奖励: {recent_preferred_reward:.4f}")
+        print(f"   - 拒绝奖励: {recent_rejected_reward:.4f}")
+        print(f"   - 奖励边际: {recent_margin:.4f}")
         print(f"学习率: {current_learning_rate:.2e}")
-        print('-' * 80)
+        print("-" * 80)
 
         # 调用外部日志记录
         log_call(batch_idx, recent_loss)
@@ -4788,12 +4848,12 @@ print(f'   - 有效批次数: {total_batches - skipped_batches_count}')
 # 输出最终训练指标
 if training_losses:
     final_metrics = {
-        'loss': np.nanmean(training_losses[-100:]),
-        'preferred_logprob': np.nanmean(preferred_log_probabilities[-100:]),
-        'rejected_logprob': np.nanmean(rejected_log_probabilities[-100:]),
-        'preferred_reward': np.nanmean(preferred_rewards[-100:]),
-        'rejected_reward': np.nanmean(rejected_rewards[-100:]),
-        'margin': np.nanmean(reward_margins[-100:])
+        "loss": np.nanmean(training_losses[-100:]),
+        "preferred_logprob": np.nanmean(preferred_log_probabilities[-100:]),
+        "rejected_logprob": np.nanmean(rejected_log_probabilities[-100:]),
+        "preferred_reward": np.nanmean(preferred_rewards[-100:]),
+        "rejected_reward": np.nanmean(rejected_rewards[-100:]),
+        "margin": np.nanmean(reward_margins[-100:])
     }
 
     print(f"最终指标 (最近100批次平均)：")
@@ -4816,7 +4876,7 @@ if skipped_batches_count > 0:
 - Step-3：RL，Reinforcement Learning，强化学习，使用PPO策略进行训练。PPO，Proximal Policy Optimization，近端策略优化，是一种强化学习优化方法，它背后的主要思想是避免每次太大的更新，提高训练的稳定性。具体过程如下：首先需要初始化一个语言模型，然后丢给它一个Prompt，它生成一个回复，上一步的奖励模型给这个回复一个打分，这个打分回传给模型更新参数。这里的这个模型在强化学习视角下就是一个策略。这一步有个很重要的动作，就是更新模型时会考虑模型每一个token的输出和第一步SFT输出之间的差异性，要让它俩尽量相似。这是为了缓解强化学习可能的过度优化。
 
 #figure(
-  image("rl-figures/InstructGPT_Diagram3.1.svg"),
+  image("rl-figures/instruct-gpt.png"),
   caption: [InstructGPT训练流程],
 )
 
@@ -4886,7 +4946,15 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
   [此时句子还没写完，奖励模型无法打分。我们只关心这一步有没有"偏离初心"（KL散度）。],
 
   [最后一个token($t = T$)],
-  [KL惩罚+RM总分 \ $R_T = -beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|y_(<t))) + "奖励模型给的分数"$],
+  [KL惩罚+RM总分
+    #math.equation(
+      $
+        R_T = & -beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|y_(<t))) \
+              & + "奖励模型给的分数"
+      $,
+      numbering: none,
+      block: true,
+    )],
   [句子结束（遇到`<eos_token>`），RM终于看完了整句话，给出一个得分，叠加在最后一步上。],
 )
 
