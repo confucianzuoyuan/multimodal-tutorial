@@ -4001,6 +4001,7 @@ You are a helpful assistant<|im_end|>
 
 代码如下：
 
+
 #show figure: set block(breakable: true)
 #figure(
   ```python
@@ -4466,33 +4467,33 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
 def _compute_average_log_probability(logits, target_labels, mask):
     """
     计算带掩码的平均对数概率
-    
+
     Args:
         logits: 模型输出 [batch_size, seq_len, vocab_size]
         target_labels: 目标标签 [batch_size, seq_len]
         mask: 计算掩码 [batch_size, seq_len]
-    
+
     Returns:
         average_log_prob: 每个样本的平均对数概率 [batch_size]
     """
     # 计算softmax概率分布
     probabilities = torch.softmax(logits, dim=-1)
-    
+
     # 计算对数概率
     log_probabilities = torch.log(probabilities)
-    
+
     # 获取目标token的对数概率：
     # $[log pi(y_0|x),log pi(y_1|x,y_0), log pi(y_2|x,y_(<2)),dots]$
     gathered_log_probs = torch.gather(
-        log_probabilities, 
-        dim=-1, 
+        log_probabilities,
+        dim=-1,
         index=target_labels.unsqueeze(2)
     ).squeeze(2)
-    
+
     # 应用掩码并计算平均值
     masked_log_probs = torch.mul(gathered_log_probs, mask)
     average_log_prob = masked_log_probs.sum(dim=-1) / mask.sum(dim=-1)
-    
+
     return average_log_prob
 ```
 
@@ -4519,7 +4520,7 @@ total_batches = len(chosen_input_ids_list) // batch_size
 
 for batch_idx in range(total_batches):
     ## ==================== 获取批次数据 ====================
-    
+
     # 获取当前批次的偏好对数据
     preferred_batch_sequences = chosen_input_ids_list[
         batch_idx * batch_size:(batch_idx + 1) * batch_size
@@ -4529,13 +4530,13 @@ for batch_idx in range(total_batches):
     ]
 
     ## ==================== 数据填充对齐 ====================
-    
+
     # 计算各自批次的最大序列长度
     preferred_max_length = max([len(sequence) for sequence in preferred_batch_sequences])
     rejected_max_length = max([len(sequence) for sequence in rejected_batch_sequences])
     # 使用eos token作为pad token
     pad_token_id = model.generation_config.eos_token_id[-1]
-    
+
     ### 偏好数据填充处理
     preferred_padded_sequences = []
     for seq_idx in range(batch_size):
@@ -4544,48 +4545,48 @@ for batch_idx in range(total_batches):
         padding_length = preferred_max_length - len(original_sequence)
         # 在训练数据的末尾填充pad
         padded_sequence = torch.nn.functional.pad(
-            torch.tensor(original_sequence), 
-            (0, padding_length), 
-            mode='constant', 
+            torch.tensor(original_sequence),
+            (0, padding_length),
+            mode='constant',
             value=pad_token_id
         ).tolist()
         # 将填充过的数据放入列表
         preferred_padded_sequences.append(padded_sequence)
-    
+
     preferred_batch_tensor = torch.tensor(preferred_padded_sequences)
-    
+
     ### 拒绝数据填充处理
     rejected_padded_sequences = []
     for seq_idx in range(batch_size):
         original_sequence = rejected_batch_sequences[seq_idx]
         padding_length = rejected_max_length - len(original_sequence)
-        
+
         padded_sequence = torch.nn.functional.pad(
-            torch.tensor(original_sequence), 
-            (0, padding_length), 
-            mode='constant', 
+            torch.tensor(original_sequence),
+            (0, padding_length),
+            mode='constant',
             value=pad_token_id
         ).tolist()
-        
+
         rejected_padded_sequences.append(padded_sequence)
-    
+
     rejected_batch_tensor = torch.tensor(rejected_padded_sequences)
 
     ## ==================== 构建输入输出对 ====================
-    
+
     # 构建因果语言模型的输入输出对：x->y（下一个词预测）
     # 模型的输入：偏好的回答
     preferred_model_inputs = preferred_batch_tensor[:, :-1].to(device)
     # 真实的标签
     preferred_target_labels = preferred_batch_tensor[:, 1:].to(device)
-    
+
     rejected_model_inputs = rejected_batch_tensor[:, :-1].to(device)
     rejected_target_labels = rejected_batch_tensor[:, 1:].to(device)
 
     ## ==================== 构建训练掩码 ====================
-    
+
     # 构建掩码矩阵：padding_mask（忽略填充token）+ answer_mask（只关注回答部分）
-    
+
     # pad_token_id 对应的置为 0 ，其它置为 1 。
     preferred_padding_mask = torch.where(
         preferred_target_labels == pad_token_id,
@@ -4597,7 +4598,7 @@ for batch_idx in range(total_batches):
         0,
         1
     )
-    
+
     # 助手回答的掩码：将助手回答的部分掩码为 1 。其它都是 0 。
     preferred_answer_mask = create_answer_mask(
         preferred_model_inputs,
@@ -4607,24 +4608,24 @@ for batch_idx in range(total_batches):
         rejected_model_inputs,
         tokenizer
     )
-    
+
     # 最终掩码：取交集
     preferred_final_mask = (preferred_answer_mask & preferred_padding_mask)
     rejected_final_mask = (rejected_answer_mask & rejected_padding_mask)
 
     ## ==================== 批次有效性检查 ====================
-    
+
     # 检查偏好对数据是否都有有效的回答部分
     preferred_min_tokens = preferred_final_mask.sum(dim=-1).min().item()
     rejected_min_tokens = rejected_final_mask.sum(dim=-1).min().item()
-    
+
     if preferred_min_tokens == 0 or rejected_min_tokens == 0:
         print(f"跳过第{batch_idx + 1}批次：偏好对数据回答部分不足")
         skipped_batches_count += 1
         continue  # 跳过当前批次
 
     ## ==================== 模型前向传播 ====================
-    
+
     # 训练模型对偏好数据的前向传播
     preferred_logits = model(preferred_model_inputs).logits
     torch.cuda.empty_cache()  # 清理GPU显存
@@ -4649,10 +4650,10 @@ for batch_idx in range(total_batches):
     DPO (Direct Preference Optimization) 论文: https://arxiv.org/pdf/2305.18290.pdf
     核心思想：通过偏好对比学习，无需显式奖励模型
     """
-    
+
     # 计算平均对数概率 (average_log_prob = True)
     # 参考: https://github.com/huggingface/trl/blob/main/trl/trainer/dpo_trainer.py#L924
-    
+
     ### 训练模型的对数概率
     ### 正在微调的模型，接收到正例的logits，计算对数概率
     ### $log pi_theta (y_w|x)$
@@ -4667,7 +4668,7 @@ for batch_idx in range(total_batches):
         rejected_target_labels,
         rejected_final_mask
     )
-    
+
     ### 参考模型的对数概率
     ### $log pi_"ref" (y_w|x)$
     reference_preferred_log_prob = _compute_average_log_probability(
@@ -4690,22 +4691,22 @@ for batch_idx in range(total_batches):
     rejected_implicit_reward =                               \
         beta *                                               \
         (rejected_log_prob - reference_rejected_log_prob)
-    
+
     # $beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))$
     reward_margin = preferred_implicit_reward - rejected_implicit_reward
-    
+
     # DPO损失：
     # $-log(sigma(beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))))$
     preference_probability = torch.nn.functional.sigmoid(reward_margin)
     sample_losses = -torch.log(preference_probability)
-    
+
     # 批次平均损失 + 梯度累积
     batch_average_loss =                          \
         torch.nanmean(sample_losses) /            \
         gradient_accumulation_steps
 
     ## ==================== 反向传播和优化 ====================
-    
+
     batch_average_loss.backward()
 
     # 动态学习率调整
@@ -4716,20 +4717,20 @@ for batch_idx in range(total_batches):
         max_lr,
         min_lr
     )
-    
+
     for param_group in optimizer.param_groups:
         param_group["lr"] = current_learning_rate
 
     # 梯度累积和权重更新
     is_accumulation_step = (batch_idx + 1) % gradient_accumulation_steps == 0
     is_final_batch = (batch_idx + 1) == total_batches
-    
+
     if is_accumulation_step or is_final_batch:
         optimizer.step()        # 更新权重
         optimizer.zero_grad()   # 清空梯度
 
     ## ==================== 训练指标记录 ====================
-    
+
     # 记录各项训练指标（detach避免梯度追踪）
     training_losses.append(
         batch_average_loss.detach().item() * gradient_accumulation_steps)
@@ -4745,9 +4746,9 @@ for batch_idx in range(total_batches):
         torch.nanmean(reward_margin.detach()).item())
 
     ## ==================== 训练日志输出 ====================
-    
+
     should_log = (batch_idx + 1) % log_iter == 0 or is_final_batch
-    
+
     if should_log:
         # 计算最近批次的平均指标
         recent_loss = np.nanmean(training_losses[-log_iter:])
@@ -4758,7 +4759,7 @@ for batch_idx in range(total_batches):
         recent_preferred_reward = np.nanmean(preferred_rewards[-log_iter:])
         recent_rejected_reward = np.nanmean(rejected_rewards[-log_iter:])
         recent_margin = np.nanmean(reward_margins[-log_iter:])
-        
+
         # 格式化输出训练状态
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"时间: {current_time}")
@@ -4772,7 +4773,7 @@ for batch_idx in range(total_batches):
         print(f'   - 奖励边际: {recent_margin:.4f}')
         print(f"学习率: {current_learning_rate:.2e}")
         print('-' * 80)
-        
+
         # 调用外部日志记录
         log_call(batch_idx, recent_loss)
 
@@ -4794,7 +4795,7 @@ if training_losses:
         'rejected_reward': np.nanmean(rejected_rewards[-100:]),
         'margin': np.nanmean(reward_margins[-100:])
     }
-    
+
     print(f"最终指标 (最近100批次平均)：")
     for metric_name, metric_value in final_metrics.items():
         print(f"   - {metric_name}: {metric_value:.4f}")
@@ -4806,7 +4807,124 @@ if skipped_batches_count > 0:
         print("建议: 跳过批次过多，考虑增加最大序列长度或优化数据预处理")
 ```
 
+#chapter("使用PPO微调大语言模型--复刻InstructGPT", image: image("./orange2.jpg"), l: "rlhf-instruct-gpt")
 
+== InstructGPT训练流程
+
+- Step-1：SFT，Supervised Fine-Tuning，有监督微调。顾名思义，它是在有监督（有标注）数据上微调训练得到的。这里的监督数据其实就是输入Prompt，输出相应的回复，只不过这里的回复是人工编写的。这个工作要求比一般标注要高，其实算是一种创作了。
+- Step-2：RM，Reward Model，奖励模型。具体来说，一个Prompt丢给前一步的SFT，输出若干个（4-9个）回复，由标注人员对这些回复进行排序。然后从4-9个中每次取2个，因为是有序的，就可以用来训练这个奖励模型，让模型学习到这个好坏评价。这一步非常关键，它就是所谓的Human Feedback，引导下一步模型的进化方向。
+- Step-3：RL，Reinforcement Learning，强化学习，使用PPO策略进行训练。PPO，Proximal Policy Optimization，近端策略优化，是一种强化学习优化方法，它背后的主要思想是避免每次太大的更新，提高训练的稳定性。具体过程如下：首先需要初始化一个语言模型，然后丢给它一个Prompt，它生成一个回复，上一步的奖励模型给这个回复一个打分，这个打分回传给模型更新参数。这里的这个模型在强化学习视角下就是一个策略。这一步有个很重要的动作，就是更新模型时会考虑模型每一个token的输出和第一步SFT输出之间的差异性，要让它俩尽量相似。这是为了缓解强化学习可能的过度优化。
+
+#figure(
+  image("rl-figures/InstructGPT_Diagram3.1.svg"),
+  caption: [InstructGPT训练流程],
+)
+
+== 即时奖励$R_t$的计算
+
+$
+  J_"PPO" (theta)=EE[min((pi_theta (a|s))/(pi_theta_"old" (a|s))A, "clip"((pi_theta (a|s))/(pi_theta_"old" (a|s)),1-epsilon,1+epsilon)A)]
+$
+
+PPO的目标函数我们已经很熟悉了，优势$A$如果使用1步TD误差的话是：$delta=R_t+gamma V(S_(t+1)) - V(S_t)$。
+
+在倒立摆环境中，只要木杆不倒下，那么$R_t=1$。但是在大语言模型这个环境中，情况就要复杂多了。在大语言模型中，策略模型LLM采取的动作是输出一个token，那么输出一个token，我们应该给什么奖励$R_t$呢？
+
+#figure(
+  image("rl-figures/输出的每个token的奖励怎么给.svg"),
+  caption: [输出一个token（采取动作），针对输出的这个token，怎么给即时奖励$R_t$？],
+)
+
+在RLHF中，奖励模型的作用是针对一条完整的补全给出分数的。
+
+#figure(
+  image("rl-figures/奖励模型原理.svg"),
+  caption: [奖励模型是针对一条完整的补全给出得分的],
+)
+
+在 InstructGPT (Ouyang et al., 2022) 的 PPO 阶段，奖励函数的设计非常精妙。它不仅仅是奖励模型（Reward Model, RM）给出的分数，还包含了一个至关重要的惩罚项。
+
+即时奖励的计算公式分两种情况：
+
+- `<eos_token>`之前的token的奖励如下计算：
+
+$
+  R_t = -beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|x,y_(<t)))
+$
+
+- 最后一个token也就是`<eos_token>`的奖励如下：
+
+$
+  R_"<eos_token>" = R_T = "奖励模型给的得分" - beta log (pi_theta (y_T|x,y_(<T)))/(pi_"ref" (y_T|x,y_(<T)))
+$
+
+InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|x,y_(<t)))$。
+
+- 直观理解：我们不希望强化学习后的模型$pi_theta$偏离原始的SFT模型$pi_"ref"$太远。
+- 为什么需要KL散度惩罚项？
+  - 防止Reward Hacking（奖励黑客）：如果没有约束，RL模型会利用奖励模型的漏洞，生成一些人类读起来不通顺、但奖励模型误判为高分的奇怪句子（例如重复乱码）。
+  - 保持语言流畅性：SFT 模型通常能生成通顺的自然语言。通过锚定 SFT 模型，保证了 RL 模型生成的句子依然是"人话"。
+- 计算细节：这个惩罚是*逐token计算*的，也就是如果$pi_theta$对某个token的生成概率远高于$pi_"ref"$，说明模型在"冒险"偏离原来的轨道，惩罚就会变大。
+- 奖励模型的打分鼓励模型往"人类喜欢"的方向走。
+- KL惩罚拽住模型，不让它跑得太偏，避免它为了高分而变成"怪兽"。
+
+在标准的InstructGPT实现中，*奖励模型（RM）的分数通常只加在最后一个 token 上*，而 *KL惩罚是加在每一个 token 上的*。
+
+让我们把这个过程像切蛋糕一样切开来看：
+
+1. 奖励的时间步分配
+
+假设模型生成了一个长度为 $T$ 的句子：$y = [y_1, y_2, ..., y_T]$。
+
+在 PPO 的每一个时间步 $t$，智能体获得的即时奖励 $r_t$ 是这样计算的：
+
+#table(
+  columns: 3,
+  [时间步 (token)], [即时奖励 $R_t$ 的构成], [解释],
+  [中间token($t < T$)],
+  [只有KL惩罚 \ $R_t = -beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|y_(<t)))$],
+  [此时句子还没写完，奖励模型无法打分。我们只关心这一步有没有"偏离初心"（KL散度）。],
+
+  [最后一个token($t = T$)],
+  [KL惩罚+RM总分 \ $R_T = -beta log (pi_theta (y_t|x,y_(<t)))/(pi_"ref" (y_t|y_(<t))) + "奖励模型给的分数"$],
+  [句子结束（遇到`<eos_token>`），RM终于看完了整句话，给出一个得分，叠加在最后一步上。],
+)
+
+2. 为什么要这样做？
+
+你可能会问："如果只奖励最后一个词，前面的词怎么知道自己做得好不好？"
+
+虽然物理上的奖励（奖励模型给的得分）只发生在最后一步，但 PPO 使用了广义优势估计（GAE）来回传这个信号：
+
+1. *价值函数的预测*：Critic 网络（价值网络）会预测每一个 token 的 $V(s_t)$。它会学到："虽然我现在只拿到了微小的 KL 惩罚，但我知道只要我顺着这个方向走，最后能拿到巨大的*奖励模型给的得分*。"
+2. *信号回传*：通过折扣因子 $gamma$ 和 GAE 参数 $lambda$，最后一步的巨大奖励会沿着时间轴*向前传播*。
+  - 如果奖励模型给的得分很高，那么 $y_(T-1), y_(T-2)...$ 的优势函数（Advantage）都会变高。
+  - 这就告诉了前面的 token："你们铺垫得很好，导致最后结局很棒。"
+3. 举个具体的例子
+
+- Prompt: "你好"
+- Response: "你好呀`<eos_token>`" (4个token)
+
+假设 $beta=0.1$，奖励模型RM给整句打分 $1.0$。
+
+- token 1 ("你"):
+  - $r_1 = -0.1 times "KL"("你")$
+  - （没有 RM 分数）
+- token 2 ("好"):
+  - $r_2 = -0.1 times "KL"("好")$
+  - （没有 RM 分数）
+- token 3 ("呀"):
+  - $r_3 = -0.1 times "KL"("呀")$
+  - （没有 RM 分数）
+- token 4 ("`<eos_token>`"):
+  - $r_4 = -0.1 times "KL"("<eos_token>") + 1.0$
+  - （这里加上了奖励模型RM的最终大奖）
+
+💡 总结
+
+- 奖励模型RM给的分数是"稀疏奖励"（Sparse Reward）：只在结局出现一次。
+- KL惩罚是"稠密奖励"（Dense Reward）：每一步都有，时刻约束模型不要乱说话。
+- 依靠GAE：把最后的稀疏奖励"抹匀"分摊给前面的每一个动作，让前面的词也能获得梯度更新。
 
 #part("多模态")
 
