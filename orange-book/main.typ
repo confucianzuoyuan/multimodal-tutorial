@@ -4895,7 +4895,7 @@ PPO的目标函数我们已经很熟悉了，优势$A$如果使用1步TD误差�
   caption: [输出一个token（采取动作），针对输出的这个token，怎么给即时奖励$R_t$？],
 )
 
-在RLHF中，奖励模型的作用是针对一条完整的补全给出分数的。
+在RLHF中，奖励模型（Reward Model）的作用是针对一条完整的补全给出分数的。
 
 #figure(
   image("rl-figures/奖励模型原理.svg"),
@@ -4936,7 +4936,7 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
 
 假设模型生成了一个长度为 $T$ 的句子：$y = [y_1, y_2, ..., y_T]$。
 
-在 PPO 的每一个时间步 $t$，智能体获得的即时奖励 $r_t$ 是这样计算的：
+在 PPO 的每一个时间步 $t$，智能体获得的即时奖励 $R_t$ 是这样计算的：
 
 #table(
   columns: 3,
@@ -4955,7 +4955,7 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
       numbering: none,
       block: true,
     )],
-  [句子结束（遇到`<eos_token>`），RM终于看完了整句话，给出一个得分，叠加在最后一步上。],
+  [句子结束（遇到`<eos_token>`），奖励模型RM终于看完了整句话，给出一个得分，叠加在最后一步上。],
 )
 
 2. 为什么要这样做？
@@ -4964,7 +4964,7 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
 
 虽然物理上的奖励（奖励模型给的得分）只发生在最后一步，但 PPO 使用了广义优势估计（GAE）来回传这个信号：
 
-1. *价值函数的预测*：Critic 网络（价值网络）会预测每一个 token 的 $V(s_t)$。它会学到："虽然我现在只拿到了微小的 KL 惩罚，但我知道只要我顺着这个方向走，最后能拿到巨大的*奖励模型给的得分*。"
+1. *价值函数的预测*：Critic 网络（价值网络）会预测每一个 token 的 $V(S_t)$。它会学到："虽然我现在只拿到了微小的 KL 惩罚，但我知道只要我顺着这个方向走，最后能拿到巨大的*奖励模型给的得分*。"
 2. *信号回传*：通过折扣因子 $gamma$ 和 GAE 参数 $lambda$，最后一步的巨大奖励会沿着时间轴*向前传播*。
   - 如果奖励模型给的得分很高，那么 $y_(T-1), y_(T-2)...$ 的优势函数（Advantage）都会变高。
   - 这就告诉了前面的 token："你们铺垫得很好，导致最后结局很棒。"
@@ -4976,16 +4976,16 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
 假设 $beta=0.1$，奖励模型RM给整句打分 $1.0$。
 
 - token 1 ("你"):
-  - $r_1 = -0.1 times "KL"("你")$
+  - $R_1 = -0.1 times "KL"("你")$
   - （没有 RM 分数）
 - token 2 ("好"):
-  - $r_2 = -0.1 times "KL"("好")$
+  - $R_2 = -0.1 times "KL"("好")$
   - （没有 RM 分数）
 - token 3 ("呀"):
-  - $r_3 = -0.1 times "KL"("呀")$
+  - $R_3 = -0.1 times "KL"("呀")$
   - （没有 RM 分数）
 - token 4 ("`<eos_token>`"):
-  - $r_4 = -0.1 times "KL"("<eos_token>") + 1.0$
+  - $R_4 = -0.1 times "KL"("<eos_token>") + 1.0$
   - （这里加上了奖励模型RM的最终大奖）
 
 💡 总结
@@ -4993,6 +4993,763 @@ InstructGPT成功的关键秘诀是式子中的KL散度惩罚项$beta log (pi_th
 - 奖励模型RM给的分数是"稀疏奖励"（Sparse Reward）：只在结局出现一次。
 - KL惩罚是"稠密奖励"（Dense Reward）：每一步都有，时刻约束模型不要乱说话。
 - 依靠GAE：把最后的稀疏奖励"抹匀"分摊给前面的每一个动作，让前面的词也能获得梯度更新。
+
+== PPO微调LLM实战
+
+应用场景：在电商场景中，很多商品由于没有人买而变成了"长尾商品"。而我们需要为这些长尾商品"自动"生成一些*正向*评论，来吸引买家。所以需要训练一个能够编写正向评论的LLM。
+
++ 首先对一个预训练LLM（gpt2, Qwen2.5-0.5B等）进行SFT，让LLM可以编写商品评论。这里的问题在于这个LLM虽然能够写电商评论，但写出来的可能是正向评论也可能是负向评论。
++ 训练一个奖励模型（Reward Model），可以针对正向评论打高分，针对负向评论打低分。
++ 使用奖励模型给SFT后的LLM输出的电商评论打分，如果分数高（说明是正向评论），则鼓励SFT后的LLM输出这条评论（提升输出这条评论的概率）。如果分数低（说明是负向评论），则抑制SFT模型输出这条评论的概率。
+
+=== 监督微调（SFT）
+
+我们的目标是训练一个可以写电商评论的大语言模型。所以我们对gpt2进行微调，让它可以写电商评论。
+
+由于我们使用的文本，既有正向情感的文本，也有负向情感的文本，所以训练出来的模型，在给定提示词（例如："这本书"）时，可能写出正向情感的评论也可能写出负向情感的评论。
+
+#tip(title: [预训练模型])[
+  我们使用的底座模型是中文版gpt2："gpt2-chinese-cluecorpussmall"。
+]
+
+#codly(header: [对gpt2进行SFT])
+```python
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, DataCollatorForLanguageModeling, pipeline, set_seed
+from torch.utils.data import DataLoader
+from datasets import load_dataset
+from pprint import pprint
+
+dataset = load_dataset("csv", data_files="online_shopping_10_cats.csv")
+model_path = "./gpt2-chinese-cluecorpussmall"
+
+ds_train = dataset["train"]
+# 将评论长度为大于1024的过滤掉，因为gpt2的最大上下文长度为1024。
+ds_train = ds_train.filter(lambda x : x["review"] != None and len(x["review"]) > 20 and len(x["review"]) < 1024)
+
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+model = AutoModelForCausalLM.from_pretrained(model_path)
+
+def tokenize(batch):
+    return tokenizer(batch["review"])
+
+map_kwargs = {
+    "batched": True,
+    "batch_size": 512,
+    "remove_columns": ["cat", "label", "review"]
+}
+
+tokenized_dataset_train = ds_train.map(tokenize, **map_kwargs)
+
+tokenized_dataset_train.set_format(type="torch")
+# 将eos_token设置为pad_token
+tokenizer.eos_token = tokenizer.pad_token
+# 将mlm设置为False，那么数据会被整理为因果注意力模型使用的格式，也就是预测下一个token任务需要的数据格式
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer,
+    mlm=False
+)
+
+dataloader_params = {
+    "batch_size": 2,
+    "collate_fn": data_collator
+}
+
+train_dataloader = DataLoader(
+    tokenized_dataset_train,
+    **dataloader_params
+)
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+# 一般sft会训练1个epoch，也就是把训练数据看一遍就可以了
+# 否则容易过拟合，造成灾难性遗忘
+num_epochs = 1
+
+device = torch.device("cuda")
+model.to(device)
+for epoch in range(num_epochs):
+    model.train()
+    for i, batch in enumerate(train_dataloader):
+        batch = batch.to(device)
+        outputs = model(**batch)
+        loss = outputs.loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if i % 100 == 0:
+            print(f"Step: {i}, Loss: {loss.item()}")
+
+model.save_pretrained("./gpt2-sft")
+tokenizer.save_pretrained("./gpt2-sft")
+
+# 测试微调后的模型
+g = pipeline("text-generation", model="./gpt2-sft")
+set_seed(42)
+pprint(g("这本书真是", max_length=30, num_return_sequences=10))
+```
+
+=== 训练奖励模型（Reward Model）
+
+我们会将gpt2预训练模型微调成一个分类模型（奖励模型）。
+
+我们要训练一个模型作为奖励模型，也就是给模型输入文本，模型可以给一个评分出来。
+
+#figure(
+  image("rl-figures/奖励模型训练流程示意图.svg"),
+  caption: [奖励模型训练流程示意图],
+)
+
+我们的评论在输入奖励模型之前会先在末尾添加一个`reward_token`，作为标记。作用和Bert用来训练分类模型时添加的`CLS_TOKEN`是一样的。
+
+我们将评论输入gpt2模型，然后提取gpt2输出的最后一层隐藏层（`last_hidden_state`），并送入一个我们自己定义的线性层（`reward_head`），然后去输出的最后一个元素作为评分。
+
+```python
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForCausalLM, DataCollatorWithPadding
+import torch
+from torch import nn
+import numpy as np
+from torch.utils.data import DataLoader
+from sklearn.metrics import confusion_matrix
+
+model_path = "./gpt2-chinese-cluecorpussmall"
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+tokenizer.eos_token = tokenizer.pad_token
+# reward_token设置为eos_token
+REWARD_TOKEN_ID = tokenizer.eos_token_id
+
+ds = load_dataset("csv", data_files="online_shopping_10_cats.csv")
+ds_train = ds["train"]
+
+ds_train = ds_train.filter(lambda x : x["review"] != None and len(x["review"]) > 20 and len(x["review"]) < 1024)
+
+def tokenize(batch):
+    # 提取出文本内容
+    outputs = tokenizer(batch["review"])
+    # 每条数据一个评分，初始化为 0 。
+    outputs["score"] = [0] * len(outputs["input_ids"])
+    # 对每条数据的最后的reward_token进行评分
+    outputs["score_index"] = [0] * len(outputs["input_ids"])
+    for i in range(len(outputs["input_ids"])):
+        # 第 i 条数据的末尾添加一个eos_token，作为reward_token
+        outputs["input_ids"][i].append(REWARD_TOKEN_ID)
+        # reward_token的掩码设置为1。
+        outputs["attention_mask"][i].append(1)
+        # 正向情感的文本评分为1。负向情感的评分为0。
+        # 也就是使用数据集中的标签作为评分。
+        outputs["score"][i] = float(batch["label"][i])
+        # 对 reward_token 进行评分，也就是评分的索引为 reward_token 的索引。
+        outputs["score_index"][i] = len(outputs["input_ids"][i]) - 1
+    return outputs
+
+map_kwargs = {
+    "batched": True,
+    "batch_size": 512,
+    "remove_columns": ["cat", "label", "review"]
+}
+
+tokenized_dataset_train = ds_train.map(tokenize, **map_kwargs)
+
+tokenized_dataset_train.set_format(type="torch")
+
+class RewardModel(nn.Module):
+    """奖励模型的结构"""
+    def __init__(self, model_name):
+        super().__init__()
+        self.llm = AutoModelForCausalLM.from_pretrained(model_name)
+        self.reward_head = nn.Linear(self.llm.config.hidden_size, 1)
+
+    def forward(self, input_ids, attention_mask):
+        # gpt2的前向传播，但是还要输出隐藏层
+        transformer_outputs = self.llm.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True
+        )
+        # 提取最后一层隐藏层
+        last_hidden_state = transformer_outputs.hidden_states[-1]
+        # 使用reward_head线性层对last_hidden_state给出奖励
+        reward = self.reward_head(last_hidden_state).squeeze(-1)
+        # sigmoid用来将奖励搞到(0,1)范围内
+        return torch.sigmoid(reward)
+
+model = RewardModel(model_path)
+
+data_collator = DataCollatorWithPadding(tokenizer)
+
+dataloader_params = {
+    "batch_size": 16,
+    "shuffle": True,
+    "collate_fn": data_collator
+}
+
+train_dataloader = DataLoader(
+    tokenized_dataset_train,
+    **dataloader_params
+)
+
+device = torch.device("cuda")
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+# 二分类交叉熵损失
+criterion = nn.BCELoss()
+# 这里训练1轮，遵循InstructGPT论文中的训练设置。
+num_epochs = 1 # N+ Implementation Detail paper
+
+model.to(device)
+
+for epoch in range(num_epochs):
+    model.train()
+    for i, batch in enumerate(train_dataloader):
+        inputs = batch.to(device)
+        model_inputs = {
+            "input_ids": inputs["input_ids"],
+            "attention_mask": inputs["attention_mask"]
+        }
+        # 模型针对训练数据的打分
+        scores = model(**model_inputs)
+        batch_indices = torch.arange(scores.shape[0])
+        # 模型对reward_token的打分
+        score = scores[batch_indices, inputs["score_index"]]
+        # 真实分数：0或者1
+        target = inputs["score"]
+        loss = criterion(score, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        print("Loss: ", loss.item())
+
+torch.save(model.state_dict(), "reward_model.pt")
+
+#########################################
+############ 对模型进行评估 #############
+#########################################
+
+model.eval()
+
+all_predictions = []
+all_labels = []
+
+for i, batch in enumerate(train_dataloader):
+    inputs = batch.to(device)
+    model_inputs = {
+        "input_ids": inputs["input_ids"],
+        "attention_mask": inputs["attention_mask"]
+    }
+    with torch.no_grad():
+        scores = model(**model_inputs)
+        batch_indices = torch.arange(scores.shape[0])
+        score = scores[batch_indices, inputs["score_index"]]
+        target = inputs["score"]
+    # 对评论的打分大于0.5分，视为预测为1。
+    predictions = (score > 0.5).int()
+
+    all_predictions.extend(predictions.cpu().numpy())
+    all_labels.extend(target.cpu().numpy())
+
+# 计算混淆矩阵
+print(confusion_matrix(all_labels, all_predictions))
+```
+
+结果的格式如下：
+
+```python
+混淆矩阵:
+[[364,  60],   # 第一行：真实标签为0的情况：364个预测正确，60个预测错误
+ [ 31, 412]]   # 第二行：真实标签为1的情况：31个预测错误，412个预测正确
+```
+
+=== 对gpt2-sft进行PPO微调
+
+==== 导入依赖
+
+```python
+from transformers import DataCollatorWithPadding, AutoModelForCausalLM, AutoTokenizer
+from copy import deepcopy
+from torch.utils.data import DataLoader
+import random
+from datasets import load_dataset
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
+model_path = "./gpt2-sft"
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+tokenizer.pad_token = tokenizer.eos_token
+```
+
+==== 准备提示词
+
+我们需要搞一些提示词，给到gpt2-sft，让它补全。补全的内容交给奖励模型评分。然后决定惩罚gpt2-sft还是奖励gpt2-sft。
+
+#danger[
+  自己编写prompt太麻烦了，所以我们准备提示词的方式，是把数据集中文本的前几个字截取出来作为提示词。*后面的文本不再使用*！
+  #tip(title: [截取前几个字作为提示词])[
+    #underline[东西]#text(fill: gray)[太小了，光有数量没有质量！很失望！]
+  ]
+]
+
+#codly(header: [为PPO准备提示词])
+```python
+ds = load_dataset("csv", data_files="online_shopping_10_cats.csv")
+ds_train = ds["train"]
+
+ds_train = ds_train.filter(lambda x: x["review"] != None and len(
+    x["review"]) > 20 and len(x["review"]) < 1024)
+
+# 截取评论数据的前2～8个token作为提示词
+input_min_token_length = 2
+input_max_token_length = 8
+input_token_length_range = list(range(
+    input_min_token_length,
+    input_max_token_length))
+
+def tokenize(sample):
+    # 提示词token的数量随机选择一个
+    input_size = random.choice(input_token_length_range)
+    # 如果input_size=3，截取review字段文本的前3个token出来
+    sample["input_ids"] = tokenizer.encode(sample["review"])[:input_size]
+    # 提示词掩码为1
+    sample["attention_mask"] = [1] * len(sample["input_ids"])
+    # 提示词对应的文本
+    sample["query"] = tokenizer.decode(sample["input_ids"])
+    return sample
+
+
+map_kwargs = {
+    "batched": False,
+    "remove_columns": ["cat", "review", "label"]
+}
+
+tokenized_dataset_train = ds_train.map(tokenize, **map_kwargs)
+
+tokenized_dataset_train.set_format(type="torch")
+
+batch_size = 32
+
+def collator(batch):
+    return dict((key, [d[key] for d in batch]) for key in batch[0])
+
+# 提示词组成的数据集
+train_dataloader = DataLoader(
+    tokenized_dataset_train,
+    batch_size=batch_size,
+    collate_fn=collator,
+    shuffle=True
+)
+```
+
+==== ActorCritic模型结构
+
+在倒立摆环境中，我们的Actor是`PolicyNet`，Critic是`ValueNet`。
+
+在InstructGPT中，演员模型和价值模型合并成了一个模型`ActorCriticModel`。这样actor和critic可以共享gpt2-sft模型的权重。
+
+#codly(header: [演员评论家模型])
+```python
+class ActorCriticModel(nn.Module):
+    """GPT2模型+价值头"""
+    def __init__(self, model_path):
+        super().__init__()
+        # 这个要初始化为我们微调出来的gpt2-sft模型
+        # actor演员模型：策略模型$pi_theta$
+        self.llm = AutoModelForCausalLM.from_pretrained(model_path)
+        # 添加价值头$V_omega$
+        # critic评论家模型：价值函数模型，价值头，线性层
+        self.v_head = nn.Linear(self.llm.config.hidden_size, 1)
+
+    def forward(self, input_ids, attention_mask):
+        # gpt2-sft模型的输出
+        transformer_outputs = self.llm.forward(
+            input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states = True,
+        )
+        # 输出的token的logits
+        logits = transformer_outputs.logits
+        # 获取最后一层隐藏层
+        last_hidden_state = transformer_outputs.hidden_states[-1]
+
+        # 评估token的价值，评估的是最后一个隐藏层的价值
+        value = self.v_head(last_hidden_state).squeeze(-1)
+        # 返回输出的token的logits和token的价值
+        return logits, value
+
+    def generate(self, *args, **kwargs):
+        """生成文本"""
+        return self.llm.generate(*args, **kwargs)
+```
+
+==== 加载模型
+
+#codly(header: [将需要的模型都加载到显存])
+```python
+device = torch.device("cuda")
+
+# 将奖励模型加载
+reward_model = RewardModel(model_path)
+reward_model.load_state_dict(torch.load(
+    "reward_model.pt",
+    map_location="cpu"))
+# 加载演员评论家模型
+model = ActorCriticModel(model_path)
+model = model.to(device)
+reward_model = reward_model.to(device)
+# 加载冻结的参考模型$pi_"ref"$，只用来计算即时奖励$R_t$
+ref_model = deepcopy(model)
+
+# 设置reward_token
+REWARD_TOKEN_ID = tokenizer.eos_token_id
+```
+
+==== 奖励$R_t$的计算
+
+#figure(
+  image("rl-figures/提示词不计算奖励.svg"),
+  caption: [提示词为"这本书"，补全为"真好看"的$R_t$的计算],
+)
+
+下面的函数`compute_rewards`在计算输出的*每个*token的$R_t$的同时，*顺便*计算了每个token的价值，也就是$V(S_t)$。
+
+```python
+def compute_rewards(
+    input_data, # 输入数据（提示词+补全）
+    query_tensors, # 提示词张量
+    response_tensors, # 补全的张量
+    score_tensors # 奖励模型给出的分数的张量
+):
+    with torch.no_grad():
+        # 正在微调的模型所输出的token的logits和token的价值（$[V(S_0),V(S_1),...,V(S_T)]$）
+        logits, values = model(**input_data) # (B, T, vocab_size)
+        # 冻结的参考模型的输出
+        ref_logits, _ = ref_model(**input_data)
+        # 正在微调的模型的输出的对数概率log_softmax
+        # 去掉最后一个token，因为是预测下一个token的任务
+        logp = F.log_softmax(logits[:, :-1, :], dim=-1)
+        # 冻结的模型的输出的对数概率
+        ref_logp = F.log_softmax(ref_logits[:, :-1, :], dim=-1)
+        # 实际生成的token序列
+        # 自回归模型是预测下一个token，所以去掉第一个token
+        labels = input_data["input_ids"][:, 1:] # (B, T-1)
+        # 使用gather提取实际token的概率
+        # logp 是 vocab_size 大小的张量
+        logp = torch.gather(logp, 2, labels.unsqueeze(-1)).squeeze(-1) # (B, T-1)
+        ref_logp = torch.gather(ref_logp, 2, labels.unsqueeze(-1)).squeeze(-1) # (B, T-1)
+        # KL散度：$[log (pi_theta (y_0|x))/(pi_"ref" (y_0|x)), log (pi_theta (y_1|x,y_0))/(pi_"ref" (y_1|x,y_0)),...]$
+        kl = logp - ref_logp
+        # kl散度的权重$beta$
+        beta = 0.2
+        # 最终奖励的计算的右边式子：$[-beta log (pi_theta (y_0|x))/(pi_"ref" (y_0|x)), -beta log (pi_theta (y_1|x,y_0))/(pi_"ref" (y_1|x,y_0)),...]$
+        rewards = - beta * kl
+        attention_mask = input_data["attention_mask"]
+        # 预测下一个token，所以去掉第一个mask
+        masks = torch.zeros_like(attention_mask[:, 1:])
+        masks[:,:] = attention_mask[:, 1:]
+        # 遍历批次中的每一个提示词张量
+        for j in range(len(query_tensors)):
+            # 补全开始的索引
+            start = len(query_tensors[j]) - 1
+            # 补全结束的索引
+            end = start + len(response_tensors[j])
+            # 提示词部分掩码为0
+            masks[j, :start] = 0
+            # 补全后面的填充token掩码为0
+            masks[j, end:] = 0
+            # 将奖励模型给出的分数加到补全的最后一个token的奖励上面，得到
+            # $[-beta log (pi_theta (y_0|x))/(pi_"ref" (y_0|x)), -beta log (pi_theta (y_1|x,y_0))/(pi_"ref" (y_1|x,y_0)),...,"score"-beta log (pi_theta (y_T|x,y_(<T)))/(pi_"ref" (y_T|x,y_(<T)))]$
+            rewards[j, end - 1] += score_tensors[j]
+            # 只留下掩码为1的部分的奖励
+            rewards[j, :] *= masks[j, :]
+            # 只留下掩码为1的部分的价值
+            # 注意最后一个token的价值$V(S_"end")$去掉！
+            values[j, :-1] *= masks[j, :]
+
+    return logp, rewards, values[:, :-1], masks
+```
+
+`values[j, :-1] *= masks[j, :]`是为什么呢？
+
+#figure(
+  image("rl-figures/每个token的价值.svg"),
+  caption: [去掉最后一个的价值],
+)
+
+==== 广义优势估计（GAE）的计算
+
+```python
+def masked_mean(values, mask):
+    # 计算带掩码的平均值
+    return (values * mask).sum() / mask.sum()
+
+def masked_var(values, mask):
+    # 计算带掩码的方差
+    mean = masked_mean(values, mask)
+    centred_values = values - mean
+    return masked_mean(centred_values ** 2, mask)
+
+def masked_whiten(values, mask):
+    """对数据进行带掩码的白化处理，让有效数据的方差变为1，但均值保持不变"""
+    mean, var = masked_mean(values, mask), masked_var(values, mask)
+    whitened = (values - mean) * torch.rsqrt(var + 1e-8)
+    whitened += mean
+    return whitened
+
+def compute_advantage(rewards, values, masks):
+    """广义优势估计（GAE）"""
+    lastgae = 0.0
+    advantage_reversed = []
+    # 补全的token数量
+    seq_length = rewards.shape[-1]
+    # 折扣因子$gamma=1$，指数加权超参数$lambda=0.95$
+    gamma, lam = 1.0, 0.95
+
+    for t in reversed(range(seq_length)): # 逆序计算
+        # $V(S_(t+1))$
+        nextvalues = values[:, t + 1] if t < seq_length - 1 else 0.0
+        # $delta_t = R_t + gamma V(S_(t+1)) - V(S_t)$
+        delta = rewards[:, t] + gamma * nextvalues - values[:, t]
+        # $A_t^"GAE" = delta_t + gamma lambda A_(t+1)^"GAE"$
+        lastgae = delta + gamma * lam * lastgae
+        advantage_reversed.append(lastgae)
+    # $[A_0^"GAE",A_1^"GAE",A_2^"GAE",dots]$
+    advantages = torch.stack(advantage_reversed[::-1], dim=1)
+    # 对广义优势估计进行了白化处理
+    advantages = masked_whiten(advantages, masks)
+    # $"GAETarget"_t=A_t^"GAE"+V(S_t)$
+    gae_targets = advantages + values
+    return advantages, gae_targets
+```
+
+==== 损失的计算
+
+```python
+def compute_loss(
+    old_logprobs, # 旧策略输出的概率
+    logprobs, # 正在微调的模型输出的对数概率
+    vpreds, # 价值
+    masks, # 掩码
+    advantages, # 广义优势估计
+    gae_targets # gae目标
+):
+    ratio = torch.exp(logprobs - old_logprobs) # $(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$
+    pg_loss1 = - ratio * advantages # $-(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)) A_t^"GAE"$
+    # $-"clip"((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)),1-epsilon,1+epsilon )A_t^"GAE"$
+    pg_loss2 = - torch.clamp(ratio, 1 - 0.2, 1 + 0.2) * advantages
+    # 求掩码部分的平均值
+    pg_loss = masked_mean(torch.max(pg_loss1, pg_loss2), masks)
+    # $"MSELoss"(V(S_t), "GAETarget") arrow 0$
+    v_loss = masked_mean((vpreds - gae_targets) ** 2, masks)
+    # $"total"_"loss"="loss"_(pi_theta)+0.1 times "loss"_(V_omega)$
+    loss = pg_loss + 0.1 * v_loss
+
+    return loss
+```
+
+==== PPO训练循环
+
+训练流程：
+- 一条轨迹：提示词 + 策略模型输出的补全。
+- 批次大小：32。所以我们针对32个提示词生成32条轨迹。那么还是一个提示词*一条轨迹*。
+- 每条轨迹通过ppo使用4次更新策略模型。
+- 更新后的策略模型作为下一轮训练的$pi_(theta_"old")$。
+- 由于32条轨迹同时计算新旧策略的概率比值，比较消耗GPU。所以我们4条4条的计算。也就是`mini_batch_size=4`。
+- 使用32条轨迹更新32次策略模型$pi_theta$。更新后的策略模型作为下一轮ppo微调的$pi_(theta_"old")$。
+
+#codly(header: [使用旧策略采集的轨迹更新4次策略])
+```python
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+learning_rate = 1e-5
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+# 使用旧策略产生的轨迹（补全）更新4次模型
+ppo_epochs = 4
+num_epochs = 1
+mini_batch_size = 4
+
+def ppo_update(input_data, old_logprobs, masks, advantages, gae_targets):
+    for ep in range(ppo_epochs): # $pi_theta$被更新了32次
+        # range(0, 32)
+        batch_inds = list(range(batch_size)) # batch_size=32
+        for start in range(0, batch_size, mini_batch_size):
+            # 4条4条的使用
+            mini_batch_inds = batch_inds[start:start+mini_batch_size]
+
+            mb_model_inputs = {
+                "input_ids": input_data["input_ids"][mini_batch_inds],
+                "attention_mask": input_data["attention_mask"][mini_batch_inds]
+            }
+            # 模型的输出是token的logits和value
+            mb_logits, mb_vpreds = model(**mb_model_inputs)
+            # 去掉最后一个token
+            mb_logits = F.log_softmax(mb_logits[:, :-1, :], dim=-1)
+            # 取出真实标签对应的概率
+            mb_logprobs = torch.gather(
+                mb_logits,
+                2,
+                mb_model_inputs["input_ids"][:, 1:].unsqueeze(-1)
+            ).squeeze(-1)
+
+            loss = compute_loss(
+                old_logprobs[mini_batch_inds],
+                mb_logprobs,
+                mb_vpreds[:, :-1],
+                masks[mini_batch_inds],
+                advantages[mini_batch_inds],
+                gae_targets[mini_batch_inds]
+            )
+
+            optimizer.zero_grad()
+            # 使用4条轨迹更新了一次$pi_theta$
+            loss.backward()
+            optimizer.step()
+            print("loss/total", loss.item())
+    print("ppo update finished")
+```
+
+主训练循环代码如下
+
+```python
+count = 0
+for epoch in range(num_epochs):
+    for batch in train_dataloader:
+        if count == 1:
+            break
+        count += 1
+        # 生成补全内容（回复）
+        query_tensors = batch["input_ids"]  # 提示词的张量
+        query_attention_masks = batch["attention_mask"]
+
+        response_tensors = []  # 补全的张量
+        query_response_tensors = []  # 提示词+补全的张量
+        score_tensors = []  # 分数的张量
+
+        for i, query in enumerate(query_tensors):
+            query = query.to(device)
+            query_attention_mask = query_attention_masks[i].to(device)
+            # 随机挑一个补全的长度
+            new_tokens = random.choice(list(range(
+                output_min_length,
+                output_max_length)))
+            # 设置补全长度属性
+            generation_kwargs["max_new_tokens"] = new_tokens
+            # 提示词 + 补全
+            query_response = model.generate(
+                input_ids=query.unsqueeze(0),
+                attention_mask=query_attention_mask.unsqueeze(0),
+                **generation_kwargs
+            ).squeeze(0)
+            # 补全的长度
+            response_len = len(query_response) - len(query)
+            # 补全的张量
+            response_tensors.append(query_response[-response_len:])
+            query_response_tensors.append(query_response)
+            # 从奖励模型拿分数
+            with torch.no_grad():
+                # 提示词 + 补全 + reward_token
+                query_response_score = torch.cat([
+                    query_response,
+                    torch.tensor([REWARD_TOKEN_ID]).to(device)])
+                attention_mask = torch.ones_like(
+                    query_response_score,
+                    dtype=torch.long)
+                # 奖励模型的评分
+                score = reward_model(
+                    query_response_score.unsqueeze(0),
+                    attention_mask.unsqueeze(0)
+                ).squeeze(0)[-1]
+                # 将奖励模型的评分从(0,1)缩放到(-1,1)
+                score = 2 * (score - 0.5)
+            score_tensors.append(score)
+
+        input_data = data_collator([
+            {
+                "input_ids": ids,
+                "attention_mask": torch.ones_like(ids)
+            }
+            for ids in query_response_tensors
+        ]).to(device)
+
+        # 奖励和优势
+        old_logprobs, rewards, values, masks = compute_rewards(
+            input_data,
+            query_tensors,
+            response_tensors,
+            score_tensors
+        )
+        # 计算GAE和GAE Target
+        advantages, gae_targets = compute_advantage(rewards, values, masks)
+
+        # 小批次训练
+        if input_data["input_ids"].shape[0] != 32:
+            break
+        # 使用采集到的32条轨迹更新策略
+        ppo_update(input_data, old_logprobs, masks, advantages, gae_targets)
+```
+
+==== 评估模型
+
+主要对比PPO微调后的模型和微调前的模型。对比方法：
+
+- 选择一些提示词
+- 使用PPO微调后的模型补全
+- 送入奖励模型，打平均分
+- 使用PPO微调前的模型补全
+- 送入奖励模型，打平均分
+- 对比打分情况
+
+#codly(header: [对比微调前后的模型的补全的打分情况])
+```python
+train_gen_lengths = [0] * len(tokenized_dataset_train)
+for i in range(len(tokenized_dataset_train)):
+    train_gen_lengths[i] = random.choice(list(range(
+        output_min_length,
+        output_max_length)))
+
+
+def validate():
+    scores = []
+    count = 0
+    for b, batch in enumerate(train_dataloader):
+        if count == 1:
+            break
+        count += 1
+        # 生成补全内容
+        query_tensors = batch["input_ids"]
+        query_attention_masks = batch["attention_mask"]
+        for i, query in enumerate(query_tensors):
+            query = query.to(device)
+            query_attention_mask = query_attention_masks[i].to(device)
+            new_tokens = train_gen_lengths[b * len(query_tensors) + i]
+            generation_kwargs["max_new_tokens"] = new_tokens
+            query_response = model.generate(
+                input_ids=query.unsqueeze(0),
+                attention_mask=query_attention_mask.unsqueeze(0),
+                **generation_kwargs
+            ).squeeze(0)
+            query_response_score = torch.cat([
+                query_response,
+                torch.tensor([REWARD_TOKEN_ID]).to(device)])
+            attention_mask = torch.ones_like(
+                query_response_score, dtype=torch.long)
+            score = reward_model(
+                query_response_score.unsqueeze(0),
+                attention_mask.unsqueeze(0)
+            ).squeeze(0)[-1]
+            score = 2 * (score - 0.5)
+            scores.append(score.item())
+    print("平均分数：", sum(scores) / len(scores))
+
+
+validate()
+
+model_path = "./gpt2-sft"
+model = ActorCriticModel(model_path).to(device)
+validate()
+```
+
+
 
 #part("多模态")
 
