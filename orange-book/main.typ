@@ -3172,7 +3172,7 @@ $
 
 #theorem(name: [GRPO的目标函数])[
   $
-    J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ p A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] - beta D_"KL" [pi_theta parallel pi_(theta_"ref")] \
+    J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ p A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] - beta D_"KL" [pi_theta parallel pi_"ref"] \
     "其中比值" space space p = (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t)))
   $
 ]
@@ -3284,6 +3284,11 @@ $
 $
   A_(tau_i,t) = A_(tau_i)
 $
+
+#figure(
+  image("rl-figures/组内优势计算.svg"),
+  caption: [组内优势的计算，要注意的是动作的优势等于所在轨迹的组内优势],
+)
 
 ```python
 class Agent:
@@ -4509,11 +4514,9 @@ total_steps = len(chosen_input_ids_list) // batch_size
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
 ```
 
-配置logging日志记录模型训练过程参见@日志配置。
-
-复用SFT阶段设置的余弦衰减学习率曲线，参见@学习率调度。
-
-将回答部分进行掩码的代码，参见@对答案掩码。
+- 配置logging日志记录模型训练过程参见@日志配置。
+- 复用SFT阶段设置的余弦衰减学习率曲线，参见@学习率调度。
+- 将回答部分进行掩码的代码，参见@对答案掩码。
 
 计算平均对数概率
 
@@ -4548,7 +4551,7 @@ def _compute_average_log_probability(logits, target_labels, mask):
     masked_log_probs = torch.mul(gathered_log_probs, mask)
 
     # $1/T (log pi(y_0|x) + log pi(y_1|x,y_0) + log pi(y_2|x,y_(<2)) + dots.c)$
-    # $=1/T (sum_(t=0)^T log pi(y_t|x,y_(<t))=log product_(t=0)^T pi(y_t|x,y_(<t)))^(1/T)$
+    # $=1/T (sum_(t=0)^T log pi(y_t|x,y_(<t)))=log (product_(t=0)^T pi(y_t|x,y_(<t)))^(1/T)$
     # 这就是在提示词为x的条件下，生成一条回答y的概率。用强化学习的术语来说就是一条轨迹的概率。
     average_log_prob = masked_log_probs.sum(dim=-1) / mask.sum(dim=-1)
 
@@ -4752,11 +4755,11 @@ for batch_idx in range(total_batches):
         beta *                                               \
         (rejected_log_prob - reference_rejected_log_prob)
 
-    # $beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))$
+    # $beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - log (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))$
     reward_margin = preferred_implicit_reward - rejected_implicit_reward
 
     # DPO损失：
-    # $-log(sigma(beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))))$
+    # $-log(sigma(beta(log (pi_theta (y_w|x))/(pi_"ref" (y_w|x)) - log (pi_theta (y_l|x))/(pi_"ref" (y_l|x)))))$
     preference_probability = torch.nn.functional.sigmoid(reward_margin)
     sample_losses = -torch.log(preference_probability)
 
@@ -4841,9 +4844,9 @@ for batch_idx in range(total_batches):
 
 print("DPO训练完成！")
 print(f"训练统计：")
-print(f'   - 总批次数: {total_batches}')
-print(f'   - 跳过批次数: {skipped_batches_count}')
-print(f'   - 有效批次数: {total_batches - skipped_batches_count}')
+print(f"   - 总批次数: {total_batches}")
+print(f"   - 跳过批次数: {skipped_batches_count}")
+print(f"   - 有效批次数: {total_batches - skipped_batches_count}")
 
 # 输出最终训练指标
 if training_losses:
@@ -5044,7 +5047,8 @@ tokenized_dataset_train = ds_train.map(tokenize, **map_kwargs)
 tokenized_dataset_train.set_format(type="torch")
 # 将eos_token设置为pad_token
 tokenizer.eos_token = tokenizer.pad_token
-# 将mlm设置为False，那么数据会被整理为因果注意力模型使用的格式，也就是预测下一个token任务需要的数据格式
+# 将mlm设置为False，那么数据会被整理为因果注意力模型使用的格式，
+# 也就是预测下一个token任务需要的数据格式
 data_collator = DataCollatorForLanguageModeling(
     tokenizer,
     mlm=False
@@ -5101,7 +5105,7 @@ pprint(g("这本书真是", max_length=30, num_return_sequences=10))
 
 我们的评论在输入奖励模型之前会先在末尾添加一个`reward_token`，作为标记。作用和Bert用来训练分类模型时添加的`CLS_TOKEN`是一样的。
 
-我们将评论输入gpt2模型，然后提取gpt2输出的最后一层隐藏层（`last_hidden_state`），并送入一个我们自己定义的线性层（`reward_head`），然后去输出的最后一个元素作为评分。
+我们将评论输入gpt2模型，然后提取gpt2输出的最后一层隐藏层（`last_hidden_state`），并送入一个我们自己定义的线性层（`reward_head`），然后取输出的最后一个元素作为评分。
 
 ```python
 from datasets import load_dataset
@@ -5526,12 +5530,12 @@ def compute_advantage(rewards, values, masks):
 
 ```python
 def compute_loss(
-    old_logprobs, # 旧策略输出的概率
-    logprobs, # 正在微调的模型输出的对数概率
-    vpreds, # 价值
+    old_logprobs, # 旧策略输出的概率$log pi_(theta_"old") (a_t|s_t)$
+    logprobs, # 正在微调的模型输出的对数概率$log pi_theta (a_t|s_t)$
+    vpreds, # 价值 $V(S_t)$
     masks, # 掩码
-    advantages, # 广义优势估计
-    gae_targets # gae目标
+    advantages, # 广义优势估计$A_t^"GAE"$
+    gae_targets # gae目标$A_t^"GAE"+V(S_t)$
 ):
     ratio = torch.exp(logprobs - old_logprobs) # $(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$
     pg_loss1 = - ratio * advantages # $-(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)) A_t^"GAE"$
@@ -5581,10 +5585,11 @@ def ppo_update(input_data, old_logprobs, masks, advantages, gae_targets):
                 "attention_mask": input_data["attention_mask"][mini_batch_inds]
             }
             # 模型的输出是token的logits和value
+            # mb_vpreds：$[V(S_0),V(S_1),...,V(S_T)]$
             mb_logits, mb_vpreds = model(**mb_model_inputs)
             # 去掉最后一个token
             mb_logits = F.log_softmax(mb_logits[:, :-1, :], dim=-1)
-            # 取出真实标签对应的概率
+            # 取出真实标签对应的概率：$[log pi_theta (y_0|x), log pi_theta (y_1|x,y_0), ...]$
             mb_logprobs = torch.gather(
                 mb_logits,
                 2,
@@ -5592,12 +5597,12 @@ def ppo_update(input_data, old_logprobs, masks, advantages, gae_targets):
             ).squeeze(-1)
 
             loss = compute_loss(
-                old_logprobs[mini_batch_inds],
-                mb_logprobs,
-                mb_vpreds[:, :-1],
+                old_logprobs[mini_batch_inds], # $log pi_(theta_"old") (y_t|x,y_(<t))$
+                mb_logprobs, # $log pi_theta (y_t|x,y_(<t))$
+                mb_vpreds[:, :-1], # $V(S_t)$
                 masks[mini_batch_inds],
-                advantages[mini_batch_inds],
-                gae_targets[mini_batch_inds]
+                advantages[mini_batch_inds], # $A_t^"GAE"$
+                gae_targets[mini_batch_inds] # $A_t^"GAE" + V(S_t)$
             )
 
             optimizer.zero_grad()
@@ -5634,7 +5639,7 @@ for epoch in range(num_epochs):
                 output_max_length)))
             # 设置补全长度属性
             generation_kwargs["max_new_tokens"] = new_tokens
-            # 提示词 + 补全
+            # 使用$pi_(theta_"old")$采样一条轨迹：提示词 + 补全
             query_response = model.generate(
                 input_ids=query.unsqueeze(0),
                 attention_mask=query_attention_mask.unsqueeze(0),
@@ -5748,6 +5753,70 @@ model_path = "./gpt2-sft"
 model = ActorCriticModel(model_path).to(device)
 validate()
 ```
+
+#chapter("使用GRPO微调大语言模型——复刻DeepSeek-R1", image: image("./orange2.jpg"), l: "rlhf-dapo")
+
+强化学习已成为增强大语言模型初始训练效果的强大工具，尤其是在推理密集型任务中。DeepSeek 最近在 DeepSeek-Math 和 DeepSeek-R1 模型上取得的突破，展现了 RL 在提升 LLM 数学推理和问题解决能力方面的巨大潜力。
+
+这些成就得益于一种名为"组相对策略优化"（GRPO）的创新强化学习方法，该方法解决了将强化学习应用于语言模型的独特挑战。我们将深入探讨 GRPO 的工作原理，以及它为何代表了 LLM 训练的重大进步。
+
+== GRPO简介
+
+GRPO目标函数如下：
+
+$
+  J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ p A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] - beta D_"KL" [pi_theta parallel pi_"ref"] \
+  "其中比值" space space p = (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t)))
+$
+
+先来说明一下GRPO目标函数中每个数学符号的含义：
+
+- $pi_theta$表示正在更新的策略。
+- $pi_(theta_"old")$表示上一轮训练好的旧策略。
+- $pi_"ref"$表示冻结的参考模型。
+- $G$表示使用旧策略$pi_(theta_"old")$采样的一组轨迹的数量，也就是如果我们使用旧策略采样了10条轨迹，那么$G=10$。
+- $tau_i$表示第$i$条轨迹。
+- $abs(tau_i)$表示第$i$条轨迹的动作数量。
+- $pi_theta (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_theta$采取动作$a_(tau_i,t)$的概率。
+- $pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_(theta_"old")$采取动作$a_(tau_i,t)$的概率。
+- $A_(tau_i,t)$表示第$i$条轨迹的第$t$个时刻的动作的优势。
+- $beta$是超参数。$D_"KL" [pi_theta|pi_"ref"]$表示$pi_theta$和$pi_"ref"$而偏离程度，也就是KL散度。
+
+== 使用DAPO（GRPO的变种）微调Qwen2.5-3B-Instruct
+
+=== 实现思路及任务要求
+
+#danger(title: [我们要从零复刻一个类似DeepSeek-R1的模型，产生思维链！])[
+  我们的实现不采用原始的GRPO算法，而是采用字节提出的 *DAPO* 算法，DAPO 对原始的GRPO有如下几项改进：
+
+  + *token级的策略梯度损失*：每个token在策略梯度损失中具有同等权重。
+  + *移除KL散度*：策略梯度损失中不再使用KL散度。由于我们不再需要参考策略网络$pi_"ref"$，这可以减少 GPU 内存的使用。
+]
+
+我们的算法伪代码如下：
+
+#tip(title: [DAPO算法伪代码])[
+  + 对于每个训练步骤，随机选取 $N$ 个问题：$q_1,q_2,...,q_N$ 。
+  + 对于每个问题 $q_i$ ，采样 $M$ 个回答：$a_(i,1),a_(i,2),...,a_(i,M)$ 。
+  + 计算每个回答 $a_(i,j)$ 的奖励 $r_(i,j)$ 。
+  + 计算每个问题 $q_i$ 的奖励的平均值和标准差。
+  $
+       mu_i & arrow.l "mean"(r_(i,1),r_(i,2),dots.c,r_(i,M)) \
+    sigma_i & arrow.l "std"(r_(i,1),r_(i,2),dots.c,r_(i,M))
+  $
+  5. 对于回答 $a_(i,j)$ 中的每个token，也就是 $t$ 计算优势：
+  $
+    A_(i,j) [t] arrow.l (r_(i,j)-mu_i)/sigma_i
+  $
+  6. 使用PPO的目标函数计算策略梯度。为了简单起见，我们每次迭代只进行一次策略更新，这样PPO的目标函数的梯度等价于原始策略梯度法中的梯度估计方法，针对每个token都进行梯度估计。
+  $
+    nabla_theta log pi_theta (a_(i,j)[t]) dot.c A_(i,j)[t]
+  $
+  7. 使用梯度更新策略网络$pi_theta$。
+  + goto 1
+]
+
+我们的任务是什么？
 
 
 
