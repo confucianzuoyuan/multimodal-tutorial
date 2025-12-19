@@ -5816,9 +5816,1325 @@ $
   + goto 1
 ]
 
-我们的任务是什么？
+我们的任务是什么？我们想要训练一个能够玩类似24点游戏的LLM。叫做`CountDown Task`。
+
+我们将在`CountDown Task`中微调 Qwen2.5-3B-Instruct 模型。给定一个包含 3 个或 4 个数字的列表和一个目标数字，模型需要使用简单的算术运算（`+、-、*、/`）生成一个数学表达式，该表达式的求值结果等于目标数字。例如：
+
+我们用的数据格式如下：
+
+```
+nums: [37, 81, 10], target: 34
+```
+
+我们会先将上面的数据格式化成如下数据：
+
+```
+<|im_start|>system
+你是一个有用的助手。你首先在脑海中思考推理过程，然后为用户提供答案。<|im_end|>
+<|im_start|>user
+使用这些数字 [37 81 10]，创建一个等于 34 的等式。你可以使用基本算术运算（+、-、*、/），每个数字只能使用一次。在 <think> </think> 标签中展示你的解题过程。并在 <answer> </answer> 标签中返回最终答案，例如 <answer> (1 + 2) / 3 </answer>。<|im_end|>
+<|im_start|>assistant
+让我一步步来解决这个问题。
+<think>
+```
+
+上面的数据输入给我们微调后的模型，模型应该输出的补全如下：
+
+```
+可以通过组合给定的数字 37 81 10 使它们满足运算为 34 。首先通过 81 减去 37 得到 44 ，再进行减法运算 44 减去 10 等于 34 ，最后将这两步结果利用小括号组合在一起形成数学表达式为 (81 - 37) - 10 等于 34 。
+</think>
+<answer> (81 - 37) - 10 </answer><|im_end|>
+```
+
+完整的提示词+补全的数据如下：
+
+```
+<|im_start|>system
+你是一个有用的助手。你首先在脑海中思考推理过程，然后为用户提供答案。<|im_end|>
+<|im_start|>user
+使用这些数字 [37 81 10]，创建一个等于 34 的等式。你可以使用基本算术运算（+、-、*、/），每个数字只能使用一次。在 <think> </think> 标签中展示你的解题过程。并在 <answer> </answer> 标签中返回最终答案，例如 <answer> (1 + 2) / 3 </answer>。<|im_end|>
+<|im_start|>assistant
+让我一步步来解决这个问题。
+<think>可以通过组合给定的数字 37 81 10 使它们满足运算为 34 。首先通过 81 减去 37 得到 44 ，再进行减法运算 44 减去 10 等于 34 ，最后将这两步结果利用小括号组合在一起形成数学表达式为 (81 - 37) - 10 等于 34 。
+</think>
+<answer> (81 - 37) - 10 </answer><|im_end|>
+```
+
+=== 奖励函数的设计
+
+在使用GRPO玩倒立摆游戏时，我们的奖励很简单，例如一条轨迹执行了5步动作，轨迹就结束了，那么这条轨迹的回报是5。
+
+那么在LLM这个环境中，我们应该如何给一条轨迹（模型输出的补全）奖励呢？因为GRPO是需要给一整条轨迹计算回报的。
+
+在GRPO的实现中，奖励是两部分的总和：
+
+1. *格式奖励*：当模型正确遵循指定的格式并带有思考和答案标签时，模型获得`0.1`的奖励，否则`0`的奖励。
+2. *答案奖励*：如果模型的最终答案恰好使用了提供的数字，并且每个数字只使用了一次，并正确求值为目标值，则模型将获得`1`的奖励，否则将获得`0`的奖励。
+
+例如下面的补全只能拿到0.1分的回报。因为格式是没问题的，但是`<answer></answer>`标签内的答案有问题，包含了不该有的`= 34`。
+
+```
+可以通过组合给定的数字 37 81 10 使它们满足运算为 34 。首先通过 81 减去 37 得到 44 ，再进行减法运算 44 减去 10 等于 34 ，最后将这两步结果利用小括号组合在一起形成数学表达式为 (81 - 37) - 10 等于 34 。
+</think>
+<answer> (81 - 37) - 10 = 34</answer><|im_end|>
+```
+
+只有下面这种补全才能拿到1.1的满分。既带有`<think></think>`标签和`<answer></answer>`标签，`<answer></answer>`标签内的答案`(81 - 37) - 10`也是完全正确的。
+
+```
+可以通过组合给定的数字 37 81 10 使它们满足运算为 34 。首先通过 81 减去 37 得到 44 ，再进行减法运算 44 减去 10 等于 34 ，最后将这两步结果利用小括号组合在一起形成数学表达式为 (81 - 37) - 10 等于 34 。
+</think>
+<answer> (81 - 37) - 10</answer><|im_end|>
+```
+
+所以可以看到，我们的奖励函数是很严格的！
+
+=== 代码实现
+
+创建文件夹
+
+```bash
+$ mkdir GRPO-Zero
+```
+
+==== 模型结构
+
+Qwen2 的模型结构，保存在文件 `qwen2_model.py` 中。
+
+```python
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Tuple, Union
+
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 
+@dataclass
+class Qwen2Config:
+    attention_dropout: float = 0.0
+    bos_token_id: int = 151643
+    eos_token_id: int = 151645
+    hidden_act: str = "silu"
+    hidden_size: int = 2048
+    initializer_range: float = 0.02
+    intermediate_size: int = 11008
+    max_position_embeddings: int = 32768
+    max_window_layers: int = 70
+    model_type: str = "qwen2"
+    num_attention_heads: int = 16
+    num_hidden_layers: int = 36
+    num_key_value_heads: int = 2
+    rms_norm_eps: float = 1e-06
+    rope_theta: float = 1000000.0
+    sliding_window: int = 32768
+    tie_word_embeddings: bool = True
+    torch_dtype: str = "bfloat16"
+    use_cache: bool = True
+    use_sliding_window: bool = False
+    vocab_size: int = 151936
+
+
+class RMSNorm(torch.nn.Module):
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def _norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+
+    def forward(self, x):
+        input_dtype = x.dtype
+        x = x.to(torch.float32)
+        x = self._norm(x).type_as(x)
+        x = self.weight * x.to(input_dtype)
+        return x
+
+
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
+def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=2):
+    cos = cos.unsqueeze(unsqueeze_dim)
+    sin = sin.unsqueeze(unsqueeze_dim)
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+
+class Attention(nn.Module):
+    def __init__(self, args: Qwen2Config):
+        super().__init__()
+        self.n_kv_heads = (
+            args.num_attention_heads
+            if args.num_key_value_heads is None
+            else args.num_key_value_heads
+        )
+        self.n_heads = args.num_attention_heads
+        self.n_kv_heads = self.n_kv_heads
+        self.n_rep = self.n_heads // self.n_kv_heads
+        self.head_dim = args.hidden_size // args.num_attention_heads
+
+        self.q_proj = nn.Linear(
+            args.hidden_size,
+            args.num_attention_heads * self.head_dim,
+            bias=True,
+        )
+        self.k_proj = nn.Linear(
+            args.hidden_size,
+            args.num_key_value_heads * self.head_dim,
+            bias=True,
+        )
+        self.v_proj = nn.Linear(
+            args.hidden_size,
+            args.num_key_value_heads * self.head_dim,
+            bias=True,
+        )
+        self.o_proj = nn.Linear(
+            args.num_attention_heads * self.head_dim,
+            args.hidden_size,
+            bias=False,
+        )
+        self.args = args
+
+    def init_kv_cache(
+        self,
+        max_batch_size: int,
+        max_seq_len: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ):
+        cache_shape = (max_batch_size, max_seq_len, self.n_kv_heads, self.head_dim)
+        cache_k = torch.zeros(cache_shape, dtype=dtype, device=device)
+        cache_v = torch.zeros(cache_shape, dtype=dtype, device=device)
+        self.register_buffer("cache_k", cache_k, persistent=False)
+        self.register_buffer("cache_v", cache_v, persistent=False)
+
+    def del_kv_cache(self):
+        self.cache_k = None
+        self.cache_v = None
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        pos_embed: Tuple[torch.Tensor, torch.Tensor],
+        start_pos: Optional[Union[int, torch.Tensor]] = None,
+    ):
+        bsz, seqlen, _ = x.shape
+        xq, xk, xv = self.q_proj(x), self.k_proj(x), self.v_proj(x)
+        xq = xq.view(bsz, seqlen, self.n_heads, self.head_dim)
+        xk = xk.view(bsz, seqlen, self.n_kv_heads, self.head_dim)
+        xv = xv.view(bsz, seqlen, self.n_kv_heads, self.head_dim)
+
+        cos, sin = pos_embed
+        xq, xk = apply_rotary_pos_emb(xq, xk, cos, sin, unsqueeze_dim=2)
+        if start_pos is not None:
+            # inference mode
+            end_pos = start_pos + seqlen
+            self.cache_k[:bsz, start_pos:end_pos, :, :] = xk
+            self.cache_v[:bsz, start_pos:end_pos, :, :] = xv
+            output = torch.nn.functional.scaled_dot_product_attention(
+                query=xq.transpose(1, 2),
+                key=self.cache_k[:bsz, :end_pos].transpose(1, 2),
+                value=self.cache_v[:bsz, :end_pos].transpose(1, 2),
+                is_causal=True if seqlen > 1 else False,
+                enable_gqa=True,
+            ).transpose(1, 2)
+        else:
+            # training mode
+            output = torch.nn.functional.scaled_dot_product_attention(
+                query=xq.transpose(1, 2),
+                key=xk.transpose(1, 2),
+                value=xv.transpose(1, 2),
+                is_causal=True,
+                enable_gqa=True,
+            ).transpose(1, 2)
+        output = output.reshape(bsz, seqlen, -1)
+        return self.o_proj(output)
+
+
+class FeedForward(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        intermediate_size: int,
+    ):
+        super().__init__()
+        self.up_proj = nn.Linear(dim, intermediate_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, dim, bias=False)
+        self.gate_proj = nn.Linear(dim, intermediate_size, bias=False)
+
+    def forward(self, x):
+        x = self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
+        return x
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, layer_id: int, args: Qwen2Config):
+        super().__init__()
+        self.n_heads = args.num_attention_heads
+        self.dim = args.hidden_size
+        self.head_dim = args.hidden_size // args.num_attention_heads
+        self.self_attn = Attention(args)
+        self.mlp = FeedForward(
+            dim=args.hidden_size,
+            intermediate_size=args.intermediate_size,
+        )
+        self.layer_id = layer_id
+        self.input_layernorm = RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(args.hidden_size, eps=args.rms_norm_eps)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        pos_embed: Tuple[torch.Tensor, torch.Tensor],
+        start_pos: Optional[Union[int, torch.Tensor]] = None,
+    ):
+        h = x + self.self_attn(self.input_layernorm(x), pos_embed, start_pos=start_pos)
+        out = h + self.mlp(self.post_attention_layernorm(h))
+        return out
+
+
+class Qwen2RotaryEmbedding(nn.Module):
+    def __init__(self, config: Qwen2Config, device: torch.device):
+        super().__init__()
+        self.config = config
+        base = config.rope_theta
+        dim = config.hidden_size // config.num_attention_heads
+        with torch.autocast(device_type=device.type, dtype=torch.float32):
+            inv_freq = 1.0 / (
+                base
+                ** (torch.arange(0, dim, 2, dtype=torch.int64).float().to(device) / dim)
+            )
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+    @torch.no_grad()
+    def forward(self, x, pos):
+        inv_freq = self.inv_freq[None, :, None].float().expand(pos.shape[0], -1, 1)
+        pos = pos[:, None, :].float()
+        device_type = x.device.type
+        with torch.autocast(device_type=device_type, enabled=False):
+            freqs = (inv_freq.float().to(x.device) @ pos.float()).transpose(1, 2)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            cos = emb.cos()
+            sin = emb.sin()
+        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+
+
+class Transformer(nn.Module):
+    def __init__(self, params: Qwen2Config, device: torch.device):
+        super().__init__()
+        self.params = params
+        self.vocab_size = params.vocab_size
+        self.n_layers = params.num_hidden_layers
+
+        self.embed_tokens = torch.nn.Embedding(params.vocab_size, params.hidden_size)
+        with torch.device(device):
+            self.rotary_emb = Qwen2RotaryEmbedding(config=params, device=device)
+
+        self.layers = torch.nn.ModuleList()
+        for layer_id in range(params.num_hidden_layers):
+            self.layers.append(TransformerBlock(layer_id, params))
+
+        self.norm = RMSNorm(params.hidden_size, eps=params.rms_norm_eps)
+        if not params.tie_word_embeddings:
+            self.lm_head = nn.Linear(params.hidden_size, params.vocab_size, bias=False)
+
+    def output_proj(self, x):
+        if self.params.tie_word_embeddings:
+            return x @ self.embed_tokens.weight.T
+        else:
+            return self.lm_head(x)
+
+    def forward(self, tokens: torch.Tensor):
+        _bsz, seqlen = tokens.shape
+        h = self.embed_tokens(tokens)
+        pos = torch.arange(0, seqlen, device=tokens.device, dtype=torch.int32)
+        pos_emb = self.rotary_emb(h, pos[None, :])
+
+        pipe = []
+        for layer in self.layers:
+            pipe.append(lambda x, layer=layer: layer(x, pos_emb))
+        pipe.append(self.norm.forward)
+        pipe.append(self.output_proj)
+        return torch.utils.checkpoint.checkpoint_sequential(
+            pipe, len(pipe), h, use_reentrant=False
+        )
+
+    def inference(self, tokens: torch.Tensor, start_pos: Union[int, torch.Tensor]):
+        _bsz, seqlen = tokens.shape
+        del _bsz
+        h = self.embed_tokens(tokens)
+
+        pos = torch.arange(0, seqlen, device=tokens.device, dtype=torch.int32)[None, :]
+        if isinstance(start_pos, torch.Tensor):
+            pos = pos + start_pos[:, None]
+        else:  # int
+            pos.add_(start_pos)
+        pos_emb = self.rotary_emb(h, pos)
+
+        for layer in self.layers:
+            h = layer(h, pos_emb, start_pos=start_pos)
+
+        # only need the hidden state of the last token
+        # to predict the next token
+        h = h[:, -1:, :]
+        h = self.norm(h)
+
+        output = self.output_proj(h)
+        return output
+
+    def init_kv_cache(
+        self,
+        max_batch_size: int,
+        max_seq_len: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ):
+        for layer in self.layers:
+            layer.self_attn.init_kv_cache(
+                max_batch_size, max_seq_len, dtype=dtype, device=device
+            )
+
+    def del_kv_cache(self):
+        for layer in self.layers:
+            layer.self_attn.del_kv_cache()
+
+    @classmethod
+    def from_pretrained(cls, ckpt_path, device: torch.device):
+        config_file = Path(ckpt_path) / "config.json"
+        with open(config_file, "r") as f:
+            config = json.load(f)
+        args = Qwen2Config(
+            attention_dropout=config["attention_dropout"],
+            bos_token_id=config["bos_token_id"],
+            eos_token_id=config["eos_token_id"],
+            hidden_act=config["hidden_act"],
+            hidden_size=config["hidden_size"],
+            initializer_range=config["initializer_range"],
+            intermediate_size=config["intermediate_size"],
+            max_position_embeddings=config["max_position_embeddings"],
+            max_window_layers=config["max_window_layers"],
+            model_type=config["model_type"],
+            num_hidden_layers=config["num_hidden_layers"],
+            num_attention_heads=config["num_attention_heads"],
+            num_key_value_heads=config["num_key_value_heads"],
+            vocab_size=config["vocab_size"],
+            rms_norm_eps=config["rms_norm_eps"],
+            rope_theta=config["rope_theta"],
+            sliding_window=config["sliding_window"],
+            use_sliding_window=config["use_sliding_window"],
+            use_cache=config["use_cache"],
+            tie_word_embeddings=config["tie_word_embeddings"],
+            torch_dtype=config["torch_dtype"],
+        )
+        with torch.device("meta"):
+            model = cls(params=args, device=device)
+
+        import safetensors.torch
+
+        model_weight_files = sorted(Path(ckpt_path).glob("model*.safetensors"))
+        weights = {}
+        for file in model_weight_files:
+            weights.update(safetensors.torch.load_file(file, device="cpu"))
+        # remove "model." prefix from keys
+        weights = {k.replace("model.", ""): v for k, v in weights.items()}
+        model.load_state_dict(weights, strict=True, assign=True)
+        return model.to(device)
+```
+
+==== 分词器
+
+分词器代码保存在文件 `tokenizer.py` 中。
+
+```python
+import json
+from pathlib import Path
+from typing import Dict, List
+
+from jinja2 import Environment
+from tokenizers import Encoding
+from tokenizers import Tokenizer as TokenizerBase
+
+
+class Tokenizer:
+    """Tokenizer with chat template supported using jinja2 engine"""
+
+    def __init__(self, tokenizer_path: str):
+        super().__init__()
+        tokenizer_config_path = Path(tokenizer_path).parent / "tokenizer_config.json"
+        self.tokenizer_config = json.load(open(tokenizer_config_path))
+        self.tokenizer = TokenizerBase.from_file(tokenizer_path)
+        self.chat_template = Environment().from_string(
+            self.tokenizer_config["chat_template"]
+        )
+        self.eos_token = self.tokenizer_config["eos_token"]
+        self.eos_token_id = self.tokenizer.token_to_id(self.eos_token)
+        self.pad_token = self.tokenizer_config["pad_token"]
+        self.pad_token_id = self.tokenizer.token_to_id(self.pad_token)
+
+    def encode_chat(self, messages: List[Dict[str, str]]) -> str:
+        return self.chat_template.render(messages=messages, add_generation_prompt=True)
+
+    def encode_chat_with_response_prompt(
+        self, messages: List[Dict[str, str]], prompt: str
+    ) -> str:
+        return self.encode_chat(messages) + prompt
+
+    def tokenize(self, text: str) -> Encoding:
+        return self.tokenizer.encode(text)
+
+    def detokenize(self, token_ids: List[int]) -> str:
+        return self.tokenizer.decode(token_ids, skip_special_tokens=False)
+```
+
+==== 任务定义
+
+首先创建 `data_types.py` ，内容如下：
+
+```python
+from dataclasses import dataclass
+from typing import Dict, List
+
+
+@dataclass
+class Episode:
+    """存储一个回合（Episode）或者说一条轨迹的所有相关信息"""
+    """一个回合 = 问题 + 一条回答"""
+    prefix: str # 问题
+    text: str # "问题+回答"整个文本
+    prefix_token_ids: List[int] # 问题的input_ids
+    prefix_tokens: List[str] # 问题的token组成的列表
+    generated_token_ids: List[int] # 生成的回答的token列表
+    is_finished: bool # 回答是否结束标志位
+    reward: float # 奖励
+    reward_info: Dict[str, float] # 详细的奖励信息
+
+
+@dataclass
+class MiniBatch:
+    """每个Step训练所需的微批次数据"""
+    prefix: List[str] # 问题列表
+    prefix_tokens: List[List[str]]
+    prefix_token_ids: List[List[int]]
+    numbers: List[List[int]] # 问题的数字列表
+    target: List[int] # 问题对应的答案数字
+```
+
+创建文件 `countdown_task.py` ，内容如下
+
+```python
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+from torch.utils.data import Dataset
+
+from data_types import MiniBatch
+from tokenizer import Tokenizer
+
+SYSTEM_MESSAGE = (
+    "你是一个有用的助手。你首先在脑海中思考推理过程，"
+    "然后为用户提供答案。"
+)
+# `{numbers}` 和 `{target}` 是占位符，构建训练数据时会被替换
+USER_TEMPLATE = (
+    "使用这些数字 {numbers}，创建一个等于 {target} 的等式。"
+    "你可以使用基本算术运算（+、-、*、/），每个数字只能使用一次。"
+    "在 <think> </think> 标签中展示你的解题过程。"
+    "并在 <answer> </answer> 标签中返回最终答案，例如 <answer> (1 + 2) / 3 </answer>。"
+)
+
+RESPONSE_PROMPT = "让我一步步来解决这个问题。\n<think>"
+
+
+class CountdownTasksDataset(Dataset):
+    """准备训练数据集"""
+    
+    def __init__(
+        self,
+        tokenizer: Tokenizer, # 分词器
+        data_path: str, # 数据集的路径
+        split: str = "train",
+        test_size: int = 100,
+    ):
+        data = pd.read_parquet(Path(data_path) / "data")
+        # 索引 `test_size` 后面的数据用作测试数据 
+        self.data = (
+            data.iloc[:-test_size]               \
+            if split == "train"                  \
+            else data.iloc[-test_size:]
+        )
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data.iloc[idx].to_dict()
+        item.update(
+            self.encode_prefix(
+                item["nums"], # 数字列表
+                item["target"] # 目标数字
+            )
+        )
+        return item
+
+    def encode_prefix(self, numbers: List[int], target: int):
+        """Prefix 是模型 *真正的* 输入，也就是问题"""
+        # 格式化对话模板
+        user_message = USER_TEMPLATE.format(
+            numbers=numbers,
+            target=target
+        )
+        prefix = self.tokenizer.encode_chat_with_response_prompt(
+            [
+                {"role": "system", "content": SYSTEM_MESSAGE},
+                {"role": "user", "content": user_message},
+            ],
+            RESPONSE_PROMPT,
+        )
+        # 将问题切分
+        tokens = self.tokenizer.tokenize(prefix)
+        return {
+            "prefix": prefix, # 问题字符串
+            "prefix_tokens": tokens.tokens, # 问题切分后的字符串列表
+            "prefix_token_ids": tokens.ids, # input_ids
+        }
+
+    @staticmethod
+    def collate_fn(batch: List[Dict[str, Any]]) -> MiniBatch:
+        """将数据整理到一个批次中"""
+        numbers = [item["nums"] for item in batch]
+        target = [item["target"] for item in batch]
+        prefix = [item["prefix"] for item in batch]
+        prefix_tokens = [
+            item["prefix_tokens"] for item in batch
+        ]
+        prefix_token_ids = [
+            item["prefix_token_ids"] for item in batch
+        ]
+        return MiniBatch(
+            numbers=numbers,
+            target=target,
+            prefix=prefix,
+            prefix_tokens=prefix_tokens,
+            prefix_token_ids=prefix_token_ids,
+        )
+
+
+def format_reward_function(
+    response: str, # 模型的回答
+    end_token: Optional[str] = None # 结尾token
+) -> float:
+    """
+    检查模型的回复是否符合格式 <think>...</think><answer>...</answer>
+    """
+    # 如果存在end token，则去掉
+    if end_token and response.endswith(end_token):
+        response = response[: -len(end_token)]
+
+    think_regex = r"<think>.*?<\/think>"
+    answer_regex = r"<answer>.*?<\/answer>"
+    full_format_regex = \
+        r"^<think>.*?<\/think>\n<answer>.*?<\/answer>$"
+
+    think_match = re.search(think_regex, response, re.DOTALL)
+    answer_match = re.search(answer_regex, response, re.DOTALL)
+    full_format_match = re.match(
+        full_format_regex,
+        response,
+        re.DOTALL
+    )
+    # 如果完全匹配，则给1分
+    if full_format_match:
+        return 1.0
+
+    reward = 0.0
+    # 如果有<think></think>标签对，则奖励加0.1分
+    if think_match:
+        reward += 0.1
+    # 如果有<answer></answer>标签对，则奖励加0.5分
+    if answer_match:
+        reward += 0.5
+    # 返回奖励
+    return reward
+
+
+def answer_reward_function(
+    response: str, # 模型给出的回答
+    numbers: List[int] = None, # 数字列表
+    target: int = None # 目标数字
+) -> float:
+    """
+    检查答案中：
+    1. 是否使用了所有给的数字
+    2. 每个数字是否使用了一次
+    3. 答案中包含的表达式的求值结果是否等于目标数字
+    """
+    # 答案的正则表达式
+    answer_regex = r"<answer>(.*?)<\/answer>"
+    # 回答中是否有答案标签对
+    answer_match = re.search(answer_regex, response, re.DOTALL)
+    # 如果在回答中没有搜索到答案，那么给0分
+    if not answer_match:
+        return 0.0
+    # 提取出答案的文本
+    answer_content = answer_match.group(1)
+    # 如果答案标签内没有东西，给0分
+    if not answer_content:
+        return 0.0
+    # 如果答案标签中，除了表达式以外，还有其它内容，给0分
+    allowed_chars = r"^[0-9+\-*/() ]+$"
+    if not re.match(allowed_chars, answer_content):
+        return 0.0
+
+    # 检查答案中，每个数字是否只使用了一次
+    used_numbers = [
+        int(n) for n in re.findall(r"\d+", answer_content)
+    ]
+    if sorted(used_numbers) != sorted(numbers):
+        return 0.0
+
+    # 检查答案中包含的表达式的求值结果是否为目标数字
+    try:
+        result = eval(answer_content, {"__builtins__": None}, {})
+        if abs(float(result) - float(target)) < 1e-5:
+            return 1.0
+    except:
+        pass
+
+    return 0.0
+
+
+def reward_function(
+    response: str,
+    numbers: List[int] = None,
+    target: int = None,
+    end_token: str = None,
+) -> Dict[str, Any]:
+    """Countdown Task 的奖励函数。
+
+    总奖励 = 0.1 * 格式奖励 + 答案准确性奖励
+    """
+    format_reward = format_reward_function(
+        "<think>" + response,
+        end_token
+    )
+    answer_reward = answer_reward_function(
+        response,
+        numbers,
+        target
+    )
+    return {
+        "reward": format_reward * 0.1 + answer_reward,
+        "reward_info": {
+            "format_reward": format_reward,
+            "answer_reward": answer_reward,
+        },
+    }
+```
+
+==== GRPO（DAPO）算法的实现
+
+创建文件 `grpo.py` ，内容如下：
+
+```python
+import dataclasses
+import gc
+import math
+from collections import defaultdict
+from typing import Callable, List
+
+import numpy as np
+import torch
+
+from data_types import Episode, MiniBatch
+from qwen2_model import Transformer
+from tokenizer import Tokenizer
+
+# 采集轨迹，也就是回答
+# 根据一个问题，采样多条回答
+# 假设5个问题，每个问题8个回答，那么要并行采样40条轨迹
+# 可能碰到的实现的坑，都来自并行推理
+# 1. 问题的长度不一样
+# 2. 有的补全结束的早，有的结束的晚。
+@torch.no_grad()
+def rollout(
+    model: Transformer, # 生成回答的llm模型
+    batch: MiniBatch, # N个问题
+    tokenizer: Tokenizer,
+    max_gen_len: int, # 最大生成长度
+    num_answer_per_question: int, # 每个问题产生多少个回答
+    reward_function: Callable, # 奖励函数
+    device: torch.device,
+    dtype: torch.dtype,
+) -> List[Episode]:
+    end_token = tokenizer.eos_token
+    end_token_id = tokenizer.eos_token_id
+    pad_token_id = tokenizer.pad_token_id
+    # 问题：List[input_ids]
+    prefix_token_ids = batch.prefix_token_ids
+    # 批次中的问题数量 x 每个问题生成的回答数量 = 批次中的数据量
+    bsz = len(batch.prefix) * num_answer_per_question
+    # 最短问题长度
+    min_prompt_len = min(len(t) for t in prefix_token_ids)
+    # 最长问题长度
+    max_prompt_len = max(len(t) for t in prefix_token_ids)
+    # 总长度 = 最大生成长度 + 最大问题长度
+    total_len = max_gen_len + max_prompt_len
+    # 开启KV Cache，加速生成回答的速度
+    model.init_kv_cache(
+        max_batch_size=bsz,
+        max_seq_len=total_len,
+        device=device,
+        dtype=dtype,
+    )
+    # 将所有token先初始化为填充符pad_token_id：批次中数据量 x 每条数据的总长度
+    tokens = torch.full(
+        (bsz, total_len),
+        pad_token_id,
+        dtype=torch.long,
+        device=device
+    )
+    # 将问题部分填入
+    # 第 k 个问题假设生成 num_answer_per_question 条回答
+    # 那么 num_answer_per_question 条训练数据的前缀都是第k个问题
+    for k, t in enumerate(prefix_token_ids):
+        # 第k个问题的数据在批次中的偏移量
+        offset = k * num_answer_per_question
+        for i in range(num_answer_per_question):
+            # 第k个问题的第i条完整数据的问题部分
+            tokens[offset + i, : len(t)] = torch.tensor(
+                t, dtype=torch.long, device=device
+            )
+
+    prev_pos = 0
+    # 文本的掩码，填充符置为False
+    input_text_mask = tokens != pad_token_id
+    # 确保最小的问题长度小于总长度
+    assert min_prompt_len < total_len
+    # 标志位，标志一条回答（一条轨迹）是否结束，初始化为0
+    is_finished = torch.zeros(
+        (bsz,), dtype=torch.bool, device=device)
+    # 并行的预测下一个token
+    for cur_pos in range(min_prompt_len, total_len):
+        print(
+            f"\r* 生成轨迹:{cur_pos-min_prompt_len:>4d}/{total_len-min_prompt_len:>4d}",
+            flush=True,
+            end="",
+        )
+        # 针对批次中的所有训练数据，并行采样下一个token
+        # 根据文本的 prev_pos~cur_pos 部分生成下一个token
+        with torch.autocast(device_type=device.type, dtype=dtype):
+            logits = model.inference(
+                tokens[:, prev_pos:cur_pos],
+                prev_pos
+            )
+        # logits ---> probs
+        probs = torch.softmax(logits[:, -1], dim=-1)
+        # 采样下一个token，具体使用了多项分布来采样
+        next_token = torch.multinomial(probs, num_samples=1)
+        next_token = next_token.reshape(-1)
+        # 如果cur_pos这个索引已经有token了，那么直接作为下一个token
+        # cur_pos这个所有已经有token，说明是长问题，那么这个token不需要预测
+        # 注意：这里cur_pos对应的token不能是pad
+        next_token = torch.where(
+            input_text_mask[:, cur_pos], # cur_pos是否已经存在token了
+            tokens[:, cur_pos], # 对于长的问题，cur_pos对应的已经有token了
+            next_token # 对于最小长度的问题，选择预测出来的next_token
+        )
+        # 如果生成回答已经结束，那么下一个token是pad，
+        # 如果没有结束，那么是next_token
+        next_token = torch.where(
+            is_finished,
+            pad_token_id, # 对于短回答，回答已经结束，需要继续填充pad
+            next_token # 对于长回答，回答没有结束，需要使用预测出来的token
+        )
+        # 将cur_pos赋值为下一个token
+        tokens[:, cur_pos] = next_token
+        # 如果有结尾标记
+        if end_token_id is not None:
+            # 检查这个结尾标记是否为生成下一个token得到的
+            is_end_token = next_token == end_token_id
+            # 如果cur_pos对应的是False，说明cur_pos是填充符
+            # 说明这个token是生成的next token
+            is_generated_token = ~input_text_mask[:, cur_pos]
+            # 如果eos token是生成的，那么结束。
+            is_finished = is_finished \
+                        | (is_end_token & is_generated_token)
+        prev_pos = cur_pos
+        # 如果全部结束，那么跳出循环
+        if is_finished.all():
+            break
+    # 删除kv cache
+    model.del_kv_cache()
+    # 手动垃圾回收
+    gc.collect()
+    # 清空cuda显存
+    torch.cuda.empty_cache()
+    is_finished_list = is_finished.tolist()
+    tokens_list = tokens.tolist()
+
+    # 准备存放输出回合的数组
+    episodes = []
+    # 遍历批次中的问题数量
+    for i in range(bsz // num_answer_per_question):
+        # 遍历第i条问题的第j条回答
+        for j in range(num_answer_per_question):
+            idx = i * num_answer_per_question + j
+            # 截取出回答部分
+            generated_token_ids =                   \
+                tokens_list                         \
+                [idx]                               \
+                [len(batch.prefix_token_ids[i]):]
+            # 删除填充token
+            if pad_token_id in generated_token_ids:
+                generated_token_ids = generated_token_ids[
+                    :generated_token_ids.index(pad_token_id)
+                ]
+            # 生成的文本
+            generated_text = \
+                tokenizer.detokenize(generated_token_ids)
+            # 计算第i个问题的第j条回答的奖励
+            rewards = reward_function(
+                # 生成的文本
+                response=generated_text,
+                # 数字列表
+                numbers=batch.numbers[i],
+                # 正确答案数字
+                target=batch.target[i],
+                end_token=end_token,
+            )
+            episode = Episode(
+                prefix=batch.prefix[i],
+                text=batch.prefix[i] + generated_text,
+                prefix_token_ids=batch.prefix_token_ids[i],
+                prefix_tokens=batch.prefix_tokens[i],
+                generated_token_ids=generated_token_ids,
+                is_finished=is_finished_list[idx],
+                reward=rewards["reward"],
+                reward_info=rewards["reward_info"],
+            )
+            episodes.append(episode)
+    # 清除输出内容
+    print("\r", end=" " * 100, flush=True)
+    return episodes
+
+
+def normalize_rewards_per_group(
+    episodes: List[Episode]
+) -> List[Episode]:
+    """归一化每个组的奖励. 使用 prefix（问题） 区分不同的组."""
+    """每条轨迹的reward字段替换为轨迹的优势"""
+    groups = defaultdict(list)
+    for episode in episodes:
+        groups[tuple(episode.prefix)].append(episode)
+    output = []
+    # 遍历每个组，一个问题对应一组回答
+    for group in groups.values():
+        # [r_{i,0}, r{i,1}, ...]
+        group_rewards = [item.reward for item in group]
+        # 每个组的回答的奖励的平均值
+        mean_reward = np.mean(group_rewards)
+        # 每个组的回答的奖励的标准差
+        std_reward = np.std(group_rewards)
+        # 遍历组中的每一条回答，然后计算这条回答的优势
+        # (r_i - mean(r)) / (std(r)+特别小的数值)
+        for episode in group:
+            normalized_reward =                \
+                (episode.reward - mean_reward) \
+                /                              \
+                (std_reward + 1e-4)
+            # reward字段，使用回答的组内优势替换掉奖励
+            episode = dataclasses.replace(
+                episode,
+                reward=normalized_reward
+            )
+            output.append(episode)
+    return output
+
+
+def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
+    """计算熵，熵越小不确定性越小，用来监控模型训练的稳定性，不参与反向传播"""
+    probs = torch.nn.functional.softmax(logits, dim=-1)
+    entropy =                           \
+        torch.logsumexp(logits, dim=-1) \
+        -                               \
+        torch.sum(probs * logits, dim=-1)
+    return entropy
+
+
+def update_policy(
+    model, # 微调的模型
+    optimizer, # 优化器
+    episodes: List[Episode], # 轨迹（问题+回答）的数组
+    micro_batch_size: int,
+    pad_token_id: int,
+    max_grad_norm: float, # 梯度裁剪，1.0
+    device: torch.device,
+    dtype: torch.dtype,
+):
+    """使用GRPO算法更新策略."""
+    # 计算出每一条回答的组内优势
+    episodes = normalize_rewards_per_group(episodes)
+    # 按照回合的token数量排序，更有效的微批次训练
+    episodes.sort(
+        key=lambda x:                   \
+        len(x.prefix_token_ids)         \
+        +                               \
+        len(x.generated_token_ids))
+    num_target_tokens = sum(
+        len(episode.generated_token_ids)
+        for episode in episodes
+    )
+    entropy = 0.0
+
+    for i in range(0, len(episodes), micro_batch_size):
+        print(
+            f"\r* 计算策略梯度: {i:>2d}/{len(episodes):>2d}",
+            flush=True,
+            end="",
+        )
+        j = min(i + micro_batch_size, len(episodes))
+        batch_episodes = episodes[i:j]
+        batch_lengths = [
+            len(episode.prefix_token_ids)     \
+            +                                 \
+            len(episode.generated_token_ids)
+            for episode in batch_episodes
+        ]
+        # 微批次中最长的轨迹长度
+        batch_max_length = max(batch_lengths)
+        batch_token_ids = [
+            episode.prefix_token_ids      # 问题的input_ids
+            + episode.generated_token_ids # 生成的回答的input_ids
+            + [pad_token_id] * ( # 添加填充符pad
+                  batch_max_length - batch_lengths[i]
+              )
+            for i, episode in enumerate(batch_episodes)
+        ]
+        batch_masks = [
+            # 问题部分掩码是0
+            [0] * len(episode.prefix_token_ids)
+            # 回答部分掩码为1
+            + [1] * len(episode.generated_token_ids)
+            # 填充符掩码为0
+            + [0] * (batch_max_length - batch_lengths[i])
+            for i, episode in enumerate(batch_episodes)
+        ]
+        # 取出每个回合的优势(r_i-mean(r)) / std(r)
+        batch_advantages = [
+            episode.reward for episode in batch_episodes
+        ]
+        batch_token_ids = torch.tensor(
+            batch_token_ids,
+            device=device,
+            dtype=torch.long
+        )
+        batch_masks = torch.tensor(
+            batch_masks,
+            device=device,
+            dtype=torch.bool
+        )
+        batch_advantages = torch.tensor(
+            batch_advantages, device=device, dtype=torch.float32
+        )
+
+        with torch.autocast(device_type=device.type, dtype=dtype):
+            # 去掉最后一个token，输入
+            input_token_ids = batch_token_ids[:, :-1]
+            # 去掉第一个token，目标token
+            # 真实的目标token是来自上一轮的模型输出的回答
+            target_token_ids = batch_token_ids[:, 1:]
+            target_masks = batch_masks[:, 1:]
+            # logits是预测的下一个token
+            logits = model.forward(input_token_ids).float()
+        # 在 one-hot 分类里，
+        # 交叉熵等于对正确类别概率取负对数，
+        # 所以"负对数概率"与"交叉熵"指的是同一个目标函数。
+        # log(π_θ(a|s)) = -cross_entropy
+        # −∑ⱼaⱼ⋅logâⱼ = -logâₜ, aₜ是真实标签，âₜ是模型预测为aₜ的概率
+        log_probs = -torch.nn.functional.cross_entropy(
+            logits.reshape(-1, logits.size(-1)),
+            target_token_ids.reshape(-1),
+            ignore_index=pad_token_id,
+            reduction="none",
+        ).reshape(input_token_ids.shape[0], -1)
+
+        with torch.no_grad():
+            token_entropy = compute_entropy(logits)
+            entropy = entropy                            \
+                    +                                    \
+                    (token_entropy * target_masks).sum() \
+                    /                                    \
+                    num_target_tokens
+        # 对数概率乘以优势 log(π_θ(a|s)) * A
+        obj = log_probs * batch_advantages[:, None]
+        # 计算每个token的平均目标
+        obj = (obj * target_masks).sum() / num_target_tokens
+        loss = -obj
+        # 每一轮都要进行反向传播，计算模型参数的导数，但不更新模型的参数
+        loss.backward()
+
+    # 梯度裁剪
+    grad_norm = torch.nn.utils.clip_grad_norm_(
+        model.parameters(), max_norm=max_grad_norm
+    )
+    # 梯度下降，更新策略的参数，θ = θ - α*grad
+    optimizer.step()
+    # 清空梯度
+    optimizer.zero_grad(set_to_none=True)
+    return {
+        "loss": loss.item(),
+        "grad_norm": grad_norm.item(),
+        "entropy": entropy.item(),
+    }
+```
+
+==== 训练循环
+
+
+创建文件 `GRPO-Zero/train.py` ，内容如下：
+
+```python
+import html
+import time
+from argparse import ArgumentParser
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import torch
+import yaml
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard.writer import SummaryWriter
+
+from countdown_task import CountdownTasksDataset, reward_function
+from grpo import rollout, update_policy
+from qwen2_model import Transformer
+from tokenizer import Tokenizer
+
+
+def evaluate(model, tokenizer, device, dtype):
+    """每隔10个step，使用测试数据集评估一下，看能做对多少题"""
+    test_dataset = CountdownTasksDataset(
+        data_path="Countdown-Tasks-3to4",
+        tokenizer=tokenizer,
+        split="test",
+        test_size=128, # 128条测试数据
+    )
+    generator = torch.Generator(device=device)
+    # 批次大小减半，我们就可以生成2倍长的轨迹了
+    dataloader = DataLoader(
+        test_dataset,
+        shuffle=False,
+        collate_fn=CountdownTasksDataset.collate_fn,
+        generator=generator,
+        # 批次大小为256，减半
+        batch_size=256 // 2,
+        drop_last=False,
+    )
+    success = []
+    for batch in dataloader:
+        episodes = rollout(
+            model=model,
+            tokenizer=tokenizer,
+            batch=batch,
+            # 最大生成长度为1024，乘以2
+            max_gen_len=1024 * 2,
+            # 评估时，针对每个问题只生成1个回答
+            num_answer_per_question=1,
+            reward_function=reward_function,
+            device=device,
+            dtype=dtype,
+        )
+        success.extend([
+            episode.reward_info["answer_reward"] \
+            for episode in episodes
+        ])
+    return np.mean(success)
+
+
+def main():
+    pretrained_model_path = Path(
+        "./Qwen2.5-3B-Instruct/"
+    )
+    device = torch.device("cuda")
+    dtype = torch.bfloat16
+    torch.set_default_device(device)
+    torch.random.manual_seed(1337)
+    # 批次大小
+    BATCH_SIZE = 256
+    # 每个批次32个问题
+    NUM_QUESTIONS_PER_BATCH = 32
+    # 每个问题产生8条回答
+    NUM_ANSWERS_PER_QUESTION = \
+        BATCH_SIZE // NUM_QUESTIONS_PER_BATCH
+
+    current_time = datetime.now().strftime(r"%Y%m%d-%H%M%S")
+    tb_writer = SummaryWriter(log_dir=f"./logs/{current_time}")
+    tokenizer = Tokenizer("./Qwen2.5-3B-Instruct/tokenizer.json")
+
+    train_dataset = CountdownTasksDataset(
+        data_path="./Countdown-Tasks-3to4/",
+        tokenizer=tokenizer,
+        split="train",
+        test_size=128,
+    )
+    generator = torch.Generator(device=device)
+    train_dataloader = DataLoader(
+        train_dataset,
+        shuffle=True,
+        collate_fn=CountdownTasksDataset.collate_fn,
+        generator=generator,
+        batch_size=NUM_QUESTIONS_PER_BATCH,
+    )
+
+    model = Transformer.from_pretrained(
+        pretrained_model_path,
+        device=device
+    ).train()
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=1.0e-5,
+        weight_decay=0.0,
+        betas=[0.9, 0.999],
+    )
+
+    start_time = time.time()
+    ckpt_dir = Path("ckpt")
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+    for step, batch in enumerate(train_dataloader, start=1):
+        # 生成轨迹（问题+回答）数据
+        episodes = rollout(
+            model=model,
+            tokenizer=tokenizer,
+            batch=batch,
+            max_gen_len=1024,
+            num_answer_per_question=NUM_ANSWERS_PER_QUESTION,
+            reward_function=reward_function,
+            device=device,
+            dtype=dtype,
+        )
+        # 更新策略
+        results = update_policy(
+            model=model,
+            optimizer=optimizer,
+            episodes=episodes,
+            micro_batch_size=2, # 微批次大小为2
+            pad_token_id=tokenizer.pad_token_id,
+            max_grad_norm=1.0, # 梯度裁剪到1.0
+            device=device,
+            dtype=dtype,
+        )
+        torch.cuda.synchronize()
+        end_time = time.time()
+        duration = end_time - start_time
+        start_time = end_time
+
+        # 计算一些统计信息，然后保存到日志文件中
+        reward = [episode.reward for episode in episodes]
+        formatted_reward = [
+            episode.reward_info["format_reward"] \
+            for episode in episodes
+        ]
+        answer_reward = [
+            episode.reward_info["answer_reward"] \
+            for episode in episodes
+        ]
+        num_finished_episodes = sum(
+            episode.is_finished for episode in episodes
+        )
+        mean_reward = np.mean(reward)
+        std_reward = np.std(reward)
+        success_rate = np.mean(answer_reward)
+        format_reward = np.mean(formatted_reward)
+        grad_norm = results["grad_norm"]
+        entropy = results["entropy"]
+        lr = optimizer.param_groups[0]["lr"]
+        loss = results["loss"]
+        mean_response_len = np.mean(
+            [len(episode.generated_token_ids) \
+             for episode in episodes]
+        )
+        print(
+            f"\r步骤 {step}, 平均奖励: {mean_reward:.2f}, "
+            f"计算正确率: {success_rate:.2f}, "
+            f"梯度裁剪: {grad_norm:.2f}, 时长: {duration:.2f}, "
+            f"结束的回合的数量: {num_finished_episodes}, "
+            f"平均回答长度: {mean_response_len:.2f}, "
+            f"熵: {entropy:.2f}"
+        )
+        # 每隔10步评估一次
+        if step % 10 == 0:
+            eval_success_rate = evaluate(
+                model,
+                tokenizer,
+                device,
+                dtype
+            )
+            print(f"\r评估数据集回答正确率: \
+                   {eval_success_rate:.2f}" \
+                   + " " * 100)
+            tb_writer.add_scalar(
+                "回答正确率/评估",
+                eval_success_rate,
+                step
+            )
+
+        tb_writer.add_scalar("损失", loss, step)
+        tb_writer.add_scalar("平均奖励", mean_reward, step)
+        tb_writer.add_scalar("奖励的标准差", std_reward, step)
+        tb_writer.add_scalar(
+            "回答正确率/训练", success_rate, step)
+        tb_writer.add_scalar("格式奖励", format_reward, step)
+        tb_writer.add_scalar("梯度裁剪", grad_norm, step)
+        tb_writer.add_scalar("时长", duration, step)
+        tb_writer.add_scalar(
+            "结束的回合数量",
+            num_finished_episodes,
+            step
+        )
+        tb_writer.add_scalar("学习率", lr, step)
+        tb_writer.add_scalar(
+            "平均回答长度", mean_response_len, step)
+        tb_writer.add_scalar("熵", entropy, step)
+        for i, episode in enumerate(episodes):
+            # TensorBoard 将文本处理为markdown格式
+            text = html.escape(episode.text)
+            tb_writer.add_text(
+                f"text_{i}",
+                f"<pre>{text}</pre>",
+                step
+            )
+
+        # 每隔100步保存模型的检查点
+        if step % 100 == 0:
+            output_file = ckpt_dir / f"ckpt_{step:06d}.pt"
+            torch.save(model.state_dict(), output_file)
+            print(f"将检查点保存到 {output_file}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+执行如下命令开始训练！
+
+```bash
+$ uv run train.py
+```
 
 #part("多模态")
 
