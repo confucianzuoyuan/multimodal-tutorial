@@ -6741,14 +6741,14 @@ def normalize_rewards_per_group(
     output = []
     # 遍历每个组，一个问题对应一组回答
     for group in groups.values():
-        # [r_{i,0}, r{i,1}, ...]
+        # $[r_(i,0), r_(i,1), ...]$
         group_rewards = [item.reward for item in group]
         # 每个组的回答的奖励的平均值
         mean_reward = np.mean(group_rewards)
         # 每个组的回答的奖励的标准差
         std_reward = np.std(group_rewards)
         # 遍历组中的每一条回答，然后计算这条回答的优势
-        # (r_i - mean(r)) / (std(r)+特别小的数值)
+        # $(r_i - "mean"(r))/("std"(r)+epsilon)$
         for episode in group:
             normalized_reward =                \
                 (episode.reward - mean_reward) \
@@ -6831,7 +6831,7 @@ def update_policy(
             + [0] * (batch_max_length - batch_lengths[i])
             for i, episode in enumerate(batch_episodes)
         ]
-        # 取出每个回合的优势(r_i-mean(r)) / std(r)
+        # 取出每个回合的优势$(r_i-"mean"(r))/("std"(r)+epsilon)$
         batch_advantages = [
             episode.reward for episode in batch_episodes
         ]
@@ -6861,8 +6861,8 @@ def update_policy(
         # 在 one-hot 分类里，
         # 交叉熵等于对正确类别概率取负对数，
         # 所以"负对数概率"与"交叉熵"指的是同一个目标函数。
-        # log(π_θ(a|s)) = -cross_entropy
-        # −∑ⱼaⱼ⋅logâⱼ = -logâₜ, aₜ是真实标签，âₜ是模型预测为aₜ的概率
+        # $log pi_theta (a|s) = -"cross_entropy"$
+        # $-sum_j a_j dot.c log hat(a)_j = - log hat(a)_t$，$a_t$是真实标签，$hat(a)_t$是模型预测为$a_t$的概率。
         log_probs = -torch.nn.functional.cross_entropy(
             logits.reshape(-1, logits.size(-1)),
             target_token_ids.reshape(-1),
@@ -6877,7 +6877,7 @@ def update_policy(
                     (token_entropy * target_masks).sum() \
                     /                                    \
                     num_target_tokens
-        # 对数概率乘以优势 log(π_θ(a|s)) * A
+        # 对数概率乘以优势$log pi_theta (a|s) dot.c A$
         obj = log_probs * batch_advantages[:, None]
         # 计算每个token的平均目标
         obj = (obj * target_masks).sum() / num_target_tokens
@@ -6889,7 +6889,6 @@ def update_policy(
     grad_norm = torch.nn.utils.clip_grad_norm_(
         model.parameters(), max_norm=max_grad_norm
     )
-    # 梯度下降，更新策略的参数，θ = θ - α*grad
     optimizer.step()
     # 清空梯度
     optimizer.zero_grad(set_to_none=True)
@@ -6902,8 +6901,7 @@ def update_policy(
 
 ==== 训练循环
 
-
-创建文件 `GRPO-Zero/train.py` ，内容如下：
+创建文件 `train.py` ，内容如下：
 
 ```python
 import html
