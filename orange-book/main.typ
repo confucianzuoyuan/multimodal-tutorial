@@ -5789,31 +5789,49 @@ $
 #danger(title: [我们要从零复刻一个类似DeepSeek-R1的模型，产生思维链！])[
   我们的实现不采用原始的GRPO算法，而是采用字节提出的 *DAPO* 算法，DAPO 对原始的GRPO有如下几项改进：
 
-  + *token级的策略梯度损失*：每个token在策略梯度损失中具有同等权重。
+  + *token级的策略梯度损失*：每个token在策略梯度损失中具有同等权重。也就是每个token的优势等于token所在轨迹的组相对优势！
   + *移除KL散度*：策略梯度损失中不再使用KL散度。由于我们不再需要参考策略网络$pi_"ref"$，这可以减少 GPU 内存的使用。
 ]
 
 我们的算法伪代码如下：
 
 #tip(title: [DAPO算法伪代码])[
-  + 对于每个训练步骤，随机选取 $N$ 个问题：$q_1,q_2,...,q_N$ 。
-  + 对于每个问题 $q_i$ ，采样 $M$ 个回答：$a_(i,1),a_(i,2),...,a_(i,M)$ 。
-  + 计算每个回答 $a_(i,j)$ 的奖励 $r_(i,j)$ 。
+  + 对于每个训练步骤，随机选取$N$个问题：$q_1,q_2,...,q_N$。
+  + 对于每个问题$q_i$，采样$G$条回答（轨迹）：$a_(i,1),a_(i,2),...,a_(i,G)$ 。   |> $G$为一组轨迹中轨迹的数量
+  + 计算每个回答$a_(i,j)$的奖励$r_(i,j)$。
+    - $a_(i,j)$为第i个问题的第j条回答。
+    - $r_(i,j)$为第i个问题的第j条回答的回报。
   + 计算每个问题 $q_i$ 的奖励的平均值和标准差。
   $
-       mu_i & arrow.l "mean"(r_(i,1),r_(i,2),dots.c,r_(i,M)) \
-    sigma_i & arrow.l "std"(r_(i,1),r_(i,2),dots.c,r_(i,M))
+       mu_i & arrow.l "mean"(r_(i,1),r_(i,2),dots.c,r_(i,G)) \
+    sigma_i & arrow.l "std"(r_(i,1),r_(i,2),dots.c,r_(i,G))
   $
-  5. 对于回答 $a_(i,j)$ 中的每个token，也就是 $t$ 计算优势：
+  5. 对于回答$a_(i,j)$中的每个token，也就是$t$计算优势：
+    - $A_(i,j)[t]$为第i个问题的第j条回答的第t个token的优势
+    - #text(fill: red)[重要！输出的token（动作）的优势等于token所在回答的组相对优势！]
   $
     A_(i,j) [t] arrow.l (r_(i,j)-mu_i)/sigma_i
   $
-  6. 使用PPO的目标函数计算策略梯度。为了简单起见，我们每次迭代只进行一次策略更新，这样PPO的目标函数的梯度等价于原始策略梯度法中的梯度估计方法，针对每个token都进行梯度估计。
+  6. 使用GRPO的目标函数计算策略梯度。为了简单起见，我们每次迭代只进行一次策略更新，这样GRPO的目标函数的梯度等价于原始策略梯度法中的梯度估计方法，针对每个token都进行梯度估计。
   $
     nabla_theta log pi_theta (a_(i,j)[t]) dot.c A_(i,j)[t]
   $
   7. 使用梯度更新策略网络$pi_theta$。
   + goto 1
+]
+
+#danger(title: [伪代码中第6步的解释])[
+  GRPO目标函数最内层为
+  $
+    min [ (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))) A_(tau_i,t), "clip"((pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))), 1-epsilon,1+epsilon) A_(tau_i,t)]
+  $
+  如果GRPO使用旧策略采集的轨迹只更新一次策略的话，相当于在$theta=theta_"old"$处进行求导（梯度）。由于此时$theta=theta_"old"$，所以裁剪不会发生。也就是如下：
+  $
+    & nabla_theta min [ (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))) A_(tau_i,t), "clip"((pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))), 1-epsilon,1+epsilon) A_(tau_i,t)]|_(theta=theta_"old") \
+    & = nabla_theta {(pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))) A_(tau_i,t)}|_(theta=theta_"old") \
+    & = (nabla_theta pi_theta (a_(tau_i,t)|s_(tau_i,t))|_(theta=theta_"old"))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))) A_(tau_i,t) space space space space colblue("（log梯度技巧）")\
+    & = nabla_theta {A_(tau_i,t) dot.c log pi_theta (a_(tau_i,t)|s_(tau_i,t))}|_(theta=theta_"old")
+  $
 ]
 
 我们的任务是什么？我们想要训练一个能够玩类似24点游戏的LLM。叫做`CountDown Task`。
@@ -5828,6 +5846,10 @@ nums: [37, 81, 10], target: 34
 
 我们会先将上面的数据格式化成如下数据：
 
+#codly(
+  zebra-fill: none,
+  number-format: none,
+)
 ```
 <|im_start|>system
 你是一个有用的助手。你首先在脑海中思考推理过程，然后为用户提供答案。<|im_end|>
@@ -5901,6 +5923,11 @@ $ mkdir GRPO-Zero
 
 Qwen2 的模型结构，保存在文件 `qwen2_model.py` 中。
 
+#codly(
+  header: [Qwen2.5模型结构],
+  zebra-fill: luma(240),
+  number-format: number => [ #number ],
+)
 ```python
 import json
 from dataclasses import dataclass
@@ -6254,6 +6281,7 @@ class Transformer(nn.Module):
 
 分词器代码保存在文件 `tokenizer.py` 中。
 
+#codly(header: [分词器实现])
 ```python
 import json
 from pathlib import Path
@@ -6358,7 +6386,7 @@ RESPONSE_PROMPT = "让我一步步来解决这个问题。\n<think>"
 
 class CountdownTasksDataset(Dataset):
     """准备训练数据集"""
-    
+
     def __init__(
         self,
         tokenizer: Tokenizer, # 分词器
@@ -6367,7 +6395,7 @@ class CountdownTasksDataset(Dataset):
         test_size: int = 100,
     ):
         data = pd.read_parquet(Path(data_path) / "data")
-        # 索引 `test_size` 后面的数据用作测试数据 
+        # 索引 `test_size` 后面的数据用作测试数据
         self.data = (
             data.iloc[:-test_size]               \
             if split == "train"                  \
@@ -7133,6 +7161,289 @@ if __name__ == "__main__":
 ```bash
 $ uv run train.py
 ```
+
+== GRPO应用场景
+
+=== 医疗思维链
+
+我们使用 Hugging Face 的 `interleave_datasets` 混合三个关键数据集：
+
+*PubMedQA*（占总数据的70%）：
+
+- 临床问答，答案为yes/no/maybe
+
+*GSM8K*：
+
+- 数学应用题，以保持数学推理能力
+
+*Health Benchmarks*：
+
+- 50+道医学专业选择题
+- 从心脏病学到疫苗接种的类别
+
+权重应该反映数据集的复杂性——PubMedQA的曝光度增加了3倍，以处理其细微差别。我们这里对数据集进行了打乱。由于PubMedQA样本量增加了3倍，因此将这些样本展示给模型的几率也增加了3倍。
+
+模型在训练过程中的答案
+
+```
+Prompt（提示）：
+
+在以下科学背景下：
+
+我们此前已经展示了对志愿者进行 4 周、共 19 次、每日亚红斑量紫外线（DUVR，模拟非极端暴露条件）照射所产生的不利影响。该光源的 UVA（320-400 nm）与 UVB（290-320 nm）辐照度比为 25，而典型用于代表夏季晴朗近天顶太阳辐照的模拟太阳光（SSR）的该比值接近 10。
+在此，我们报告对之前研究的拓展，评估了一款广谱日常护肤产品（低 SPF：SPF 8，UVA-PF 7，UVA 3* 级防护）所提供的光防护。我们检测了与皮肤癌与光老化相关的细胞与分子光损伤标志物。
+本研究显示，重复 DUVR 暴露所产生的生物学效应可以被一款广谱日常护理产品所预防，且其所提供的防护水平会随具体检测终点而变化。
+
+回答下列问题：
+一款广谱防晒是否能预防代表温带地区的日常亚红斑量太阳紫外线重复暴露所导致的累积性损伤？请用 "yes" / "no" / "maybe" 作答。你需要仔细阅读背景并推理后回答。
+
+Model Response（模型回答）：
+
+<reasoning>
+提供的背景讨论了一项研究：重复的亚红斑量 UV（DUVR）暴露在 4 周内会产生不利影响。它还提到使用了一款广谱日常护理产品（SPF 8，UVA 防护因子 7，UVA 3* 评级）进行评估。研究的目的是判断该广谱产品是否能预防这类重复暴露引起的累积性损伤。文本中说明，该研究显示重复 DUVR 的生物学效应可以被这款产品预防，说明其具有保护作用。虽然不同终点的防护程度不同，但整体表述支持其确实能预防累积损伤。因此答案应为"yes"。
+</reasoning>
+
+<answer>
+yes
+</answer>
+```
+
+TRL代码如下：
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from trl import GRPOConfig, GRPOTrainer
+from datasets import load_dataset, Dataset, interleave_datasets, concatenate_datasets
+import re
+
+
+# Load and prep dataset
+SYSTEM_PROMPT = """
+Respond in the following format:
+<reasoning>
+...
+</reasoning>
+<answer>
+...
+</answer>
+"""
+
+XML_COT_FORMAT = """\
+<reasoning>
+{reasoning}
+</reasoning>
+<answer>
+{answer}
+</answer>
+"""
+
+
+def extract_xml_answer(text: str) -> str:
+    answer = text.split("<answer>")[-1]
+    answer = answer.split("</answer>")[0]
+    return answer.strip()
+
+
+def extract_hash_answer(text: str) -> str | None:
+    if "####" not in text:
+        return None
+    return text.split("####")[1].strip()
+
+# uncomment middle messages for 1-shot prompting
+
+
+def get_datasets(split="train") -> Dataset:
+    data = load_dataset('gsm8k',
+                        'main')[split]  # type: ignore
+    data = data.map(lambda x: {  # type: ignore
+        'prompt': [
+            {'role': 'system', 'content': SYSTEM_PROMPT},
+            {'role': 'user', 'content': x['question']}
+        ],
+        'answer': extract_hash_answer(x['answer']),
+        'db_set': 'gsm8k'
+    })  # type: ignore
+    data = data.remove_columns(['question'])
+
+    # two times more than other datasets
+    data_qa = load_dataset(
+        "PubMedQA", "pqa_artificial")[split]
+    data_qa = data_qa.filter(lambda x: len(
+        "\n".join(x['context']['contexts'])) < 1024)  # avoid long traces
+    data_qa = data_qa.map(lambda x: {  # type: ignore
+        'prompt': [
+            {'role': 'system', 'content': SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": "Given the scientific context below:\n" +
+                "\n".join(x['context']['contexts']) +
+                "\n\nAnswer the following question:\n" +
+                x['question'] +
+                " with 'yes', 'no' or 'maybe'. You need to carefully review the context and reason before answering."
+            },
+        ],
+        'answer': x['final_decision'],
+        'db_set': 'pubmedqa'
+    })  # type: ignore
+    data_qa = data_qa.remove_columns(
+        ['pubid', 'question', 'context', 'long_answer', 'final_decision'])
+
+    categories = ['Lab_Medicine', 'Wearables', 'Dermatology', 'Gastroenterology', 'Internal_Medicine', 'Oncology', 'Orthopedics', 'General_Surgery', 'Ophthalmology', 'Audiology', 'Head_Neck_Surgery', 'Elderly_Care', 'Pediatrics', 'Allergy_Immunology', 'Rheumatology', 'Pharmacy', 'Obstetrics_Gynecology', 'Microbiology', 'Dentistry', 'Physical_Medicine_and_Rehabilitation', 'Neurology', 'Psychiatry', 'Pathology', 'Genetics', 'Rare_Diseases', 'Hematology',
+                  'Emergency', 'Endocrinology', 'Radiology', 'Cardiology', 'Pulmonology', 'Infectious_Diseases', 'Critical_Care', 'Pediatric_Surgery', 'Neuroscience', 'Epidemiology', 'Fitness_Sports', 'Health_Education', 'Health_Economics', 'Health_Entrepreneurship', 'Hospital_Management', 'Mental_Health', 'Nutrition', 'Palliative_Care', 'Preventive_Medicine', 'Public_Health', 'Social_Media_Addiction', 'Sleep', 'Supplements', 'Vaccination', 'Work_Health', 'Wellbeing']
+    data_mc = concatenate_datasets(
+        [load_dataset("Health_Benchmarks", i)[i] for i in categories])
+    data_mc = data_mc.map(lambda x: {  # type: ignore
+        'prompt': [
+            {'role': 'system', 'content': SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": "\n\nAnswer the following question:\n" +
+                x['Questions'] +
+                "\n With 'A', 'B', 'C' or 'D'. You need to carefully review the context and reason before answering."
+            },
+        ],
+        'answer': x['Answers'],
+        'db_set': 'med_mc'
+    })  # type: ignore
+    data_mc = data_mc.remove_columns(['Answers', 'Questions'])
+
+    dataset = concatenate_datasets([data, data_qa, data_mc])
+    return dataset
+
+
+dataset = get_datasets()
+dataset = dataset.shuffle(seed=42)
+train_test_split = dataset.train_test_split(test_size=0.1)
+train_dataset = train_test_split["train"]
+test_dataset = train_test_split["test"]
+print(f"train size: {len(train_dataset)}, test size: {len(test_dataset)}")
+
+
+# Reward functions
+def correctness_reward_func(prompts, completions, answer, db_set, **kwargs) -> list[float]:
+    responses = [completion[0]['content'] for completion in completions]
+    q = prompts[0][-1]['content']
+    extracted_responses = [extract_xml_answer(r) for r in responses]
+    print('-'*20, f"Question:\n{q}", f"\nAnswer:\n{answer[0]}",
+          f"\nResponse:\n{responses[0]}", f"\nExtracted:\n{extracted_responses[0]}")
+    rewards = []
+    for r, a, dt in zip(extracted_responses, answer, db_set):
+        if dt == "gsm8k":
+            if a in r:
+                rewards.append(1.0)
+            elif r == a:
+                rewards.append(2.0)
+            else:
+                rewards.append(0.0)
+        else:
+            rewards.append(2.0 if r.lower() == a.strip().lower() else 0.0)
+    return rewards
+
+
+def int_reward_func(completions, db_set, **kwargs) -> list[float]:
+    responses = [completion[0]['content'] for completion in completions]
+    extracted_responses = [extract_xml_answer(r) for r in responses]
+    rewards = []
+    for r, dt in zip(extracted_responses, db_set):
+        if dt == "gsm8k":
+            rewards.append(0.5 if r.isdigit() else 0.0)
+        elif dt == "pubmedqa":
+            rewards.append(0.5 if (
+                'yes' in r.lower() or 'no' in r.lower() or 'maybe' in r.lower()) else 0.0)
+        else:
+            rewards.append(0.5 if ('a' in r.lower() or 'b' in r.lower(
+            ) or 'c' in r.lower() or 'd' in r.lower()) else 0.0)
+    return rewards
+
+
+def strict_format_reward_func(completions, **kwargs) -> list[float]:
+    """Reward function that checks if the completion has a specific format."""
+    pattern = r"^<reasoning>\n.*?\n</reasoning>\n<answer>\n.*?\n</answer>\n$"
+    responses = [completion[0]["content"] for completion in completions]
+    matches = [re.match(pattern, r) for r in responses]
+    return [0.5 if match else 0.0 for match in matches]
+
+
+def soft_format_reward_func(completions, **kwargs) -> list[float]:
+    """Reward function that checks if the completion has a specific format."""
+    pattern = r"<reasoning>.*?</reasoning>\s*<answer>.*?</answer>"
+    responses = [completion[0]["content"] for completion in completions]
+    matches = [re.match(pattern, r) for r in responses]
+    return [0.5 if match else 0.0 for match in matches]
+
+
+def count_xml(text) -> float:
+    count = 0.0
+    if text.count("<reasoning>\n") == 1:
+        count += 0.125
+    if text.count("\n</reasoning>\n") == 1:
+        count += 0.125
+    if text.count("\n<answer>\n") == 1:
+        count += 0.125
+        count -= len(text.split("\n</answer>\n")[-1])*0.001
+    if text.count("\n</answer>") == 1:
+        count += 0.125
+        count -= (len(text.split("\n</answer>")[-1]) - 1)*0.001
+    return count
+
+
+def xmlcount_reward_func(completions, **kwargs) -> list[float]:
+    contents = [completion[0]["content"] for completion in completions]
+    return [count_xml(c) for c in contents]
+
+
+training_args = GRPOConfig(output_dir="outputs", num_generations=2, per_device_train_batch_size=4)
+
+
+# 加载模型
+model = AutoModelForCausalLM.from_pretrained(
+    "../GRPO/Qwen2.5-3B-Instruct/",
+    torch_dtype="auto",
+    device_map="auto"
+)
+
+tokenizer = AutoTokenizer.from_pretrained(
+    "../GRPO/Qwen2.5-3B-Instruct/")
+
+
+trainer = GRPOTrainer(
+    model=model,
+    processing_class=tokenizer,
+    reward_funcs=[
+        xmlcount_reward_func,
+        soft_format_reward_func,
+        strict_format_reward_func,
+        int_reward_func,
+        correctness_reward_func,
+    ],
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=test_dataset,
+)
+trainer.train()
+```
+
+=== Text-To-SQL
+
+#link("https://github.com/yai333/Text-to-SQL-GRPO-Fine-tuning-Pipeline/tree/main")[GITHUB地址]
+
+底座模型：`Qwen2.5-Coder-7B-Instruct`
+
+任务
+
+- 输入：请帮我写一段SQL，要求查询出部门35岁以上的程序员
+- 输出：`SELECT * FROM database WHERE ...`
+
+该模型展现出强大的整体性能，SQL 生成准确率高（44/5 分，得分 4 或 5 分），推理质量优异（48/50 分，得分 4 或 5 分），格式遵循近乎完美（49/50 分，得分 5 分），且具有明确的教育价值。总体而言，88% 的输出得分达到 4.0 分或更高，反映出模型结果的一致性、结构良好且易于解释。
+
+#tip(title: [奖励函数编写要点])[
+  1. 使用正则表达式来实现格式奖励
+  2. 创建一个sqlite3数据库，用来校验SQL语句的正确性
+  3. 调用DeepSeek或者GPT接口，让外部大语言模型评估一下CoT的质量。
+]
+
+
+
 
 #part("多模态")
 
@@ -13717,4 +14028,375 @@ $ uv pip install datasets==2.21.0
 $ uv pip install transformers[serving]
 
 $ modelscope download --model Qwen/Qwen3-0.6B-Base --local_dir ./
+```
+
+#chapter("KV Cache", image: image("./orange2.jpg"))
+
+```python
+import time
+import tiktoken
+import torch
+import torch.nn as nn
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
+        super().__init__()
+        assert d_out % num_heads == 0, "d_out must be divisible by num_heads"
+
+        self.d_out = d_out
+        self.num_heads = num_heads
+        self.head_dim = d_out // num_heads  # Reduce the projection dim to match desired output dim
+
+        self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.out_proj = nn.Linear(d_out, d_out)  # Linear layer to combine head outputs
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer(
+            "mask",
+            torch.triu(torch.ones(context_length, context_length), diagonal=1),
+            persistent=False
+        )
+
+        ####################################################
+        # NEW
+        self.register_buffer("cache_k", None, persistent=False)
+        self.register_buffer("cache_v", None, persistent=False)
+        self.ptr_current_pos = 0
+        ####################################################
+
+    def forward(self, x, use_cache=False):
+        b, num_tokens, d_in = x.shape
+
+        keys_new = self.W_key(x)  # Shape: (b, num_tokens, d_out)
+        values_new = self.W_value(x)
+        queries = self.W_query(x)
+
+        # We implicitly split the matrix by adding a `num_heads` dimension
+        # Unroll last dim: (b, num_tokens, d_out) -> (b, num_tokens, num_heads, head_dim)
+        keys_new = keys_new.view(b, num_tokens, self.num_heads, self.head_dim)
+        values_new = values_new.view(b, num_tokens, self.num_heads, self.head_dim)
+        queries = queries.view(b, num_tokens, self.num_heads, self.head_dim)
+
+        ####################################################
+        # NEW
+        if use_cache:
+            if self.cache_k is None:
+                self.cache_k, self.cache_v = keys_new, values_new
+            else:
+                self.cache_k = torch.cat([self.cache_k, keys_new], dim=1)
+                self.cache_v = torch.cat([self.cache_v, values_new], dim=1)
+            keys, values = self.cache_k, self.cache_v
+        else:
+            keys, values = keys_new, values_new
+        ####################################################
+
+        # Transpose: (b, num_tokens, num_heads, head_dim) -> (b, num_heads, num_tokens, head_dim)
+        keys = keys.transpose(1, 2)
+        queries = queries.transpose(1, 2)
+        values = values.transpose(1, 2)
+
+        # Compute scaled dot-product attention (aka self-attention) with a causal mask
+        attn_scores = queries @ keys.transpose(2, 3)  # Dot product for each head
+
+        ####################################################
+        # NEW
+        num_tokens_Q = queries.shape[-2]
+        num_tokens_K = keys.shape[-2]
+        if use_cache:
+            mask_bool = self.mask.bool()[
+                self.ptr_current_pos:self.ptr_current_pos + num_tokens_Q, :num_tokens_K
+            ]
+            self.ptr_current_pos += num_tokens_Q
+        ####################################################
+        # Original mask truncated to the number of tokens and converted to boolean
+        else:
+            mask_bool = self.mask.bool()[:num_tokens_Q, :num_tokens_K]
+
+        # Use the mask to fill attention scores
+        attn_scores.masked_fill_(mask_bool, -torch.inf)
+
+        attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
+        attn_weights = self.dropout(attn_weights)
+
+        # Shape: (b, num_tokens, num_heads, head_dim)
+        context_vec = (attn_weights @ values).transpose(1, 2)
+
+        # Combine heads, where self.d_out = self.num_heads * self.head_dim
+        context_vec = context_vec.contiguous().view(b, num_tokens, self.d_out)
+        context_vec = self.out_proj(context_vec)  # optional projection
+
+        return context_vec
+
+    ####################################################
+    # NEW
+    def reset_cache(self):
+        self.cache_k, self.cache_v = None, None
+        self.ptr_current_pos = 0
+    ####################################################
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, emb_dim):
+        super().__init__()
+        self.eps = 1e-5
+        self.scale = nn.Parameter(torch.ones(emb_dim))
+        self.shift = nn.Parameter(torch.zeros(emb_dim))
+
+    def forward(self, x):
+        mean = x.mean(dim=-1, keepdim=True)
+        var = x.var(dim=-1, keepdim=True, unbiased=False)
+        norm_x = (x - mean) / torch.sqrt(var + self.eps)
+        return self.scale * norm_x + self.shift
+
+
+class GELU(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(
+            torch.sqrt(torch.tensor(2.0 / torch.pi)) *
+            (x + 0.044715 * torch.pow(x, 3))
+        ))
+
+
+class FeedForward(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(cfg["emb_dim"], 4 * cfg["emb_dim"]),
+            GELU(),
+            nn.Linear(4 * cfg["emb_dim"], cfg["emb_dim"]),
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.att = MultiHeadAttention(
+            d_in=cfg["emb_dim"],
+            d_out=cfg["emb_dim"],
+            context_length=cfg["context_length"],
+            num_heads=cfg["n_heads"],
+            dropout=cfg["drop_rate"],
+            qkv_bias=cfg["qkv_bias"])
+        self.ff = FeedForward(cfg)
+        self.norm1 = LayerNorm(cfg["emb_dim"])
+        self.norm2 = LayerNorm(cfg["emb_dim"])
+        self.drop_shortcut = nn.Dropout(cfg["drop_rate"])
+
+    def forward(self, x, use_cache=False):
+        # Shortcut connection for attention block
+        shortcut = x
+        x = self.norm1(x)
+
+        # x = self.att(x)   # Shape [batch_size, num_tokens, emb_size]
+        ####################################################
+        # NEW
+        x = self.att(x, use_cache=use_cache)
+        ####################################################
+
+        x = self.drop_shortcut(x)
+        x = x + shortcut  # Add the original input back
+
+        # Shortcut connection for feed-forward block
+        shortcut = x
+        x = self.norm2(x)
+        x = self.ff(x)
+        x = self.drop_shortcut(x)
+        x = x + shortcut  # Add the original input back
+
+        return x
+
+
+class GPTModel(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.tok_emb = nn.Embedding(cfg["vocab_size"], cfg["emb_dim"])
+        self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
+        self.drop_emb = nn.Dropout(cfg["drop_rate"])
+
+        # self.trf_blocks = nn.Sequential(
+        #    *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
+        ####################################################
+        # NEW
+        self.trf_blocks = nn.ModuleList(
+            [TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
+
+        self.current_pos = 0
+        ####################################################
+
+        self.final_norm = LayerNorm(cfg["emb_dim"])
+        self.out_head = nn.Linear(cfg["emb_dim"], cfg["vocab_size"], bias=False)
+
+    def forward(self, in_idx, use_cache=False):
+        batch_size, seq_len = in_idx.shape
+        tok_embeds = self.tok_emb(in_idx)
+
+        # pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
+
+        ####################################################
+        # NEW
+
+        if use_cache:
+            pos_ids = torch.arange(self.current_pos, self.current_pos + seq_len, device=in_idx.device, dtype=torch.long)
+            self.current_pos += seq_len
+        else:
+            pos_ids = torch.arange(0, seq_len, device=in_idx.device, dtype=torch.long)
+        pos_embeds = self.pos_emb(pos_ids).unsqueeze(0)
+        ####################################################
+
+        x = tok_embeds + pos_embeds  # Shape [batch_size, num_tokens, emb_size]
+        x = self.drop_emb(x)
+
+        # x = self.trf_blocks(x)
+        ####################################################
+        # NEW
+        for blk in self.trf_blocks:
+            x = blk(x, use_cache=use_cache)
+        ####################################################
+
+        x = self.final_norm(x)
+        logits = self.out_head(x)
+        return logits
+
+    ####################################################
+    # NEW
+    def reset_kv_cache(self):
+        for blk in self.trf_blocks:
+            blk.att.reset_cache()
+        self.current_pos = 0
+    ####################################################
+
+
+def generate_text_simple(model, idx, max_new_tokens, context_size):
+    # idx is (B, T) array of indices in the current context
+    for _ in range(max_new_tokens):
+
+        # Crop current context if it exceeds the supported context size
+        # E.g., if LLM supports only 5 tokens, and the context size is 10
+        # then only the last 5 tokens are used as context
+        idx_cond = idx[:, -context_size:]
+
+        # Get the predictions
+        with torch.no_grad():
+            logits = model(idx_cond)
+
+        # Focus only on the last time step
+        # (batch, n_token, vocab_size) becomes (batch, vocab_size)
+        logits = logits[:, -1, :]
+
+        # Get the idx of the vocab entry with the highest logits value
+        idx_next = torch.argmax(logits, dim=-1, keepdim=True)  # (batch, 1)
+
+        # Append sampled index to the running sequence
+        idx = torch.cat((idx, idx_next), dim=1)  # (batch, n_tokens+1)
+
+    return idx
+
+
+####################################################
+# NEW
+def generate_text_simple_cached(model, idx, max_new_tokens,
+                                context_size=None, use_cache=True):
+    model.eval()
+    ctx_len = context_size or model.pos_emb.num_embeddings
+
+    with torch.no_grad():
+        if use_cache:
+            # Init cache with full prompt
+            model.reset_kv_cache()
+            logits = model(idx[:, -ctx_len:], use_cache=True)
+
+            for _ in range(max_new_tokens):
+                # a) pick the token with the highest log-probability (greedy sampling)
+                next_idx = logits[:, -1].argmax(dim=-1, keepdim=True)
+                # b) append it to the running sequence
+                idx = torch.cat([idx, next_idx], dim=1)
+                # c) feed model only the new token
+                logits = model(next_idx, use_cache=True)
+        else:
+            for _ in range(max_new_tokens):
+                logits = model(idx[:, -ctx_len:], use_cache=False)
+                next_idx = logits[:, -1].argmax(dim=-1, keepdim=True)
+                idx = torch.cat([idx, next_idx], dim=1)
+
+    return idx
+####################################################
+
+
+def main():
+    GPT_CONFIG_124M = {
+        "vocab_size": 50257,     # Vocabulary size
+        "context_length": 1024,  # Context length
+        "emb_dim": 768,          # Embedding dimension
+        "n_heads": 12,           # Number of attention heads
+        "n_layers": 12,          # Number of layers
+        "drop_rate": 0.1,        # Dropout rate
+        "qkv_bias": False        # Query-Key-Value bias
+    }
+
+    torch.manual_seed(123)
+    model = GPTModel(GPT_CONFIG_124M)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()  # disable dropout
+
+    start_context = "Hello, I am"
+
+    tokenizer = tiktoken.get_encoding("gpt2")
+    encoded = tokenizer.encode(start_context)
+    encoded_tensor = torch.tensor(encoded, device=device).unsqueeze(0)
+
+    print(f"\n{50*'='}\n{22*' '}IN\n{50*'='}")
+    print("\nInput text:", start_context)
+    print("Encoded input text:", encoded)
+    print("encoded_tensor.shape:", encoded_tensor.shape)
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    start = time.time()
+
+    # token_ids = generate_text_simple(
+    #     model=model,
+    #     idx=encoded_tensor,
+    #     max_new_tokens=200,
+    #     context_size=GPT_CONFIG_124M["context_length"]
+    # )
+
+    ####################################################
+    # NEW
+    token_ids = generate_text_simple_cached(
+        model=model,
+        idx=encoded_tensor,
+        max_new_tokens=200,
+    )
+    ####################################################
+
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    total_time = time.time() - start
+
+    decoded_text = tokenizer.decode(token_ids.squeeze(0).tolist())
+
+    print(f"\n\n{50*'='}\n{22*' '}OUT\n{50*'='}")
+    print("\nOutput:", token_ids)
+    print("Output length:", len(token_ids[0]))
+    print("Output text:", decoded_text)
+
+    print(f"\nTime: {total_time:.2f} sec")
+    print(f"{int(len(token_ids[0])/total_time)} tokens/sec")
+    if torch.cuda.is_available():
+        max_mem_bytes = torch.cuda.max_memory_allocated()
+        max_mem_gb = max_mem_bytes / (1024 ** 3)
+        print(f"Max memory allocated: {max_mem_gb:.2f} GB")
+
+
+if __name__ == "__main__":
+    main()
 ```
