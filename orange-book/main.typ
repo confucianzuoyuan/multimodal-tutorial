@@ -10776,8 +10776,8 @@ $C(x_t,bold(upright(x))_0)$是对于$x_(t-1)$的常数。高斯分布的方差�
 
 $
   tilde(beta)_t & = 1 / (alpha_t/beta_t + 1/(1-overline(alpha)_(t-1))) \
-                & = (1-overline(alpha)_(t-1)) / (1-overline(alpha)_t) beta_t space space space space space space colblue("（"beta_t=1-alpha_t"）") \
-                & = ((1-overline(alpha)_(t-1))(1-alpha_t)) / (1-overline(alpha)_t)
+  & = (1-overline(alpha)_(t-1)) / (1-overline(alpha)_t) beta_t space space space space space space colblue("（"beta_t=1-alpha_t"）") \
+  & = ((1-overline(alpha)_(t-1))(1-alpha_t)) / (1-overline(alpha)_t)
 $
 
 均值是
@@ -12071,13 +12071,13 @@ show_images(images, labels)
 
 #tip(title: [DALL-E2需要训练3个模型])[
   + CLIP模型
-  + 先验模型：Decoder-Only Transformer
-  + 生成图像的解码器网络：UNet
+  + 先验模型：Decoder-Only Transformer，先验模型的目标是生成高质量的*条件*。
+  + 条件扩散模型：UNet
 ]
 
 == CLIP
 
-为了从文本创建扩散图像（文生图），我们将使用CLIP模型中的嵌入。从CLIP获得的文本嵌入用于调节先验模型，使其扩散相应的图像嵌入。然后，这些图像嵌入用于调节解码器模型，用来指导解码器生成对应的图像。
+为了从文本创建扩散图像（文生图），我们将使用CLIP模型生成的嵌入（文本特征向量，图像特征向量）。从CLIP获得的文本嵌入用于调节先验模型，使其扩散相应的图像嵌入。然后，这些图像嵌入用于调节解码器模型，用来指导解码器生成对应的图像。
 
 #tip[
   CLIP模型训练完毕后，冻结起来供后续使用。
@@ -12099,6 +12099,11 @@ show_images(images, labels)
 先验模型是一个仅解码器架构的Transformer。
 
 === 先验模型的训练
+
+#figure(
+  image("rl-figures/先验模型的训练流程.svg"),
+  caption: [先验模型的训练原理],
+)
 
 要训练一个模型，我们必须搞清楚模型的输入和输出（预测目标）。
 
@@ -12135,6 +12140,11 @@ show_images(images, labels)
   + 训练好的CLIP模型
   + 训练好的先验模型
 ]
+
+#figure(
+  image("rl-figures/先验模型的推理流程.svg"),
+  caption: [先验模型的推理流程],
+)
 
 *先验模型的输入有6个：*
 
