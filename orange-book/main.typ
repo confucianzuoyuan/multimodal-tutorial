@@ -497,23 +497,23 @@ show_animation(frames)
 
 参见@fig-rl-loop 。
 
-假设在时刻 $t$ 的状态是 $S_t$ 。基于这个状态 $S_t$ ，智能体执行行动 $A_t$ ，获得奖励 $R_t$ 并迁移到下一个状态 $S_(t+1)$ 。智能体与环境之间的这种实际的互动产生了以下迁移。
+假设在时刻$t$的状态是$S_t$。基于这个状态$S_t$，智能体执行行动$A_t$，获得奖励$R_t$并转移到下一个状态$S_(t+1)$。智能体与环境之间的这种实际的互动产生了以下转移。
 
 $
   S_0,A_0,R_0,S_1,A_1,R_1,S_2,A_2,R_2,dots.c
 $
 
-这个时间序列数据从第一个状态 $S_0$ 开始。在状态 $S_0$ ，智能体执行行动 $A_0$ 并获得奖励 $R_0$ 。时刻变为 $1$ ，状态变为 $S_1$ 。接下来，基于状态 $S_1$ ，智能体执行行动 $A_1$ 并获得奖励 $R_1$，然后进入下一个状态 $S_2 dots.c dots.c$ 这个流程不断持续下去。
+这个时间序列数据从第一个状态$S_0$开始。在状态$S_0$，智能体执行动作$A_0$并获得奖励$R_0$。时刻变为$1$，状态变为$S_1$。接下来，基于状态$S_1$，智能体执行动作$A_1$并获得奖励$R_1$，然后进入下一个状态$S_2 dots.c dots.c$这个流程不断持续下去。
 
-MDP通过数学式来表示智能体、环境以及二者之间的互动。要做到这一点，需要用数学式来表达以下 3 个要素。
+MDP通过数学式来表示智能体、环境以及二者之间的互动。要做到这一点，需要用数学式来表达以下3个要素。
 
-- 状态迁移：状态如何迁移。
+- 状态转移：状态如何转移。
 - 奖励：如何给予奖励。
 - 策略：智能体如何决定行动。
 
 === 状态转移
 
-假设智能体现在处于状态 $s$ 并执行了行动 $a$ ，那么转移到下一个状态 $s'$ 的概率可以用如下方式表示。
+假设智能体现在处于状态$s$并执行了动作$a$，那么转移到下一个状态$s'$的概率可以用如下方式表示。
 
 $
   p(s'|s,a)
@@ -524,7 +524,7 @@ $
   - 观察（observation）：只能观察到环境的部分状态（信息）
 ]
 
-竖杠 $|$ 的右侧是表示"条件"的概率变量。对于当前问题，条件对应于在状态 $s$ 选择了行动 $a$ 。在给定这两个条件的情况下，转移到 $s'$ 的概率可以表示为 $p(s'|s,a)$ 。像 $p(s'|s,a)$ 这样的概率叫作状态转移概率（state transition probability）。
+竖杠$|$的右侧是表示"条件"的概率变量。对于当前问题，条件对应于在状态$s$选择了行动$a$。在给定这两个条件的情况下，转移到 $s'$ 的概率可以表示为 $p(s'|s,a)$ 。像 $p(s'|s,a)$ 这样的概率叫作状态转移概率（state transition probability）。
 
 给定当前状态$s$和采取的动作$a$的情况下，*不一定*会确定性的跳转到某个状态$s'$，所以是状态转移概率。
 
@@ -11244,7 +11244,7 @@ batch_size = 128
 num_timesteps = 1000
 epochs = 10
 lr = 1e-3
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def show_images(images, labels=None, rows=2, cols=10):
@@ -11262,7 +11262,7 @@ def show_images(images, labels=None, rows=2, cols=10):
     plt.tight_layout()
     plt.show()
 
-def _pos_encoding(time_idx, output_dim, device='cpu'):
+def _pos_encoding(time_idx, output_dim, device="cpu"):
     t, D = time_idx, output_dim
     v = torch.zeros(D, device=device)
 
@@ -11529,7 +11529,7 @@ $nabla$是表示梯度的符号，读作"那勃乐"（Nabla）。$nabla_(x_t) lo
   $p(x_t)$是表示数据$x_t$为"真"的随机密度函数。而$p_theta (x_t)$表示使用参数对真的概率密度函数进行近似的概率密度函数。由于$nabla_(x_t) log p (x_t)$和$nabla_(x_t) log p_theta (x_t)$表示关于输入$x_t$的梯度，因此称为"得分"。另外，在某些领域，关于参数的梯度（$nabla_theta log p_theta (x_t)$）也称为"得分"。在本书中，我们将对输入的梯度称为"得分"。
 ]
 
-根据式 @epsilon近似 ，$epsilon$可以近似表示为 $nabla_(x_t) log p(x_t)$。值得注意的是，$epsilon$ 与 $nabla_(x_t) log p(x_t)$之间只相差负常数倍（$-sqrt(1-overline(alpha)_t)$）。这说明以$-sqrt(1-overline(alpha)_t) epsilon$来代替$epsilon$作为训练数据的神经网络也是可行的。
+根据式@epsilon近似 ，$epsilon$可以近似表示为 $nabla_(x_t) log p(x_t)$。值得注意的是，$epsilon$ 与 $nabla_(x_t) log p(x_t)$之间只相差负常数倍（$-sqrt(1-overline(alpha)_t)$）。这说明以$-sqrt(1-overline(alpha)_t) epsilon$来代替$epsilon$作为训练数据的神经网络也是可行的。
 
 #figure(image("用于推断得分的神经网络.svg"), caption: [用于推断得分的神经网络])
 
@@ -11815,7 +11815,7 @@ batch_size = 128
 num_timesteps = 1000
 epochs = 10
 lr = 1e-3
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def show_images(images, labels=None, rows=2, cols=10):
@@ -11824,7 +11824,7 @@ def show_images(images, labels=None, rows=2, cols=10):
     for r in range(rows):
         for c in range(cols):
             ax = fig.add_subplot(rows, cols, i + 1)
-            plt.imshow(images[i], cmap='gray')
+            plt.imshow(images[i], cmap="gray")
             if labels is not None:
                 ax.set_xlabel(labels[i].item())
             ax.get_xaxis().set_ticks([])
@@ -11833,7 +11833,7 @@ def show_images(images, labels=None, rows=2, cols=10):
     plt.tight_layout()
     plt.show()
 
-def _pos_encoding(time_idx, output_dim, device='cpu'):
+def _pos_encoding(time_idx, output_dim, device="cpu"):
     t, D = time_idx, output_dim
     v = torch.zeros(D, device=device)
 
@@ -11844,7 +11844,7 @@ def _pos_encoding(time_idx, output_dim, device='cpu'):
     v[1::2] = torch.cos(t / div_term[1::2])
     return v
 
-def pos_encoding(timesteps, output_dim, device='cpu'):
+def pos_encoding(timesteps, output_dim, device="cpu"):
     batch_size = len(timesteps)
     device = timesteps.device
     v = torch.zeros(batch_size, output_dim, device=device)
@@ -11889,7 +11889,7 @@ class UNetCond(nn.Module):
         self.out = nn.Conv2d(64, in_ch, 1)
 
         self.maxpool = nn.MaxPool2d(2)
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear')
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear")
 
         if num_labels is not None:
             self.label_emb = nn.Embedding(num_labels, time_embed_dim)
@@ -11918,7 +11918,7 @@ class UNetCond(nn.Module):
 
 
 class Diffuser:
-    def __init__(self, num_timesteps=1000, beta_start=0.0001, beta_end=0.02, device='cpu'):
+    def __init__(self, num_timesteps=1000, beta_start=0.0001, beta_end=0.02, device="cpu"):
         self.num_timesteps = num_timesteps
         self.device = device
         self.betas = torch.linspace(beta_start, beta_end, num_timesteps, device=device)
@@ -11988,7 +11988,7 @@ class Diffuser:
 
 
 preprocess = transforms.ToTensor()
-dataset = torchvision.datasets.MNIST(root='./data', download=True, transform=preprocess)
+dataset = torchvision.datasets.MNIST(root="./data", download=True, transform=preprocess)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 diffuser = Diffuser(num_timesteps, device=device)
@@ -12027,12 +12027,12 @@ for epoch in range(epochs):
 
     loss_avg = loss_sum / cnt
     losses.append(loss_avg)
-    print(f'Epoch {epoch} | Loss: {loss_avg}')
+    print(f"Epoch {epoch} | Loss: {loss_avg}")
 
 # plot losses
 plt.plot(losses)
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
 plt.show()
 
 # generate samples
@@ -12262,7 +12262,7 @@ class SinusoidalPositionalEncodings(nn.Module):
                 else:
                     pe[pos][i] = np.cos(pos/(10000**((i-1)/width)))
 
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x):
         # Get positional encodings corresponding to inputted timesteps
