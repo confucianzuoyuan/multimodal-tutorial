@@ -10768,8 +10768,8 @@ $
   & = (q(x_(t-1)|bold(upright(x))_0)q(x_t|x_(t-1))) / q(x_t|bold(upright(x))_0) \
   & = (cal(N)(x_(t-1);sqrt(overline(alpha)_(t-1))bold(upright(x))_0,(1-overline(alpha)_(t-1))bold(I))cal(N)(x_t;sqrt(alpha)_t x_(t-1),(1-alpha_t)bold(I))) / (cal(N)(x_t;sqrt(overline(alpha)_t)bold(upright(x))_0, (1-overline(alpha)_t)bold(I))) \
   & prop exp { - 1/2 [ ( (x_t - sqrt(alpha_t)x_(t-1))^2 ) / beta_t + ( (x_(t-1) - sqrt(1-overline(alpha)_(t-1))bold(upright(x))_0)^2 ) / (1-overline(alpha)_(t-1)) - (x_t - sqrt(overline(alpha)_t)bold(upright(x))_0)^2 / (1-overline(alpha)_t) ] } \
-  & = exp { - 1/2 [ ( x_t^2 - 2 sqrt(alpha_t) x_(t-1) + alpha_t x_(t-1)^2 ) / beta_t + ( x^2_(t-1) - 2 sqrt(overline(alpha)_(t-1))x_(t-1) bold(upright(x))_0 + overline(alpha)_(t-1) bold(upright(x))_0^2 ) / (1-overline(alpha)_(t-1)) - (x_t - sqrt(overline(alpha)_t)bold(upright(x))_0)^2 / (1-overline(alpha)_t) ] } \
-  & = exp { - 1/2 [ (alpha_t / beta_t + 1 / (1-overline(alpha)_(t-1)))x_(t-2)^2 - 2 ( sqrt(alpha_t) / beta_t x_t + sqrt(overline(alpha)_(t-1)) / (1 - overline(alpha)_(t-1)) )x_(t-1) + C(x_t,bold(upright(x))_0) ] }
+  & = exp { - 1/2 [ ( x_t^2 - 2 sqrt(alpha_t) x_t x_(t-1) + alpha_t x_(t-1)^2 ) / beta_t + ( x^2_(t-1) - 2 sqrt(overline(alpha)_(t-1))x_(t-1) bold(upright(x))_0 + overline(alpha)_(t-1) bold(upright(x))_0^2 ) / (1-overline(alpha)_(t-1)) - (x_t - sqrt(overline(alpha)_t)bold(upright(x))_0)^2 / (1-overline(alpha)_t) ] } \
+  & = exp { - 1/2 [ (alpha_t / beta_t + 1 / (1-overline(alpha)_(t-1)))x_(t-1)^2 - 2 ( sqrt(alpha_t) / beta_t x_t + sqrt(overline(alpha)_(t-1)) / (1 - overline(alpha)_(t-1)) bold(upright(x))_0 )x_(t-1) + C(x_t,bold(upright(x))_0) ] }
 $
 
 $C(x_t,bold(upright(x))_0)$是对于$x_(t-1)$的常数。高斯分布的方差系数是
