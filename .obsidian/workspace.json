@@ -79,14 +79,12 @@
             "id": "c61ce398606b94e0",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "excalidraw",
               "state": {
-                "file": "7. 项目总结.md",
-                "mode": "source",
-                "source": false
+                "file": "Drawing 2025-09-29 16.50.38.excalidraw.md"
               },
-              "icon": "lucide-file",
-              "title": "7. 项目总结"
+              "icon": "excalidraw-icon",
+              "title": "Drawing 2025-09-29 16.50.38.excalidraw"
             }
           },
           {
@@ -253,6 +251,10 @@
   },
   "active": "c61ce398606b94e0",
   "lastOpenFiles": [
+    "Drawing 2025-09-29 16.50.38.excalidraw.md",
+    "Drawing 2025-11-21 16.22.48.excalidraw.md",
+    "Drawing 2025-11-22 18.04.47.excalidraw.md",
+    "7. 项目总结.md",
     "orange-book/rl-figures/奖励模型原理.svg",
     "orange-book/rl-figures/输出的每个token的奖励怎么给.svg",
     "orange-book/rl-figures/InstructGPT_Diagram3.1.svg",
@@ -269,17 +271,13 @@
     "orange-book/main.pdfGOuBOa",
     "orange-book/rl-figures/RLHF常用算法.svg",
     "orange-book/rl-figures/大语言模型训练流程.svg",
-    "orange-book/rl-figures/使用下界函数优化目标函数.svg",
     "orange-book/rl-figures/actor-critic-pg-loss.pdf",
     "orange-book/main.pdfdQXJoh",
     "orange-book/rl-figures/reinforce-pg-loss.pdf",
     "orange-book/rl-figures/pg-loss.pdf",
-    "Drawing 2025-11-22 18.04.47.excalidraw.md",
     "附录A：扩散模型数学推导.md",
     "6. DALL-E 2（文生图）.md",
     "文生图扩散解码器.excalidraw.md",
-    "Drawing 2025-09-29 16.50.38.excalidraw.md",
-    "Drawing 2025-11-21 16.22.48.excalidraw.md",
     "4. 条件扩散模型.md",
     "3. 扩散模型（diffusion model）.md",
     "Excalidraw/clip接生成模型的训练目标.excalidraw.md",
@@ -295,7 +293,6 @@
     "Excalidraw/模型的设计要点.excalidraw.md",
     "Excalidraw/3.3.excalidraw.md",
     "2. CLIP.md",
-    "7. 项目总结.md",
     "Excalidraw/3.2.excalidraw.md",
     "条件扩散模型.excalidraw.md",
     "1. Vision Transformer.md"
