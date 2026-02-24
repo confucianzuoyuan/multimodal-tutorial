@@ -79,12 +79,14 @@
             "id": "c61ce398606b94e0",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
+              "type": "markdown",
               "state": {
-                "file": "Drawing 2025-09-29 16.50.38.excalidraw.md"
+                "file": "1. Vision Transformer.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2025-09-29 16.50.38.excalidraw"
+              "icon": "lucide-file",
+              "title": "1. Vision Transformer"
             }
           },
           {
@@ -239,13 +241,13 @@
   },
   "left-ribbon": {
     "hiddenItems": {
+      "bases:新建数据库": false,
       "switcher:打开快速切换": false,
       "graph:查看关系图谱": false,
       "canvas:新建白板": false,
       "daily-notes:打开/创建今天的日记": false,
       "templates:插入模板": false,
       "command-palette:打开命令面板": false,
-      "bases:创建新数据库": false,
       "obsidian-excalidraw-plugin:新建绘图文件": false
     }
   },
