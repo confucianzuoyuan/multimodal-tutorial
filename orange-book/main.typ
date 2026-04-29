@@ -245,7 +245,7 @@ $
 由上面的式子可以推导出如下递推公式：
 
 $
-  G_t = R_t gamma G_(t+1)
+  G_t = R_t + gamma G_(t+1)
 $
 
 $gamma$ 叫做折扣因子。随着时间的推移，奖励会被 $gamma$ 指数级削弱。这个 $gamma$ 被称为折扣因子（discount rate），其被设定为 $0.0$ 和 $1.0$ 之间的实数。如果折扣因子是 $0.9$，那么有以下式子成立。
@@ -417,6 +417,7 @@ while not done:
 
 # 逆序计算$G_t = R_t + gamma G_(t+1)$
 for r in episode_rewards[::-1]:
+    # $G_t = R_t + gamma G_(t+1)$
     total_reward = r + gamma * total_reward
 
 print("total_reward:", total_reward)
@@ -1113,7 +1114,7 @@ $
 
 #theorem(name: [策略梯度定理])[
   $
-    nabla_theta J(theta) & = nabla_theta EE_(pi tilde pi_theta) [G(tau)] \
+    nabla_theta J(theta) & = nabla_theta EE_(tau tilde pi_theta) [G(tau)] \
                          & = EE_(tau tilde pi_theta) [sum_(t=0)^T G(tau) nabla_theta log pi_theta (A_t|S_t)]
   $ <pg-theorem>
 ]
@@ -1585,6 +1586,193 @@ test_agent(agent, env)
   image("rl-figures/reinforce-pg-loss.svg"),
   caption: [REINFORCE策略梯度算法获得的奖励],
 )
+
+=== REINFORCE证明
+
+可以证明：把整条轨迹回报$G(tau)$换成从时刻$t$开始的回报$G(t)$，本质上是利用了*因果性*：时刻$t$的动作不会影响时刻$t$之前已经发生的奖励。因此，过去奖励那部分在期望下对梯度贡献为$0$。
+
+将$G(tau)$拆成过去和未来两部分
+
+对某个时刻$t$，可以把整条轨迹回报拆成：
+
+$
+  G(tau)
+  =
+  sum_(k=0)^(t-1) gamma^k R_k
+  +
+  sum_(k=t)^(T-1) gamma^k R_k
+$
+
+记过去回报为
+
+$
+  G_(<t)
+  =
+  sum_(k=0)^(t-1) gamma^k R_k
+$
+
+未来回报为
+
+$
+  G_(>= t)
+  =
+  sum_(k=t)^(T-1) gamma^k R_k
+$
+
+于是有
+
+$
+  G(tau)=G_(<t)+G_(>= t)
+$
+
+代入梯度中的第$t$项：
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) G(tau)]
+$
+
+得到
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) G_(<t)] +
+  EE[nabla_theta log pi_theta (A_t|S_t) G_(>=t)]
+$
+
+关键是证明第一项为0。
+
+证明过去奖励项的期望为0。
+
+注意$G_(<t)$只依赖于时刻$t$之前发生的事情，也就是历史信息：
+
+$
+  H_t = (S_0, A_0, R_0, ..., S_t)
+$
+
+因此$G_(<t)$在给定$H_t$后是确定的。
+
+考虑条件期望：
+
+$
+  EE[G_(<t) nabla_theta pi_theta (A_t|S_t)|H_t]
+$
+
+因为$G_(<t)$对于$H_t$已知，可以将$G_(<t)$提到外面。得到
+
+$
+  G_(<t)EE[nabla_theta pi_theta (A_t|S_t)|H_t]
+$
+
+而给定$H_t$之后，只有$A_t$由策略$pi_theta(dot.c | S_t)$采样，因此
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) | H_t] = sum_a pi_theta (a|S_t) nabla_theta log pi_theta (a | S_t)
+$
+
+利用log梯度技巧
+
+$
+  pi_theta (a|S_t)nabla_theta log pi _ theta (a|S_t) = nabla_theta pi_theta (a|S_t)
+$
+
+得到
+
+$
+  sum_a pi_theta (a|S_t)nabla_theta log pi _ theta (a|S_t) = sum_a nabla_theta pi_theta (a|S_t)
+$
+
+而
+
+$
+  sum_a pi_theta (a|S_t) = 1
+$
+
+所以
+
+$
+  sum_a nabla_theta pi_theta (a|S_t) = nabla_theta sum_a pi_theta (a|S_t) = nabla_theta 1 = 0
+$
+
+因此
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t)|H_t] = 0
+$
+
+从而
+
+$
+  EE[G_(<t) nabla_theta log pi_theta (A_t|S_t)] = 0
+$
+
+这说明：时刻$t$之前的奖励可以从第$t$项的回报中删掉，不改变期望梯度。
+
+因此可以替换为"reward-to-go"
+
+所以：
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t)G(tau)] = EE[nabla_theta log pi_theta (A_t|S_t) G_(>=t)]
+$
+
+于是整体梯度可以写成：
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) nabla_theta log pi_theta (A_t|S_t) sum_(k=t)^(T-1) gamma^k R_k]
+$
+
+如果定义从时刻$t$开始的"reward-to-go"为
+
+$
+  G_t = sum_(k=t)^(T-1) gamma^(k-t) R_k
+$
+
+那么上式也常写为
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) gamma^t nabla_theta log pi_theta (A_t|S_t) G_t]
+$
+
+很多教材会把折扣因子的位置简化或吸收到$G_t$的定义中，因此也常见写法：
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) nabla_theta log pi_theta (A_t|S_t) G_t]
+$
+
+直观解释
+
+原始形式中，第$t$个策略梯度项是：
+
+$
+  nabla_theta log pi_theta (A_t|S_t)G(tau)
+$
+
+但$A_t$只会影响：
+
+- 当前奖励；
+- 未来状态；
+- 未来奖励。
+
+它不可能影响已经发生的过去奖励。因此把过去奖励乘到
+
+$
+  nabla_theta log pi_theta (A_t|S_t)
+$
+
+上，只会增加噪声，不会改变期望值。
+
+所以用$G_t$代替$G(tau)$不会改变梯度的无偏性，但可以降低方差。
+
+结论
+
+REINFORCE中将整条轨迹回报$G(tau)$替换为从当前时刻开始的回报$G(t)$是成立的，因为对于任意时刻$t$，过去奖励部分满足
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) sum_(k=0)^(t-1) gamma^k R_k] = 0
+$
+
+因此删掉过去奖励不会引入偏差，只是减少了方差。这就是所谓的"reward-to-go trick"或"因果性改进"。
+
+
 
 == 带基线（baseline）的策略梯度法
 
