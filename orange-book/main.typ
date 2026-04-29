@@ -1863,7 +1863,16 @@ $
 #tip(title: [时序差分误差])[
   使用神经网络对价值函数建模时，我们以接近$R_t+gamma V_omega (S_(t+1))$为目标训练$V_omega (S_t)$的值。具体来说就是将$V_omega (S_t)$和$R_t+gamma V_omega (S_(t+1))$的均方差作为损失函数，通过梯度下降法更新神经网络的权重。
 
-  贝尔曼期望方程：$V_omega (S_t)=EE_pi [ R_t + gamma V_omega (S_(t+1)) | S_t ]$
+  贝尔曼期望方程：$V_omega (S_t = s) = EE_pi [G_t|S_t=s] = EE_pi [ R_t + gamma V_omega (S_(t+1)=s') | S_t = s]$
+
+  如果我们的价值函数是#underline[真实的]价值函数的话，那么用$R_t + gamma V_omega (S_(t+1))$替换掉$G_t$是*无偏的*。两者区别在于：
+
+  - $G_t$是真实的未来回报。
+  - $R_t + gamma V_omega (S_(t+1))$是用价值函数来估计未来的回报。
+
+  如果$V$是真实的价值函数，那么在期望意义下，$V_omega (S_t = s) = EE_pi [G_t|S_t=s] = EE_pi [ R_t + gamma V_omega (S_(t+1)=s') | S_t = s]$。
+
+  而我们的$V_omega$是一个神经网络，显然不是真实的价值函数，所以不能保证是#underline[无偏估计]。所以希望随着训练，能够逼近真实的价值函数。但也有可能偏差越来越大！
 
   可以看到$V_omega (S_t) arrow R_t+gamma V_omega (S_(t+1))$是由贝尔曼期望方程而来的。
 ]
