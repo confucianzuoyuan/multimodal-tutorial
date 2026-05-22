@@ -16,7 +16,7 @@
 #codly(languages: codly-languages)
 
 #show: book.with(
-  title: "强化学习和多模态教程",
+  title: "大语言模型、强化学习和多模态教程",
   subtitle: "理论与实践",
   date: "Anno scolastico 2023-2024",
   author: "左元",
@@ -58,6 +58,747 @@
 #let colblue(x) = text(fill: blue, $#x$)
 
 #set list(marker: ([•], [‣]))
+
+#set math.mat(delim: "[")
+
+#part("大语言模型")
+
+#chapter("LLM简介", image: image("./orange2.jpg"), l: "llm-introduction")
+
+== 大语言模型要解决的问题是什么？
+
+大语言模型要解决的问题是#underline[预测下一个token（next token prediction，NTP）]。
+
+#figure(
+  image("ntp.svg"),
+  caption: [预测下一个token],
+)
+
+== 如何训练一个能预测下一个token的模型？
+
+- 训练数据（输入-目标对）长什么样子？
+- 模型结构如何设计？神经网络本质上是一个函数，这个函数长什么样子？参数有多少？
+- 神经网络接收输入之后，输出和目标之间的损失（差异）怎么衡量？也就是说损失函数怎么设计？
+- 如何让损失函数最小化？梯度下降法以及变种：SGD，Adam，AdamW，Muon等优化器
+- 梯度下降法需要求损失函数对于参数的导数（梯度），那么梯度如何得来？反向传播算法求参数的梯度：`loss.backward()`。
+
+== 训练数据（输入-目标对）长什么样子？
+
+文本数据："君不见黄河之水天上来"
+
+#figure(
+  table(
+    columns: 2,
+    [输入], [预测目标],
+    [君不见黄河], [之],
+    [君不见黄河之], [水],
+    [君不见黄河之水], [天],
+    [君不见黄河之水天], [上],
+    [君不见黄河之水天上], [来],
+  ),
+  caption: [输入和预测目标],
+)
+
+可以看到训练数据可以通过程序处理原始文本数据，自动生成，所以叫做"自监督学习"。
+
+也就是说，预测目标不是人类标注而来，而是程序通过切分文本自动标注的。
+
+为了充分利用GPU的并行计算能力，训练数据一般如下组织。
+
+#figure(
+  image("llm-figures/2.svg"),
+  caption: [数据组织方法],
+)
+
+== 模型结构的设计
+
+Decoder-Only Transformer。仅解码器的Transformer架构。
+
+#figure(
+  image("llm-figures/3.svg"),
+  caption: [GPT-2架构]
+)
+
+== 损失函数的设计
+
+LLM本质上是一个分类模型。
+
+从极大似然估计的角度看到LLM。
+
+假设训练数据为"abcd"，那么我们希望下面的概率越大越好。
+
+$
+  P_theta ("d"|"abc") dot.c P_theta ("c"|"ab") dot.c P_theta ("b"|"a")
+$
+
+其中$theta$是神经网络的参数。最大化上面的式子等价于最大化下面的式子
+
+$
+  log { P_theta ("d"|"abc") dot.c P_theta ("c"|"ab") dot.c P_theta ("b"|"a") } \
+  = log P_theta ("d"|"abc") + log P_theta ("c"|"ab") + log P_theta ("b"|"a")
+$
+
+而最大化上面的式子，等价于最小化下面的式子
+
+$
+  -log P_theta ("d"|"abc") - log P_theta ("c"|"ab") - log P_theta ("b"|"a")
+$
+
+而上面的这个式子就是#underline[交叉熵损失函数]！
+
+也就是给定输入"ab"，我们希望预测的下一个token属于分类"c"的概率越大越好。
+
+给定输入"abc"，我们希望预测的下一个token属于分类"d"的概率越大越好。
+
+#figure(
+  image("llm-figures/4.svg"),
+  caption: [LLM本质是个分类模型]
+)
+
+#chapter("GPT-2", image: image("./orange2.jpg"), l: "gpt2")
+
+== GPT-2模型结构的定义以及数据集的准备
+
+创建一个文件`gpt_model.py`。
+
+我们首先导入需要的依赖。
+
+```python
+import tiktoken # 分词器库
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+```
+
+=== 数据集的准备
+
+#figure(
+  image("llm-figures/5.svg"),
+  caption: [分词]
+)
+
+接下来我们构建数据集。
+
+```python
+class GPTDatasetV1(Dataset):
+    def __init__(self, txt, tokenizer, max_length, stride):
+        self.input_ids = []
+        self.target_ids = []
+
+        # 对整个文本进行分词
+        token_ids = tokenizer.encode(txt, allowed_special={"<|endoftext|>"})
+
+        # 使用滑动窗口将文本切割成**重叠的**长度为`max_length`的序列
+        for i in range(0, len(token_ids) - max_length, stride):
+            input_chunk = token_ids[i : i + max_length]
+            target_chunk = token_ids[i + 1 : i + max_length + 1]
+            self.input_ids.append(torch.tensor(input_chunk))
+            self.target_ids.append(torch.tensor(target_chunk))
+
+    def __len__(self):
+        return len(self.input_ids)
+    
+    def __getitem__(self, idx):
+        return self.input_ids[idx], self.target_ids[idx]
+```
+
+然后我们封装一个工具函数，用来创建训练数据集。
+
+```python
+def create_dataloader_v1(
+  txt,
+  batch_size=4,
+  max_length=256,
+  stride=128,
+  shuffle=True,
+  drop_last=True,
+  num_workers=0,
+):
+    # 初始化分词器
+    tokenizer = tiktoken.get_encoding("gpt2")
+    # 创建数据集
+    dataset = GPTDatasetV1(txt, tokenizer, max_length, stride)
+    # 创建dataloader
+    dataloader = DataLoader(
+      dataset,
+      batch_size=batch_size,
+      shuffle=shuffle,
+      drop_last=drop_last,
+      num_workers=num_workers,
+    )
+
+    return dataloader
+```
+
+#figure(
+  image("llm-figures/6.png"),
+  caption: [数据集]
+)
+
+=== 模型结构
+
+接下来我们自顶向下的来定义模型结构。
+
+```python
+class GPTModel(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.tok_emb = nn.Embedding(cfg["vocab_size"], cfg["emb_dim"])
+        self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
+        self.drop_emb = nn.Dropout(cfg["drop_rate"])
+
+        self.trf_blocks = nn.Sequential(
+          *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
+        
+        self.final_norm = LayerNorm(cfg["emb_dim"])
+        self.out_head = nn.Linear(cfg["emb_dim"], cfg["vocab_size"], bias=False)
+
+    def forward(self, in_idx):
+        batch_size, seq_len = in_idx.shape
+        tok_embeds = self.tok_emb(in_idx)
+        pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
+        x = tok_embeds + pos_embeds # 形状：[batch_size, num_tokens, emb_size]
+        x = self.drop_emb(x)
+        x = self.trf_blocks(x)
+        x = self.final_norm(x)
+        logits = self.out_head(x)
+        return logits
+```
+
+神经网络本身是一个函数，而神经网络这个函数的定义关键要看`.forward`方法，也就是`.forward`方法定义了神经网络的计算图长什么样子。
+
+==== 词嵌入
+
+首先GPT-2模型的输入`in_idx`是一批token id列表，形状为`(batch_size, seq_len)`。
+
+所以```python batch_size, seq_len = in_idx.shape```这一行可以提取批次的大小`batch_size`和每条数据序列的长度`seq_len`。
+
+而```python tok_embeds = self.tok_emb(in_idx)```将输入的token id列表转换成了形状为`(batch_size, seq_len, emb_dim)`的张量。
+
+`nn.Embedding`的作用是将token id转换成一个向量，如GPT-2会将一个token id转换成一个768个浮点数元素的向量。
+
+#figure(
+  image("llm-figures/7.png"),
+  caption: [词嵌入]
+)
+
+#figure(
+  image("llm-figures/8.png"),
+  caption: [一条数据和一批数据的词嵌入示例]
+)
+
+在PyTorch中，嵌入层实现的功能与执行矩阵乘法的线性层相同；我们使用嵌入层主要是出于计算效率的考虑。
+
+```python
+# 假设我们有以下3个训练样本，
+# 它们可能代表LLM上下文中的token ID
+idx = torch.tensor([2, 3, 1])
+
+# 嵌入矩阵的行数可以通过
+# 获取最大的token ID + 1来确定。
+# 如果最大的token ID是3，那么我们需要4行，用于可能的
+# token ID：0, 1, 2, 3
+num_idx = max(idx)+1
+
+# 期望的嵌入维度是一个超参数
+out_dim = 5
+```
+
+实现一个简单的嵌入层
+
+```python
+torch.manual_seed(123)
+embedding = torch.nn.Embedding(num_idx, out_dim)
+print(embedding.weight) # 查看嵌入权重
+# 获取训练示例ID为1的向量表示
+print(embedding(torch.tensor([1])))
+# 获取训练示例ID为2的向量表示
+print(embedding(torch.tensor([2])))
+# 查找一批ID的向量表示
+idx = torch.tensor([2, 3, 1])
+print(embedding(idx))
+```
+
+现在我们用独热编码和`nn.Linear`实现和上面的嵌入层一样的功能。
+
+首先将token ID转换为独热编码
+
+```python
+onehot = torch.nn.functional.one_hot(idx)
+print(onehot)
+```
+
+接下来，我们初始化一个线性变换层，它会执行一个矩阵乘法：$X W^T$
+
+```python
+torch.manual_seed(123)
+linear = torch.nn.Linear(num_idx, out_dim, bias=False)
+print(linear.weight)
+```
+
+请注意，PyTorch中的线性层同样是用小的随机权重初始化的；为了与上面的Embedding层直接比较，我们必须使用相同的小随机权重，这就是我们在此处重新赋值它们的原因：
+
+```python
+linear.weight = torch.nn.Parameter(embedding.weight.T)
+```
+
+现在我们可以将线性层应用于输入数据的独热编码表示
+
+```python
+print(linear(onehot.float()))
+print(embedding(idx))
+```
+
+正如我们所见，这与使用嵌入层时得到的结果完全相同。
+
+底层执行的是对第一个训练示例的token ID进行的如下计算：
+
+由于每行独热编码中除一个索引外全为 0（这是设计的必然结果），该矩阵乘法实质上等同于对独热元素的查表操作。
+
+这种在独热编码上使用矩阵乘法的做法等价于嵌入层查找操作，但当处理大型嵌入矩阵时会效率低下，因为存在大量与零相乘的无效计算。
+
+==== 位置编码
+
+GPT-2使用的是#underline[可学习]位置编码。
+
+```python
+self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
+```
+
+为token id的位置构建一个嵌入查找表，例如如果我们的`context_length`为256的话。那么查找表如下：
+
+#figure(
+  table(
+    columns: 2,
+    [token id的索引], [位置嵌入向量],
+    [0], [768个元素的向量],
+    [1], [768个元素的向量],
+    [2], [768个元素的向量],
+    [...], [...],
+    [255], [768个元素的向量],
+  ),
+  caption: [上下文长度为256的位置嵌入查找表]
+)
+
+所以
+
+```python
+pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
+```
+
+为`[0, 1, ..., seq_len - 1]`中的每个位置分配了一个768元素的向量，作为对应的位置编码。也就是将序列的每个位置编号组成的序列变换成形状`(batch_size, seq_len, emb_dim)`。
+
+然后我们就会将token的词嵌入向量和token所在位置的位置嵌入向量直接相加。
+
+```python
+x = tok_embeds + pos_embeds
+```
+
+初看起来，在token向量上面添加位置信息会破坏输入向量，使得网络的任务变得更加难以完成。不过，从两个随机选择的不相关向量在高维空间中几乎是正交的这一现象中，我们可以了解到这一方法为什么能够很好的发挥作用，这表明网络能够相对独立的处理token的身份信息和位置信息。另外，请注意，由于Transformer中的层与层之间都有残差连接，因此位置信息从一层转到下一层的过程中不会丢失。
+
+这里我们发现了，每个token id对应的768元素向量，在训练结束时，会固定下来。例如：假设"hello"这个token的id是1，那么1对应的768个元素向量就固定了。
+
+而序列中的为个位置（索引）对应的768个元素向量，在训练结束时也会固定下来。
+
+设想有两条文本：
+
+- "我是左元"
+- "我是莎士比亚"
+
+两句话中的token"我"的token嵌入和位置嵌入一模一样
+
+- 相同token id对应的token嵌入向量一定相同
+- 相同位置（两个"我"都为索引0）对应的位置嵌入向量也一定相同
+
+所以`x = tok_embeds + pos_embeds`是一样的！但很明显，两个"我"指代的人名是不一样的，所以这两个语义在GPT-2中如何进行区分呢？那就是注意力机制，或者说Transformer模块了！
+
+==== 仅解码器的Transformer
+
+在模型的初始化时，我们堆叠了很多层的TransformerBlock。
+
+```python
+self.trf_blocks = nn.Sequential(*[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
+```
+
+然后在前向传播的过程中，
+
+```python
+x = self.trf_blocks(x)
+```
+
+堆叠很多层TransformerBlock，然后顺序执行。这里也可以看出TransformerBlock的输入和输出的形状必须一致！否则无法堆叠！
+
+送进transformer模块的是#underline[token嵌入+位置嵌入]，形状为：`(batch_size, seq_len, emb_dim)`。
+
+#figure(
+  image("llm-figures/10.png"),
+  caption: [进入`self.trf_blocks`的数据]
+)
+
+接下来我们编写TransformerBlock的代码
+
+```python
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.att = MultiHeadAttention(
+            d_in=cfg["emb_dim"],
+            d_out=cfg["emb_dim"],
+            context_length=cfg["context_length"],
+            num_heads=cfg["n_heads"],
+            dropout=cfg["drop_rate"],
+            qkv_bias=cfg["qkv_bias"],
+        )
+        self.ff = FeedForward(cfg)
+        self.norm1 = LayerNorm(cfg["emb_dim"])
+        self.norm2 = LayerNorm(cfg["emb_dim"])
+        self.drop_shortcut = nn.Dropout(cfg["drop_rate"])
+
+    def forward(self, x):
+        # 连接到注意力模块输出的残差连接
+        shortcut = x
+        x = self.norm1(x)
+        x = self.att(x) # 形状：[batch_size, num_tokens, emb_size]
+        x = self.drop_shortcut(x)
+        x = x + shortcut # 将原始的输入加过来
+
+        # 连接到feed-forward block输出的残差连接
+        shortcut = x
+        x = self.norm2(x)
+        x = self.ff(x)
+        x = self.drop_shortcut(x)
+        x = x + shortcut # 将原始的输入加过来
+
+        return x
+```
+
+#figure(
+  image("llm-figures/9.png"),
+  caption: [TransformerBlock的架构图]
+)
+
+`self.trf_blocks(x)`的输入的形状也是下面的形状
+
+#figure(
+  image("llm-figures/10.png"),
+  caption: [`self.trf_blocks`输出的数据]
+)
+
+==== 层归一化（LayerNorm）
+
+$
+  y = (x - upright(E)[x])/(sqrt("Var"[x] + epsilon)) * gamma + beta
+$
+
+#figure(
+    image("llm-figures/12.png"),
+    caption: [层归一化]
+)
+
+```python
+class LayerNorm(nn.Module):
+    def __init__(self, emb_dim):
+        super().__init__()
+        self.eps = 1e-5 # $epsilon$
+        self.scale = nn.Parameter(torch.ones(emb_dim)) # $gamma$
+        self.shift = nn.Parameter(torch.zeros(emb_dim)) # $beta$
+
+    def forward(self, x):
+        mean = x.mean(dim=-1, keepdim=True) # $upright(E)[x]$
+        var = x.var(dim=-1, keepdim=True, unbiased=False) # $"Var"[x]$
+        # $(x - upright(E)[x])/(sqrt("Var"[x] + epsilon))$
+        norm_x = (x - mean) / torch.sqrt(var + self.eps)
+        # $y = (x - upright(E)[x])/(sqrt("Var"[x] + epsilon)) * gamma + beta$
+        return self.scale * norm_x + self.shift
+```
+
+层归一化模块(LayerNorm)：在`emb_dim`这个维度进行归一化。
+
+这里要注意的是：LayerNorm的输入和输出形状相同！也就是说，输入`x`的形状`(batch_size, seq_len, emb_dim)`，输出的形状也是`(batch_size, seq_len, emb_dim)`。只是在`emb_dim`这一个维度进行了归一化。
+
+#figure(
+    image("llm-figures/11.png"),
+    caption: [公式注解]
+)
+
+LayerNorm中有两个参数$gamma$和$beta$会在训练时更新。
+
+==== 多头注意力
+
+```python
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
+        super().__init__()
+        assert d_out % num_heads == 0, "d_out 必须能被 n_heads 整除"
+
+        self.d_out = d_out
+        self.num_heads = num_heads
+        self.head_dim = d_out // num_heads # 
+
+        self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.out_proj = nn.Linear(d_out, d_out)
+        self.dropout = nn.Dropout(dropout)
+        self.register_buffer("mask", torch.triu(torch.ones(context_length, context_length), diagonal=1))
+
+    def forward(self, x):
+        b, num_tokens, d_in = x.shape
+        # $K = X dot.c W_K^T$
+        keys = self.W_key(x) # 形状：(b, num_tokens, d_out)
+        # $Q = X dot.c W_Q^T$
+        queries = self.W_query(x)
+        # $V = X dot.c W_V^T$
+        values = self.W_value(x)
+
+        # 通过添加一个`num_heads`维度，我们隐式的将矩阵进行了split
+        # 将最后一个维度展开：(b, num_tokens, d_out) -> (b, num_tokens, num_heads, head_dim)
+        keys = keys.view(b, num_tokens, self.num_heads, self.head_dim)
+        values = values.view(b, num_tokens, self.num_heads, self.head_dim)
+        queries = queries.view(b, num_tokens, self.num_heads, self.head_dim)
+
+        # 转置：(b, num_tokens, num_heads, head_dim) -> (b, num_heads, num_tokens, head_dim)
+        keys = keys.transpose(1, 2)
+        queries = queries.transpose(1, 2)
+        values = values.transpose(1, 2)
+
+        # 计算缩放点积注意力（scaled dot-product attention）也就是自注意力，使用因果注意力掩码（causal mask）
+        # $"attention_scores"=Q K^T$
+        attn_scores = queries @ keys.transpose(2, 3) # 每个头计算点积
+
+        # 原始的掩码方阵需要切割token序列的长度，然后转换成布尔类型
+        mask_bool = self.mask.bool()[:num_tokens, :num_tokens]
+
+        # 使用掩码填充注意力分数
+        attn_scores.masked_fill_(mask_bool, -torch.inf)
+
+        attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
+        attn_weights = self.dropout(attn_weights)
+
+        # 形状：(b, num_tokens, num_heads, head_dim)
+        context_vec = (attn_weights @ values).transpose(1, 2)
+
+        # 将多个头组合起来，这里 self.d_out = self.num_heads * self.head_dim
+        context_vec = context_vec.reshape(b, num_tokens, self.d_out)
+        context_vec = self.out_proj(context_vec) # 可选的线性变换（投影）
+
+        return context_vec
+```
+
+==== 前馈层
+
+TransformerBlock里的Feed Forward Network，简称FFN/MLP，可以理解为：在注意力机制完成"不同token之间的信息交换"之后，对每个token各自做一次非线性特征加工和升维变换。Self-Attention负责"看别人、融合上下文"，FFN负责"想一想、重新组织这个token的内部表示"。两者配合起来，Transformer才既能建模上下文关系，又有足够强的表达能力。
+
+也就是说：
+
+- Attention子层：让token之间互相通信
+- FFN子层：对每个token的表示单独进行非线性变换
+
+Transformer中常见的FFN是一个两层MLP：
+
+$
+  "FFN"(x) = W_2 sigma (W_1 x + b_1) + b_2
+$
+
+其中：
+
+- $x$是某个token的隐藏状态（hidden state）。
+- $W_1$把维度从$d_"model"$扩展到$d_"ff"$
+- $sigma$是激活函数，例如ReLU、GELU、SwiGLU等。
+- $W_2$再把维度从$d_"ff"$压回$d_"model"$。
+
+中间维度通常是模型维度的4倍左右。
+
+Self-Attention本质上主要是在不同token的表示之间做加权组合。
+
+如果没有FFN，模型会更像是在反复做"上下文混合"，但缺少足够强的非线性加工能力。
+
+FFN中的激活函数，例如GELU，会引入非线性，这使模型能够表达更复杂的函数关系，而不是简单地线性混合信息。
+
+可以类比一下：
+
+- Attention：把相关信息从上下文中找出来
+- FFN：对找到的信息进行加工、判断、抽象
+
+就像开会时，Attention是"听取大家意见"，FFN是"自己消化一下"。不然只听不想，会议纪要会很热闹，但决策不一定靠谱。
+
+FFN对序列中的每个位置使用同一套参数，但每个token独立处理。
+
+它不会直接让token之间交流。
+
+token之间的交流主要发生在Self-Attention中。
+
+FFN通常会先升维，再降维。这个结构很重要。升维到更大的空间后，模型可以形成更多中间特征；再压回原维度，相当于筛选和组合这些特征。
+
+可以理解为：
+
+- 把token表示投影到更丰富的特征空间
+- 通过激活函数筛选重要模式
+- 再压缩回原来的表示维度
+
+这有点像把一张小照片放大后仔细修图，再缩回合适尺寸。不是为了变大，而是为了在更大的空间里做更细的处理。
+
+在大语言模型里，FFN/MLP层往往被认为承担了大量"知识存储"和"模式记忆"的功能。
+
+有一些研究观察到：
+
+- Attention更偏向于路由信息：决定从哪里取信息
+- FFN更偏向于内容变换：决定把信息变成什么
+- 某些MLP神经元会对特定概念、语言模式、事实关联有响应
+
+当然，这不是说"知识只存在FFN中"，但FFN确实是参数量很大的部分，往往承载了大量可学习模式。
+
+Attention把信息聚合过来之后，需要有一个模块对聚合后的信息做"解释"。
+
+例如句子：
+
+```
+The bank is near the river.
+```
+
+Attention可以让`bank`关注`river`，但FFN可以进一步把bank的表示推向"河岸"这个语义区域。
+
+另一个句子：
+
+```
+I deposited money in the bank.
+```
+
+Attention可以让bank关注money，FFN再把它加工成"银行机构"的语义表示。
+
+当然这是简化描述，但直觉上很有用。
+
+FFN 的参数量很大。
+
+一个标准 FFN 参数量大约是：
+
+$
+  d_"model" times d_"ff" + f_"ff" times d_"model"
+$
+
+如果
+
+$
+  d_"ff" = 4d_"model"
+$
+
+那么FFN参数量约为：
+
+$
+  8d^2_"model"
+$
+
+而 Attention 中 Q、K、V、O 四个矩阵大约是：
+
+$
+  4d^2_"model"
+$
+
+所以FFN往往比Attention参数还多。
+
+这也是为什么它对模型能力非常关键。
+
+Transformer block 中的 Feed Forward Network 的作用是：
+
+对每个 token 的上下文表示进行独立的非线性变换，提升模型表达能力、重组特征，并承担大量模式/知识存储功能。
+
+```python
+class GELU(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(
+            torch.sqrt(torch.tensor(2.0 / torch.pi)) *
+            (x + 0.044715 * torch.pow(x, 3))
+        ))
+
+
+class FeedForward(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(cfg["emb_dim"], 4 * cfg["emb_dim"]),
+            GELU(),
+            nn.Linear(4 * cfg["emb_dim"], cfg["emb_dim"]),
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+```
+
+==== 简单的推理代码
+
+```python
+def generate_text_simple(model, idx, max_new_tokens, context_size):
+    # idx的形状为(B, T)
+    for _ in range(max_new_tokens):
+        # 将当前上下文裁剪到我们支持的上下文长度
+        # 例如LLM如果只支持5个token，而上下文长度为10，
+        # 那么只保留最后5个token作为上下文
+        idx_cond = idx[:, -context_size:]
+
+        # 预测
+        with torch.no_grad():
+            logits = model(idx_cond)
+
+        # 只取最后一个
+        # (batch, n_token, vocab_size) -> (batch, vocab_size)
+        logits = logits[:, -1, :]
+
+        # 获取logits分数最高的值的索引
+        idx_next = torch.argmax(logits, dim=-1, keepdim=True) # (batch, 1)
+
+        # 将下一个token在词汇表中的索引追加到序列后面
+        idx = torch.cat((idx, idx_next), dim=1) # (batch, n_tokens + 1)
+    
+    return idx
+```
+
+main函数如下：
+
+```python
+if __name__ == "__main__":
+
+    GPT_CONFIG_124M = {
+        "vocab_size": 50257,     # 词汇表大小
+        "context_length": 1024,  # 上下文长度
+        "emb_dim": 768,          # 词嵌入维度
+        "n_heads": 12,           # 注意力头的数量
+        "n_layers": 12,          # transformer block的层数
+        "drop_rate": 0.1,        # Dropout rate
+        "qkv_bias": False        # Query-Key-Value bias
+    }
+
+    torch.manual_seed(123)
+    model = GPTModel(GPT_CONFIG_124M)
+    model.eval()  # 禁用dropout
+
+    start_context = "Hello, I am"
+
+    tokenizer = tiktoken.get_encoding("gpt2")
+    encoded = tokenizer.encode(start_context)
+    encoded_tensor = torch.tensor(encoded).unsqueeze(0)
+
+    print(f"\n{50*'='}\n{22*' '}IN\n{50*'='}")
+    print("\nInput text:", start_context)
+    print("Encoded input text:", encoded)
+    print("encoded_tensor.shape:", encoded_tensor.shape)
+
+    out = generate_text_simple(
+        model=model,
+        idx=encoded_tensor,
+        max_new_tokens=10,
+        context_size=GPT_CONFIG_124M["context_length"]
+    )
+    decoded_text = tokenizer.decode(out.squeeze(0).tolist())
+
+    print(f"\n\n{50*'='}\n{22*' '}OUT\n{50*'='}")
+    print("\nOutput:", out)
+    print("Output length:", len(out[0]))
+    print("Output text:", decoded_text)
+```
+
 
 #part("强化学习")
 
@@ -1671,13 +2412,13 @@ $
 利用log梯度技巧
 
 $
-  pi_theta (a|S_t)nabla_theta log pi _ theta (a|S_t) = nabla_theta pi_theta (a|S_t)
+  pi_theta (a|S_t)nabla_theta log pi_theta (a|S_t) = nabla_theta pi_theta (a|S_t)
 $
 
 得到
 
 $
-  sum_a pi_theta (a|S_t)nabla_theta log pi _ theta (a|S_t) = sum_a nabla_theta pi_theta (a|S_t)
+  sum_a pi_theta (a|S_t)nabla_theta log pi_theta (a|S_t) = sum_a nabla_theta pi_theta (a|S_t)
 $
 
 而
@@ -3358,6 +4099,165 @@ $
 #danger[
   由于我们将硬约束条件变成软约束条件做进了目标函数，所以约束就没那么强了。这也是PPO偶尔会训练退化的原因了。
 ]
+
+== 补充知识
+
+=== 状态访问分布
+
+状态访问分布描述的是：在某个策略下，智能体在环境中运行时，访问各个状态的概率有多大。
+
+也就是说，一个策略不只是决定动作，还会决定智能体未来更可能到哪些状态。
+
+给定一个策略：
+
+$
+  pi(a|s)
+$
+
+初始状态分布为：
+
+$
+  rho_0 (s)
+$
+
+环境的状态转移概率为：
+
+$
+  P(s'|s,a)
+$
+
+那么在策略$pi$下，第$t$步处于状态$s$的概率记作：
+
+$
+  d_pi^t (s) = "Pr"(S_t=s|pi)
+$
+
+这就是#underline[时刻$t$的状态访问分布]。
+
+例如：
+
+$
+  d^0_pi (s) = rho_0 (s)
+$
+
+因为第0步状态来自初始状态分布。
+
+第1步：
+
+$
+  d^1_pi (s') = sum_s d_pi^0 (s) sum_a pi(a|s) P(s'|s,a)
+$
+
+第2步：
+
+$
+  d^2_pi (s'') = sum_s' d_pi^1 (s') sum_a pi(a|s) P(s'|s,a)
+$
+
+一般递推为：
+
+$
+  d^(t+1)_pi (s') = sum_s d_pi^t (s) sum_a pi(a|s) P(s'|s,a)
+$
+
+假设一个简单的走廊：A --- B --- C。初始状态在B，那么如果策略总是向左走，那么产生的轨迹如下：
+
+$
+  B arrow A arrow A arrow A arrow dots.c
+$
+
+所以状态访问分布是：
+
+$
+  d_pi^0(B) & = 1 \
+  d_pi^1(A) & = 1 \
+  d_pi^2(A) & = 1 \
+$
+
+如果策略总是向右走，那么产生的轨迹如下：
+
+$
+  B arrow C arrow C arrow C dots.c
+$
+
+所以状态访问分布是：
+
+$
+  d_pi^0(B) & = 1 \
+  d_pi^1(C) & = 1 \
+  d_pi^2(C) & = 1 \
+$
+
+所以即使两个策略只是在状态B的动作不同，之后访问的状态分布也完全不同。
+
+所以策略会影响状态访问分布。
+
+因为状态的转移满足
+
+$
+  S_t attach(limits(arrow.long), t: A_t) S_(t+1)
+$
+
+而动作来自策略：
+
+$
+  A_t tilde pi(dot.c | S_t)
+$
+
+所以策略改变动作概率，动作又改变下一状态概率。
+
+完整的链条如下：
+
+策略$pi(a|s) arrow.long$动作分布变化$arrow.long$环境状态转移$P(s'|s,a) arrow.long$未来状态分布变化$arrow.long$未来采样到的数据也变化。
+
+这就是强化学习和普通监督学习的一个核心区别：策略不仅影响输出动作，还影响之后的数据分布。
+
+如果任务长度为$T$，那么每个时间步都有一个状态分布：
+
+$
+  d^0_pi(s), d^1_pi(s), ..., d^T_pi(s)
+$
+
+目标函数通常写作
+
+$
+  J(theta) & = EE_(tau tilde pi_theta)[G(tau)] \
+           & = sum_(t=0)^T EE_(s_t tilde d_pi^t, a_t tilde pi) [r(s_t,a_t)] \
+           & = sum_(t=0)^T sum_s d^t_pi (s) sum_a pi(a|s)r(s,a)
+$
+
+这表示：总收益等于每个时刻访问某状态的概率 × 在该状态选动作的概率 × 奖励。
+
+=== 全变差距离（Total Variation Distance）
+
+全变差距离表示：两个分布在所有事件上的概率差异，最大能有多大。
+
+假设有两个离散概率分布$P$和$Q$，定义在同一个样本空间$cal(X)$上。
+
+$
+  D_"TV" (P, Q) = 1/2 sum_(x in cal(X)) abs(P(x) - Q(x))
+$
+
+例如：
+
+$
+  P & = (0.3, 0.7) \
+  Q & = (0.4, 0.6)
+$
+
+那么全变差距离为：
+
+$
+  D_"TV" (P, Q) = 1/2 (abs(0.7-0.4)+abs(0.3-0.6)) = 0.3
+$
+
+TV距离和KL散度之间有一个重要的关系，叫做#underline[Pinsker不等式]。
+
+$
+  D_"TV" (P, Q) <= sqrt(1/2 D_"KL" (P parallel Q))
+$
+
+这说明：如果KL很小，那么TV一定很小。
 
 #chapter("组相对策略优化（GRPO）", image: image("./orange2.jpg"), l: "rl-grpo")
 
