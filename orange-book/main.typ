@@ -1072,6 +1072,137 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("model.pth", weights_only=True))
 ```
 
+== 加载OpenAI开源的GPT-2预训练权重
+
+```python
+BASE_CONFIG = {
+    "vocab_size": 50257,    # Vocabulary size
+    "context_length": 1024, # Context length
+    "drop_rate": 0.0,       # Dropout rate
+    "qkv_bias": True        # Query-key-value bias
+}
+
+model_configs = {
+    "gpt2-small (124M)": {"emb_dim": 768, "n_layers": 12, "n_heads": 12},
+    "gpt2-medium (355M)": {"emb_dim": 1024, "n_layers": 24, "n_heads": 16},
+    "gpt2-large (774M)": {"emb_dim": 1280, "n_layers": 36, "n_heads": 20},
+    "gpt2-xl (1558M)": {"emb_dim": 1600, "n_layers": 48, "n_heads": 25},
+}
+
+
+CHOOSE_MODEL = "gpt2-small (124M)"
+BASE_CONFIG.update(model_configs[CHOOSE_MODEL])
+```
+
+接下来下载预训练权重。
+
+```python
+file_name = "gpt2-small-124M.pth"
+# file_name = "gpt2-medium-355M.pth"
+# file_name = "gpt2-large-774M.pth"
+# file_name = "gpt2-xl-1558M.pth"
+
+import os
+import requests
+
+url = f"https://huggingface.co/rasbt/gpt2-from-scratch-pytorch/resolve/main/{file_name}"
+
+if not os.path.exists(file_name):
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+    with open(file_name, "wb") as f:
+        f.write(response.content)
+    print(f"Downloaded to {file_name}")
+```
+
+加载权重
+
+```python
+import torch
+from gpt_model import GPTModel
+
+gpt = GPTModel(BASE_CONFIG)
+gpt.load_state_dict(torch.load(file_name, weights_only=True))
+gpt.eval()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+gpt.to(device)
+```
+
+生成文本
+
+```python
+import tiktoken
+
+def text_to_token_ids(text, tokenizer):
+    encoded = tokenizer.encode(text, allowed_special={"<|endoftext|>"})
+    encoded_tensor = torch.tensor(encoded).unsqueeze(0)  # 添加批次维度
+    return encoded_tensor
+
+
+def token_ids_to_text(token_ids, tokenizer):
+    flat = token_ids.squeeze(0)  # 去掉批次维度
+    return tokenizer.decode(flat.tolist())
+
+def generate(model, idx, max_new_tokens, context_size, temperature=0.0, top_k=None, eos_id=None):
+
+    # 计算下一个token的分数，只关注最后一个token
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -context_size:]
+        with torch.no_grad():
+            logits = model(idx_cond)
+        logits = logits[:, -1, :]
+
+        # top_k采样策略
+        if top_k is not None:
+            # 选分数最大的k个token作为候选token
+            top_logits, _ = torch.topk(logits, top_k)
+            min_val = top_logits[:, -1]
+            logits = torch.where(logits < min_val, torch.tensor(float("-inf")).to(logits.device), logits)
+
+        # 温度缩放
+        if temperature > 0.0:
+            logits = logits / temperature
+
+            # 数值稳定性技巧：在softmax之前，减去一行中的最大值。
+            # 因为softmax是按行进行的
+            logits = logits - logits.max(dim=-1, keepdim=True).values
+
+            # 使用softmax获取概率值
+            probs = torch.softmax(logits, dim=-1)  # (batch_size, context_len)
+
+            # 从分布中进行采样（多项分布）
+            idx_next = torch.multinomial(probs, num_samples=1)  # (batch_size, 1)
+
+        # 贪婪策略：直接选择分数最高的token
+        else:
+            idx_next = torch.argmax(logits, dim=-1, keepdim=True)  # (batch_size, 1)
+
+        # 如果设置了eos_id，然后生成了eos_token，那么停止生成
+        if idx_next == eos_id:
+            break
+
+        # 将采样得到的下一个token的id添加到序列的末尾
+        idx = torch.cat((idx, idx_next), dim=1)  # (batch_size, num_tokens+1)
+
+    return idx
+
+torch.manual_seed(123)
+
+tokenizer = tiktoken.get_encoding("gpt2")
+
+token_ids = generate(
+    model=gpt.to(device),
+    idx=text_to_token_ids("Every effort moves", tokenizer).to(device),
+    max_new_tokens=30,
+    context_size=BASE_CONFIG["context_length"],
+    top_k=1,
+    temperature=1.0
+)
+
+print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+```
+
 #part("强化学习")
 
 #chapter("强化学习简介", image: image("./orange2.jpg"), l: "rl-introduction")
