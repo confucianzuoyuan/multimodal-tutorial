@@ -116,7 +116,7 @@ Decoder-Only Transformer。仅解码器的Transformer架构。
 
 #figure(
   image("llm-figures/3.svg"),
-  caption: [GPT-2架构]
+  caption: [GPT-2架构],
 )
 
 == 损失函数的设计
@@ -152,7 +152,7 @@ $
 
 #figure(
   image("llm-figures/4.svg"),
-  caption: [LLM本质是个分类模型]
+  caption: [LLM本质是个分类模型],
 )
 
 #chapter("GPT-2", image: image("./orange2.jpg"), l: "gpt2")
@@ -174,7 +174,7 @@ from torch.utils.data import Dataset, DataLoader
 
 #figure(
   image("llm-figures/5.svg"),
-  caption: [分词]
+  caption: [分词],
 )
 
 接下来我们构建数据集。
@@ -197,7 +197,7 @@ class GPTDatasetV1(Dataset):
 
     def __len__(self):
         return len(self.input_ids)
-    
+
     def __getitem__(self, idx):
         return self.input_ids[idx], self.target_ids[idx]
 ```
@@ -232,7 +232,7 @@ def create_dataloader_v1(
 
 #figure(
   image("llm-figures/6.png"),
-  caption: [数据集]
+  caption: [数据集],
 )
 
 === 模型结构
@@ -249,7 +249,7 @@ class GPTModel(nn.Module):
 
         self.trf_blocks = nn.Sequential(
           *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
-        
+
         self.final_norm = LayerNorm(cfg["emb_dim"])
         self.out_head = nn.Linear(cfg["emb_dim"], cfg["vocab_size"], bias=False)
 
@@ -279,12 +279,12 @@ class GPTModel(nn.Module):
 
 #figure(
   image("llm-figures/7.png"),
-  caption: [词嵌入]
+  caption: [词嵌入],
 )
 
 #figure(
   image("llm-figures/8.png"),
-  caption: [一条数据和一批数据的词嵌入示例]
+  caption: [一条数据和一批数据的词嵌入示例],
 )
 
 在PyTorch中，嵌入层实现的功能与执行矩阵乘法的线性层相同；我们使用嵌入层主要是出于计算效率的考虑。
@@ -377,7 +377,7 @@ self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
     [...], [...],
     [255], [768个元素的向量],
   ),
-  caption: [上下文长度为256的位置嵌入查找表]
+  caption: [上下文长度为256的位置嵌入查找表],
 )
 
 所以
@@ -432,7 +432,7 @@ x = self.trf_blocks(x)
 
 #figure(
   image("llm-figures/10.png"),
-  caption: [进入`self.trf_blocks`的数据]
+  caption: [进入`self.trf_blocks`的数据],
 )
 
 接下来我们编写TransformerBlock的代码
@@ -474,14 +474,14 @@ class TransformerBlock(nn.Module):
 
 #figure(
   image("llm-figures/9.png"),
-  caption: [TransformerBlock的架构图]
+  caption: [TransformerBlock的架构图],
 )
 
 `self.trf_blocks(x)`的输入的形状也是下面的形状
 
 #figure(
   image("llm-figures/10.png"),
-  caption: [`self.trf_blocks`输出的数据]
+  caption: [`self.trf_blocks`输出的数据],
 )
 
 ==== 层归一化（LayerNorm）
@@ -491,8 +491,8 @@ $
 $
 
 #figure(
-    image("llm-figures/12.png"),
-    caption: [层归一化]
+  image("llm-figures/12.png"),
+  caption: [层归一化],
 )
 
 ```python
@@ -517,8 +517,8 @@ class LayerNorm(nn.Module):
 这里要注意的是：LayerNorm的输入和输出形状相同！也就是说，输入`x`的形状`(batch_size, seq_len, emb_dim)`，输出的形状也是`(batch_size, seq_len, emb_dim)`。只是在`emb_dim`这一个维度进行了归一化。
 
 #figure(
-    image("llm-figures/11.png"),
-    caption: [公式注解]
+  image("llm-figures/11.png"),
+  caption: [公式注解],
 )
 
 LayerNorm中有两个参数$gamma$和$beta$会在训练时更新。
@@ -533,7 +533,7 @@ class MultiHeadAttention(nn.Module):
 
         self.d_out = d_out
         self.num_heads = num_heads
-        self.head_dim = d_out // num_heads # 
+        self.head_dim = d_out // num_heads #
 
         self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)
         self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
@@ -751,7 +751,7 @@ def generate_text_simple(model, idx, max_new_tokens, context_size):
 
         # 将下一个token在词汇表中的索引追加到序列后面
         idx = torch.cat((idx, idx_next), dim=1) # (batch, n_tokens + 1)
-    
+
     return idx
 ```
 
@@ -930,7 +930,7 @@ def train_model_simple(
                 track_tokens_seen.append(tokens_seen)
                 print(f"Ep {epoch+1} (Step {global_step:06d}): "
                       f"Train loss {train_loss:.3f}, Val loss {val_loss:.3f}")
-        
+
         # 每一轮训练完毕之后，测试一下补全的文本
         generate_and_print_sample(
             model, tokenizer, device, start_context
@@ -1772,12 +1772,42 @@ $
 
 #definition(name: [期望的定义以及相关性质])[
   $
-       EE[x] & = sum_x x p(x) \
-    EE[f(x)] & = sum_x f(x)p(x) \
-       EE[X] & = EE[EE[X|Y]]    && "（全期望公式）" \
-     EE[X|Y] & = EE[EE[X|Z]|Y]  && "（条件期望的迭代公式）"
+        EE[x] & = sum_x x p(x) \
+     EE[f(x)] & = sum_x f(x)p(x) \
+    EE[X|Y=y] & = sum_x x P(X=x|Y=y) = sum_x x P(X=x,Y=y)/P(Y=y) \
+        EE[X] & = EE[EE[X|Y]]                                    && "（全期望公式）" \
+      EE[X|Y] & = EE[EE[X|Y,Z]|Y]                                && "（条件期望的迭代公式）"
   $
 ]
+
+#tip(title: [全期望公式的证明])[
+  $
+    EE[EE[X|Y]] & = sum_y EE(X|Y=y) dot.c P(Y=y) \
+                & = sum_y (sum_x x dot.c P(X=x|Y=y)) dot.c P(Y=y) \
+                & = sum_y (sum_x x dot.c P(X=x|Y=y) dot.c P(Y=y)) \
+                & = sum_y (sum_x x dot.c P(X=x,Y=y)) \
+                & = sum_x x dot.c P(X=x) \
+                & = EE[X]
+  $
+]
+
+#tip(title: [条件期望迭代公式的证明])[
+  对任意给定的 $Y=y$，有：
+  $
+    EE[EE[X|Y,Z]|Y=y] & = sum_z EE[X|Y=y,Z=z] dot.c P(Z=z|Y=y) \
+                      & = sum_z (sum_x x dot.c P(X=x|Y=y,Z=z)) dot.c P(Z=z|Y=y) \
+                      & = sum_x x dot.c sum_z P(X=x|Y=y,Z=z) dot.c P(Z=z|Y=y) \
+                      & = sum_x x dot.c sum_z P(X=x,Z=z|Y=y) \
+                      & = sum_x x dot.c P(X=x|Y=y) \
+                      & = EE[X|Y=y]
+  $
+
+  因此：
+  $
+    EE[EE[X|Y,Z]|Y] = EE[X|Y]
+  $
+]
+
 
 另外，$x$和$y$同时发生的概率（这叫作"联合概率"）如所示。
 
@@ -1905,6 +1935,50 @@ $
   EE_pi [G_(t+1)|S_t=s] & = sum_(a,s') pi(a|s)p(s'|s,a)EE_pi [G_(t+1)|S_(t+1)=s'] \
                         & = sum_(a,s') pi(a|s)p(s'|s,a)v_pi (s')
 $
+
+#tip(title: [用条件期望迭代公式证明未来回报展开])[
+  由条件期望迭代公式，对更细的信息 $A_t, S_(t+1)$ 展开：
+
+  #math.equation(
+    $
+      EE_pi [G_(t+1)|S_t=s] & = EE_pi [
+                                EE_pi [G_(t+1)|S_t=s,A_t,S_(t+1)]
+                                | S_t=s
+                              ] \
+                            & = sum_(a,s')
+                              p(A_t=a,S_(t+1)=s'|S_t=s)
+                              EE_pi [G_(t+1)|S_t=s,A_t=a,S_(t+1)=s'] \
+                            \
+                            \
+    $,
+    block: true,
+    number-align: bottom,
+  )
+
+  又因为：
+  $
+    p(A_t=a,S_(t+1)=s'|S_t=s) & = p(A_t=a|S_t=s) dot.c
+                                p(S_(t+1)=s'|S_t=s,A_t=a) \
+                              & = pi(a|s)p(s'|s,a)
+  $
+
+  并且由马尔可夫性，给定 $S_(t+1)=s'$ 后，未来回报 $G_(t+1)$
+  与过去的 $S_t=s,A_t=a$ 无关：
+  $
+    EE_pi [G_(t+1)|S_t=s,A_t=a,S_(t+1)=s'] & = EE_pi [G_(t+1)|S_(t+1)=s'] \
+                                           & = v_pi (s')
+  $
+
+  因此：
+  $
+    EE_pi [G_(t+1)|S_t=s] & = sum_(a,s')
+                            pi(a|s)p(s'|s,a)
+                            EE_pi [G_(t+1)|S_(t+1)=s'] \
+                          & = sum_(a,s')
+                            pi(a|s)p(s'|s,a)v_pi (s')
+  $
+]
+
 
 完成第二项的展开以后，汇总一下得到
 
@@ -2461,7 +2535,7 @@ G = 100.0 # $G(tau)$
 J = -G * probs[action].log() # $-G(tau) log pi_theta (A_0|S_0)$
 print("J: ", J)
 
-J.backward() # 求导（梯度）$- nabla_theta G(tau) log pi_theta (A_0|S_0)}$
+J.backward() # 求导（梯度）$- nabla_theta G(tau) log pi_theta (A_0|S_0)$
 agent.optimizer.step() # 梯度下降：$theta=theta+alpha nabla_theta G(tau) log pi_theta (A_0|S_0)$
 # 在相同的状态state下，采取动作的概率变大了
 # （测试一下）将G变为负值，也就是负的奖励，会发现采取动作的概率下降了
