@@ -3114,7 +3114,7 @@ $
 #tip(title: [为什么可以用$R_t+gamma V_omega (S_(t+1))$替换掉$G_t$？])[
   首先我们知道$G_t=R_t+gamma G_(t+1)$以及$V_omega (S_(t+1))=EE[G_(t+1)]$。这里我们假设训练到理想情况，$V_omega (S_(t+1))$接近于真实的$V(S_(t+1))$。所以我们做了替换。]
 
-=== Actic-Critic的代码实现
+=== Actor-Critic的代码实现
 
 下面实现Actor-Critic。策略和价值函数这两个神经网络的代码如下所示。
 
@@ -3181,11 +3181,9 @@ class Agent:
         # ① self.v的损失：均方差
         # $"TD目标"=R_t+gamma V_omega (S_(t+1))$
         target = reward + self.gamma * self.v(next_state) * (1 - done)
-        # 从计算图中剥离，不参与反向传播
-        target.detach()
         v = self.v(state) # $V_omega (S_t)$
         loss_fn = nn.MSELoss() # $(R_t+gamma V_omega (S_(t+1))-V_omega (S_t))^2 arrow 0$
-        loss_v = loss_fn(v, target)
+        loss_v = loss_fn(v, target.detach()) # target要从计算图中剥离出去
 
         # ② self.pi的损失
         delta = target - v # $delta=R_t+gamma V_omega (S_(t+1)) - V_omega (S_t)$
@@ -3235,8 +3233,204 @@ test_agent(agent, env)
 ```
 
 #figure(
-  image("rl-figures/actor-critic-pg-loss.svg"),
+  image("rl-figures/actor-critic-pg-loss-1.pdf"),
   caption: [actor-critic每一轮的回报走势图],
+)
+
+== Actor-Critic的代码实现（完整采集一条轨迹的版本）
+
+```python
+# actor-critic的实现
+
+import gym
+import random
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib import rc
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.distributions import Categorical
+
+
+def show_animation(imgs):
+    rc("animation", html="jshtml")
+    fig, ax = plt.subplots(1, 1, figsize=(5, 3))
+    frames = []
+
+    text = ax.text(10, 20, "", fontsize=12, color="black")
+
+    for i, img in enumerate(imgs):
+        frame = [ax.imshow(img, animated=True)]
+        frame.append(ax.text(10, 20, f"Step: {i+1}", animated=True))  # Step数表示
+        frames.append(frame)
+
+    ax.axis("off")
+
+    ani = animation.ArtistAnimation(fig, frames, interval=100, blit=True)
+
+    # 保存动画
+    ani.save("cartpole.mp4", writer="ffmpeg")
+    ani.save("cartpole.gif", writer="pillow")
+
+    plt.close(fig)
+    return ani
+
+
+def plot_loss(episode_list, return_list, filename):
+    """绘制奖励图像"""
+    f = plt.figure()
+    plt.plot(episode_list, return_list)
+    plt.xlabel("Episodes")
+    plt.ylabel("Returns")
+    plt.title("CartPole-v0")
+    plt.show()
+    f.savefig(filename, bbox_inches="tight")
+
+
+class PolicyNet(nn.Module):
+    """策略神经网络的结构"""
+
+    def __init__(self, action_size):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, action_size)
+
+    def forward(self, x):  # $x$是$S_t$
+        x = F.relu(self.l1(x))
+        x = F.softmax(self.l2(x), dim=1)
+        return x
+
+
+class ValueNet(nn.Module):
+    """价值函数神经网络V_ω"""
+
+    def __init__(self):
+        super().__init__()
+        self.l1 = nn.Linear(4, 128)
+        self.l2 = nn.Linear(128, 1)
+
+    def forward(self, x):
+        x = F.relu(self.l1(x))
+        x = self.l2(x)
+        return x
+
+
+class Agent:
+    def __init__(self):
+        self.gamma = 0.98
+        self.lr_pi = 0.0002
+        self.lr_v = 0.005
+        self.action_size = 2
+        self.pi = PolicyNet(self.action_size)
+        self.v = ValueNet()
+        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=self.lr_pi)
+        self.optimizer_v = optim.Adam(self.v.parameters(), lr=self.lr_v)
+
+    def get_action(self, state):
+        probs = self.pi(torch.tensor(state).unsqueeze(0)).squeeze(0)
+        m = Categorical(probs)
+        action = m.sample().item()
+        return action, probs
+
+    def collect_trajectory(self, env):
+        """采样一条轨迹"""
+        state = env.reset()
+        states, next_states, actions, rewards, dones = [], [], [], [], []
+        done = False
+
+        while not done:
+            action, _ = self.get_action(state)
+            next_state, reward, done, _ = env.step(action)
+
+            states.append(state)  # $S_t$
+            next_states.append(next_state)  # $S_(t+1)$
+            actions.append(action)  # $A_t$
+            rewards.append(reward)  # $R_t$
+            dones.append(done)  # $"done"_t$
+
+            state = next_state
+
+        # states: $[S_0, S_1, S_2, ..., S_(T-1)]$
+        # next_states: $[S_1, S_2, S_3, ..., S_T]$
+        # actions: $[A_0, A_1, A_2, ..., A_(T-1)]$
+        # rewards: $[R_0, R_1, R_2, ..., R_(T-1)]$
+        # dones: [False, False, False, ..., True]
+        return states, next_states, actions, rewards, dones
+
+    def update(self, trajectory):
+        """整条轨迹的actor-critic更新"""
+        states, next_states, actions, rewards, dones = trajectory
+
+        states = torch.tensor(states)  # $[S_0, S_1, S_2, ..., S_(T-1)]$
+        # $[[A_0], [A_1], [A_2], ..., [A_(T-1)]]$
+        actions = torch.tensor(actions).view(-1, 1)
+        # $[[R_0], [R_1], [R_2], ..., [R_(T-1)]]$
+        rewards = torch.tensor(rewards).view(-1, 1)
+        next_states = torch.tensor(next_states)  # $[S_1, S_2 ..., S_T]$
+        dones = torch.tensor(dones, dtype=torch.float).view(-1, 1)
+
+        v = self.v(states)  # $[V(S_0), V(S_1), ..., V(S_(T-1))]$
+        # $[R_0+gamma V(S_1), R_1+gamma V(S_2), ..., R_(T-1)]$
+        td_target = rewards + self.gamma * self.v(next_states) * (1 - dones)
+        # 价值网络的损失，把td目标从计算图中剥离
+        loss_v = F.mse_loss(v, td_target.detach())
+        # 策略网络的损失，gather的用法要注意
+        # self.pi(states): $π_θ (a_t|s_t)$
+        # actions是真实标签
+        # gather根据真实标签actions取出对应的概率
+        # 例如self.pi(states)如下：
+        # [[0.3, 0.7],
+        #  [0.2, 0.8]]
+        # actions如下：
+        # [[1],
+        #  [0]]
+        # gather后的结果
+        # [[0.7],
+        #  [0.2]]
+        action_probs = self.pi(states).gather(1, actions)
+        # torch.log(action_probs): $[log π_θ (a_0|s_0),...,log π_θ (a_(T-1)|s_(T-1))]$
+        # (td_target-v).detach():
+        # $[R_0+gamma V(S_1)-V(S_0),...,R_(T-1)+gamma V(S_T)-V(S_(T-1))]$
+        loss_pi = - \
+            torch.sum(torch.log(action_probs)
+                      * (td_target-v).detach())
+
+        self.optimizer_pi.zero_grad()
+        self.optimizer_v.zero_grad()
+        loss_v.backward()
+        loss_pi.backward()
+        self.optimizer_pi.step()
+        self.optimizer_v.step()
+
+
+env = gym.make("CartPole-v0")
+agent = Agent()
+return_list = []
+episode_list = []
+
+for episode in range(3000):
+    state = env.reset()  # $S_0$
+
+    trajectory = agent.collect_trajectory(env)
+    # 采样一条轨迹，更新一次策略网络和价值网络
+    agent.update(trajectory)
+
+    return_list.append(sum(trajectory[3]))
+    episode_list.append(episode)
+    if episode % 100 == 0:
+        print(f"回合：{episode}, 总奖励：{sum(trajectory[3])}")
+
+plot_loss(episode_list, return_list, "sample-one-trajectory-actor-critic-pg-loss.pdf")
+```
+
+损失图像如下
+
+#figure(
+  image("rl-figures/sample-one-trajectory-actor-critic-pg-loss.pdf"),
+  caption: [采样一条完整的轨迹来计算单步TD误差],
 )
 
 == 多步TD误差
@@ -4167,7 +4361,7 @@ $
 这个分布与真实的概率分布相同。此时的KL散度的值如下所示。
 
 $
-  D_"KL" & = 0.7 log 0.7/0.7 + 0.3 0.3/0.3 \
+  D_"KL" & = 0.7 log 0.7/0.7 + 0.3 log 0.3/0.3 \
          & = 0.7 log 1 + 0.3 log 1 space space space colblue((log 1 = 0)) \
          & = 0
 $
@@ -4186,12 +4380,12 @@ $
 
 熵（Entropy）：
 
-- 衡量随机变量的不确定性：$H(P) = -sum_i P(x_i) log P(x_i)$
+- 衡量随机变量的不确定性：$H(P) = -sum_x P(x) log P(x)$
 - 熵越大，不确定性越大
 
 交叉熵（Cross-Entropy）：
 
-- 衡量两个概率分布之间的差异：$H(P, Q) = -sum_i P(x_i) log Q(x_i)$
+- 衡量两个概率分布之间的差异：$H(P, Q) = -sum_x P(x) log Q(x)$
 - 其中 $P$ 是真实分布，$Q$ 是预测分布
 
 极大似然估计和交叉熵
@@ -4223,8 +4417,8 @@ KL散度和交叉熵
 KL散度衡量两个分布的差异：
 
 $
-  D_"KL" (P parallel Q) & = sum_i P(x_i) log (P(x_i))/(Q(x_i)) \
-                        & = sum_i P(x_i) log P(x_i) - sum_i P(x_i) log Q(x_i)
+  D_"KL" (P parallel Q) & = sum_x P(x) log (P(x))/(Q(x)) \
+                        & = sum_x P(x) log P(x) - sum_x P(x) log Q(x)
 $
 
 $
@@ -4237,10 +4431,10 @@ $
 
 其中：
 
-- $H(P) = -sum_i P(x_i) log P(x_i)$ 是真实分布的熵（常数）
-- $H(P,Q) = -sum_i P(x_i) log Q(x_i)$ 是交叉熵
+- $H(P) = -sum_x P(x) log P(x)$ 是真实分布的熵（常数）
+- $H(P,Q) = -sum_x P(x) log Q(x)$ 是交叉熵
 
-最小化KL散度 = 最小化交叉熵（因为真实分布的熵是常数）
+最小化KL散度 $arrow.l.r.long.double$ 最小化交叉熵（因为真实分布的熵是常数）
 
 === 重要性采样（Importance Sampling）
 
@@ -4431,10 +4625,10 @@ $
 $J(theta)-J(theta_"old")$可作为度量策略改进的指标。若该差值为正，则新策略 $pi_theta$ 比旧策略 $pi_(theta_"old")$ 更优。在一次策略迭代过程中，理想情况下应选择使这一差值最大化的新策略$pi_theta$。因此，最大化目标 $J(theta)$ 等价于最大化该差值，两者均可通过梯度上升实现。
 
 $
-  max_(pi_theta) J(pi_theta) arrow.l.r.double.long max_(pi_theta) (J(pi_theta) - J(pi_(theta_"old")))
+  max_(theta) J(theta) arrow.l.r.double.long max_(theta) {J(theta) - J(theta_"old")}
 $
 
-以这种方式刻画目标也意味着，每次策略迭代都应保证非负（单调）的改进——即$J(pi_theta) - J(pi_(theta_"old"))>=0$——因为在最坏情况下我们可以简单地令$pi_theta=pi_(theta_"old")$，也就是不改进策略。在此条件下，整个训练过程中将不会发生性能崩塌，这正是我们所期望的性质。
+以这种方式刻画目标也意味着，每次策略迭代都应保证非负（单调）的改进——即$J(theta) - J(theta_"old")>=0$——因为在最坏情况下我们可以简单地令$pi_theta=pi_(theta_"old")$，也就是不改进策略。在此条件下，整个训练过程中将不会发生性能崩塌，这正是我们所期望的性质。
 
 然而，这一差值作为目标函数有一个限制使其无法直接使用。注意，在表达式$EE_(tau tilde pi_theta) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))]$中，期望要求使用新策略$pi_theta$采样轨迹以进行更新，但在完成更新之前，新策略$pi_theta$并不可用。为了解决这一悖论，我们需要设法将其改写为使用已可用的旧策略$pi_(theta_"old")$。
 
@@ -4461,17 +4655,31 @@ $
 这里就要用到重要性采样了。我们使用的重要性采样权重为$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$。也就是我们使用新旧策略采取动作的概率的比值来改进旧策略$pi_(theta_"old")$产生的轨迹的回报值。在新策略$pi_theta$下更可能发生的动作所对应的回报会被上调权重，而在$pi_theta$下相对不太可能的动作所对应的回报会被下调权重。该近似在下面的式子中给出。
 
 $
-  J(theta) - J(theta_"old") & = EE_(tau tilde colred(pi_theta)) [sum_(t=0)^T gamma^t A_t^(pi_(theta_"old"))] \
-  & approx EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] space space space colblue("（为简单起见，将"gamma"设置为1）") \
+  J(theta) - J(theta_"old") & = EE_(tau tilde colred(pi_theta)) [sum_(t=0)^T A_t^(pi_(theta_"old"))] space space space colblue("（为简单起见，将"gamma"设置为1）") \
+  & approx EE_(tau tilde colred(pi_(theta_"old"))) [sum_(t=0)^T A_t^(pi_(theta_"old")) colred((pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t)))] \
   & = J^"CPI"_(pi_(theta_"old")) (theta)
 $ <cpiformula>
 
 上面的式子也就是$J^"CPI"_(pi_(theta_"old")) (theta)$叫做*替代目标*（surrogate objective）。因为新目标中包含了新旧策略的比值，所以叫做"替代目标"。上标CPI的意思是"保守策略迭代"（conservative policy iteration）。
 
+#danger(title: [为什么是约等于])[
+  把真实性能差分展开，由期望的定义
+  $
+    J(theta) - J(theta_"old") &= sum_(t=0)^T EE_(s_t tilde d_(pi_(theta))^t, a_t tilde pi_theta (dot.c|s_t)) [A_t^(pi_(theta_"old")) ] \
+    &= sum_(t=0)^T EE_(s_t tilde d_(pi_(theta))^t, a_t tilde pi_(theta_"old") (dot.c|s_t)) [A_t^(pi_(theta_"old")) (pi_theta (a_t|s_t)) / (pi_(theta_"old") (a_t|s_t))] \
+    & approx sum_(t=0)^T EE_(s_t tilde d_(pi_(theta_"old"))^t, a_t tilde pi_(theta_"old") (dot.c|s_t)) [A_t^(pi_(theta_"old")) (pi_theta (a_t|s_t)) / (pi_(theta_"old") (a_t|s_t))] \
+    & = EE_(tau tilde pi_(theta_"old"))[sum_(t=0)^T A_t^(pi_(theta_"old")) dot.c ( pi_theta (a_t|s_t) )/( pi_(theta_"old") (a_t|s_t) )]
+  $
+  CPI的近似假设是：新旧策略足够接近，因此它们诱导的状态访问分布也接近：
+  $
+    d_(pi_theta)^t (s) approx d_(pi_(theta_"old"))^t (s)
+  $
+]
+
 现在我们有了一个新的目标函数。要将其用于策略梯度算法，需要检查在该目标下进行优化是否仍然是在执行策略梯度上升。幸运的是，我们可以证明替代目标的梯度等于策略梯度，如下式所述。
 
 $
-  nabla_theta J^"CPI"_(pi_(theta_"old")) (theta) |_(theta=theta_"old") = nabla_theta J(theta)|_(theta=theta_"old")
+  nabla_theta J^"CPI"_(pi_(theta_"old")) (theta) |_(theta=theta_"old") = nabla_theta J(theta)|_(theta=theta_"old") = nabla_theta {J(theta)-J(theta_"old")}|_(theta=theta_"old")
 $
 
 上面的式子证明如下。也就是我们要证明代理目标的梯度等于策略梯度。
@@ -4480,7 +4688,8 @@ $
   nabla_theta J^"CPI"_(pi_(theta_"old")) (theta)|_(theta=theta_"old") &= nabla_theta EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t (pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))]|_(theta=theta_"old") \
   &=EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t (nabla_theta pi_theta (a_t|s_t)|_(theta=theta_"old"))/(pi_(theta_"old") (a_t|s_t))] space space space colblue("log梯度技巧")\
   &=EE_(tau tilde pi_(theta_"old")) [sum_(t=0)^T A^(pi_(theta_"old"))_t nabla_theta log pi_theta (a_t|s_t)|_(theta=theta_"old")] \
-  &= nabla_theta J(theta)|_(theta=theta_"old")
+  &= nabla_theta J(theta)|_(theta=theta_"old") \
+  &= nabla_theta {J(theta)-J(theta_"old")}|_(theta=theta_"old")
 $
 
 上式表明，代理目标的梯度等于策略梯度。这保证了在代理目标下进行的优化仍然是在执行策略梯度上升。这也很有用，因为现在可以直接度量策略改进，最大化该度量就意味着最大化策略改进。此外，我们还知道，在上式中，$J^"CPI"_(pi_(theta_"old")) (theta)$是对$J(theta)-J(theta_"old")$的线性近似，因为她们的一阶导数（梯度）相等。
@@ -4491,7 +4700,7 @@ $
   (J(theta)-J(theta_"old")) - J^"CPI"_(pi_(theta_"old")) (theta) approx 0
 $
 
-这里的误差是因为引入重要性采样带来的，也就是说如果在某些时刻如果$(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$很大，那么重要性采样的方差估计会爆炸！所以策略$pi_theta (a_t|s_t)$和$pi_(theta_"old") (a_t|s_t)$越接近，那么上面的式子越接近于0。
+这里的误差是因为新旧策略诱导出的状态访问分布之间有差异导致的。所以新策略$pi_theta$和旧策略$pi_(theta_"old")$越接近，诱导出的状态访问分布就越接近，那么误差就越小。
 
 而衡量两个分布的差异的数学手段是KL散度。所以上面的约等于0，可以建模为
 
