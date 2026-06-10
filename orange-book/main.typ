@@ -61,7 +61,482 @@
 
 #set math.mat(delim: "[")
 
+// Display inline code in a small box
+// that retains the correct baseline.
+#show raw.where(block: false): box.with(
+  fill: luma(240),
+  inset: (x: 3pt, y: 0pt),
+  outset: (y: 3pt),
+  radius: 2pt,
+)
+
 #part("大语言模型")
+
+#chapter("microgpt", image: image("./orange2.jpg"), l: "microgpt")
+
+== 数据集
+
+大语言模型的燃料是文本数据流，这些数据可选择性地划分为一组文档。在生产级应用中，每个文档可能是一个互联网网页，但对于microgpt，我们使用一个更简单的示例：32,000个名字，每行一个：
+
+```python
+# Let there be an input dataset `docs`: list[str] of documents (e.g. a dataset of names)
+if not os.path.exists('input.txt'):
+    import urllib.request
+    names_url = 'https://raw.githubusercontent.com/karpathy/makemore/refs/heads/master/names.txt'
+    urllib.request.urlretrieve(names_url, 'input.txt')
+docs = [l.strip() for l in open('input.txt').read().strip().split('\n') if l.strip()] # list[str] of documents
+random.shuffle(docs)
+print(f"num docs: {len(docs)}")
+```
+
+数据集看起来像这样。每个名字就是一个文档：
+
+```
+emma
+olivia
+ava
+isabella
+sophia
+charlotte
+mia
+amelia
+harper
+... (~32,000 names follow)
+```
+
+模型的目标是学习数据中的模式，然后生成具有相同统计模式的新文档。作为预览，到脚本结束时，我们的模型将生成（"幻觉"出！）新的、听起来合理的名字。提前看一下，我们会得到：
+
+```
+sample  1: kamon
+sample  2: ann
+sample  3: karai
+sample  4: jaire
+sample  5: vialan
+sample  6: karia
+sample  7: yeran
+sample  8: anna
+sample  9: areli
+sample 10: kaina
+sample 11: konna
+sample 12: keylen
+sample 13: liole
+sample 14: alerin
+sample 15: earan
+sample 16: lenne
+sample 17: kana
+sample 18: lara
+sample 19: alela
+sample 20: anton
+```
+
+看起来并不起眼，但从 ChatGPT 这类模型的视角来看，你与它的对话不过是一份形式奇特的"文档"。当你用提示词初始化这份文档时，模型视角下的回应本质上只是基于统计的文档补全。
+
+== 分词器
+
+在底层，神经网络处理的是数字而非字符，因此我们需要一种方法将文本转换为整数标记ID序列，并能反向还原。像 tiktoken（GPT-4 使用的）这样的生产级分词器会按字符块处理以提高效率，但最简单的分词器只需为数据集中的每个唯一字符分配一个整数即可。
+
+```python
+# Let there be a Tokenizer to translate strings to discrete symbols and back
+uchars = sorted(set(''.join(docs))) # unique characters in the dataset become token ids 0..n-1
+BOS = len(uchars) # token id for the special Beginning of Sequence (BOS) token
+vocab_size = len(uchars) + 1 # total number of unique tokens, +1 is for BOS
+print(f"vocab size: {vocab_size}")
+```
+
+在上述代码中，我们收集了数据集中所有不重复的字符（即所有小写字母a-z），将其排序后，每个字母根据其索引获得一个ID。请注意，这些整数值本身没有任何实际意义；每个标记只是一个独立的离散符号。它们完全可以被替换为不同的表情符号，而非0、1、2。此外，我们创建了一个名为`BOS`（序列起始符）的特殊标记，它作为分隔符使用：告诉模型"新文档在此开始/结束"。在后续训练中，每个文档两侧都会包裹`BOS`：`[BOS, e, m, m, a, BOS]`。模型会学习到`BOS`标志着一个新名称的开始，而另一个`BOS`则标志着其结束。因此，我们最终得到包含 27 个标记的词汇表（26 个可能的小写字母 a-z，加上 1 个序列起始符标记）。
+
+== 自动微分（Autograd）
+
+训练神经网络需要梯度：对于模型中的每个参数，我们需要知道"如果我将这个数值稍微调高一点，损失值会上升还是下降？变化幅度是多少？"计算图有许多输入（模型参数和输入词元），但最终汇聚成一个标量输出：损失值（我们将在下文准确定义损失值）。反向传播从该单一输出开始，沿计算图逆向推进，计算损失值相对于每个输入的梯度。这依赖于微积分中的链式法则。在实际应用中，PyTorch等库会自动处理这一过程。在此，我们通过一个名为`Value`的类从头实现该功能：
+
+```python
+class Value:
+    __slots__ = ('data', 'grad', '_children', '_local_grads')
+
+    def __init__(self, data, children=(), local_grads=()):
+        self.data = data                # scalar value of this node calculated during forward pass
+        self.grad = 0                   # derivative of the loss w.r.t. this node, calculated in backward pass
+        self._children = children       # children of this node in the computation graph
+        self._local_grads = local_grads # local derivative of this node w.r.t. its children
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        return Value(self.data + other.data, (self, other), (1, 1))
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        return Value(self.data * other.data, (self, other), (other.data, self.data))
+
+    def __pow__(self, other): return Value(self.data**other, (self,), (other * self.data**(other-1),))
+    def log(self): return Value(math.log(self.data), (self,), (1/self.data,))
+    def exp(self): return Value(math.exp(self.data), (self,), (math.exp(self.data),))
+    def relu(self): return Value(max(0, self.data), (self,), (float(self.data > 0),))
+    def __neg__(self): return self * -1
+    def __radd__(self, other): return self + other
+    def __sub__(self, other): return self + (-other)
+    def __rsub__(self, other): return other + (-self)
+    def __rmul__(self, other): return self * other
+    def __truediv__(self, other): return self * other**-1
+    def __rtruediv__(self, other): return other * self**-1
+
+    def backward(self):
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._children:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+        self.grad = 1
+        for v in reversed(topo):
+            for child, local_grad in zip(v._children, v._local_grads):
+                child.grad += local_grad * v.grad
+```
+
+这是数学和算法上最密集的部分。简单来说，一个`Value`包装了一个单一的标量数字（`.data`），并追踪它是如何被计算出来的。可以把每个操作想象成一个小乐高积木：它接收一些输入，产生一个输出（前向传播），并且知道其输出相对于每个输入的变化情况（局部梯度）。这就是自动微分从每个积木中需要的全部信息。其余的一切都只是链式法则，将这些积木串联起来。
+
+每次使用`Value`对象进行数学运算（加法、乘法等）时，结果都会生成一个新的`Value`，它会记住其输入值（`_children`）以及该运算的局部导数（`_local_grads`）。例如，`__mul__`记录了$(partial (a dot.c b))/(partial a) = b$和$(partial (a dot.c b))/(partial b)$。完整的积木块集合如下：
+
+#figure(
+  table(
+    columns: 3,
+    [运算],[前向传播],[梯度],
+    [`a + b`],[$a+b$],[$(partial)/(partial a)=1,(partial)/(partial b)=1$],
+    [`a * b`],[$a dot.c b$],[$(partial)/(partial a)=b,(partial)/(partial b)=a$],
+    [`a ** n`],[$a^n$],[$(partial)/(partial a)=n dot.c a^(n-1)$],
+    [`log(a)`],[$ln(a)$],[$(partial)/(partial a)=1/a$],
+    [`exp(a)`],[$e^a$],[$(partial)/(partial a)=e^a$],
+    [`relu(a)`],[$max(0,a)$],[$(partial)/(partial a)=bold(1)_(a>0)$],
+  ),
+  caption: [运算，前向传播，梯度]
+)
+
+`backward()`方法以逆拓扑顺序遍历该图（从损失开始，到参数结束），在每一步应用链式法则。如果损失为$L$，且节点$v$有一个子节点$c$，其局部梯度为$(partial v)/(partial c)$，则：
+
+$
+  (partial L)/(partial c) "+=" (partial v)/(partial c) dot.c (partial L)/(partial v)
+$
+
+我们从损失节点开始设置```python self.grad = 1```，因为$(partial L)/(partial L)=1$：损失相对于自身的变化率显然为1。由此，链式法则只需沿着每条返回参数的路径，将局部梯度相乘即可。
+
+注意这里的`+=`（累加，而非赋值）。当某个值在计算图中被多处使用（即图存在分支）时，梯度会沿每个分支独立回流，且必须求和。这是多元链式法则的必然结果：若$c$通过多条路经影响$L$，则总导数等于各路径贡献之和。
+
+在`backward()`完成以后，图中的每个`Value`都包含一个`.grad`，其中含有$(partial L)/(partial v)$，这告诉我们如果调整该值，最终损失将如何变化。
+
+以下是一个具体示例。注意`a`被使用了两次（图出现分支），因此其梯度是两条路径之和：
+
+```python
+a = Value(2.0)
+b = Value(3.0)
+c = a * b       # c = 6.0
+L = c + a       # L = 8.0
+L.backward()
+print(a.grad)   # 4.0 (dL/da = b + 1 = 3 + 1, via both paths)
+print(b.grad)   # 2.0 (dL/db = a = 2)
+```
+
+这正是PyTorch的`.backward()`所提供的：
+
+```python
+import torch
+a = torch.tensor(2.0, requires_grad=True)
+b = torch.tensor(3.0, requires_grad=True)
+c = a * b
+L = c + a
+L.backward()
+print(a.grad)   # tensor(4.)
+print(b.grad)   # tensor(2.)
+```
+
+这是PyTorch的`loss.backward()`所运行的相同算法，只不过是在标量而非张量（标量数组）上执行——算法上完全一致，但规模更小、更简单，当然效率也低得多。
+
+让我们解读一下上面`.backward()`给出的结果。自动微分计算得出，如果`L = a*b + a`、`a=2`和`b=3`成立，那么`a.grad = 4.0`反映的是`a`对`L`的局部影响程度。当你微调输入`a`时，`L`会朝哪个方向变化？这里，`L`对`a`的导数为`4.0`，意味着若将`a`增加微小量（如`0.001`），`L`将增加约4倍于此的值（0.004）。同理，`b.grad = 2.0`表示对`b`施加相同幅度的调整，会使 L 增加约 2 倍于此的值（0.002）。换言之，这些梯度既指明了每个输入对最终输出（损失值）的影响方向（正负取决于符号），也揭示了影响陡峭程度（梯度幅值）。这使我们能够通过迭代微调神经网络参数来降低损失值，从而提升其预测性能。
+
+== 参数
+
+参数是模型的知识。它们是一大堆浮点数（包裹在`Value`中用于自动求导），初始时是随机的，并在训练过程中通过迭代进行优化。每个参数的具体作用将在下面定义模型架构时更加清晰，但目前我们只需要对它们进行初始化。
+
+```python
+n_embd = 16     # embedding dimension
+n_head = 4      # number of attention heads
+n_layer = 1     # number of layers
+block_size = 16 # maximum sequence length
+head_dim = n_embd // n_head # dimension of each head
+matrix = lambda nout, nin, std=0.08: [[Value(random.gauss(0, std)) for _ in range(nin)] for _ in range(nout)]
+state_dict = {'wte': matrix(vocab_size, n_embd), 'wpe': matrix(block_size, n_embd), 'lm_head': matrix(vocab_size, n_embd)}
+for i in range(n_layer):
+    state_dict[f'layer{i}.attn_wq'] = matrix(n_embd, n_embd)
+    state_dict[f'layer{i}.attn_wk'] = matrix(n_embd, n_embd)
+    state_dict[f'layer{i}.attn_wv'] = matrix(n_embd, n_embd)
+    state_dict[f'layer{i}.attn_wo'] = matrix(n_embd, n_embd)
+    state_dict[f'layer{i}.mlp_fc1'] = matrix(4 * n_embd, n_embd)
+    state_dict[f'layer{i}.mlp_fc2'] = matrix(n_embd, 4 * n_embd)
+params = [p for mat in state_dict.values() for row in mat for p in row]
+print(f"num params: {len(params)}")
+```
+
+每个参数都初始化为从高斯分布中抽取的小随机数。 `state_dict` 将它们组织成命名矩阵（借用 PyTorch 的术语）：嵌入表、注意力权重、MLP 权重以及最终输出投影。我们还将所有参数展平为单个列表 params ，以便优化器后续可以遍历它们。在我们这个微型模型中，参数总数为 4,192 个。GPT-2 拥有 16 亿参数，而现代 LLM 则拥有数千亿参数。
+
+== 架构
+
+模型架构是一个无状态函数：它接收一个 token、一个位置、参数以及来自先前位置的缓存键/值，并返回模型认为序列中下一个应出现的 token 的对数概率（分数）。我们沿用 GPT-2 架构并做了少量简化：使用 RMSNorm 替代 LayerNorm，取消偏置项，用 ReLU 替代 GeLU。首先，三个小型辅助函数：
+
+```python
+def linear(x, w):
+    return [sum(wi * xi for wi, xi in zip(wo, x)) for wo in w]
+```
+
+`linear`是矩阵向量乘法。它接收向量`x`和权重矩阵`w`，并对`w`的每一行计算一个点积。这是神经网络的基本构建模块：一种学习得到的线性变换。
+
+```python
+def softmax(logits):
+    max_val = max(val.data for val in logits)
+    exps = [(val - max_val).exp() for val in logits]
+    total = sum(exps)
+    return [e / total for e in exps]
+```
+
+`softmax`将原始分数向量（logits）从$-infinity$到$+infinity$的范围转换为概率分布：所有值最终落在$[0,1]$范围内且总和为 1。我们首先减去最大值以保证数值稳定性（这在数学上不会改变结果，但能防止`exp`中的溢出）。
+
+```python
+def rmsnorm(x):
+    ms = sum(xi * xi for xi in x) / len(x)
+    scale = (ms + 1e-5) ** -0.5
+    return [xi * scale for xi in x]
+```
+
+`rmsnorm`（均方根归一化）通过重新缩放向量，使其数值具有单位均方根。这能防止激活值在网络中传播时过度增长或收缩，从而稳定训练过程。它是原始 GPT-2 中使用的层归一化（LayerNorm）的简化变体。
+
+现在来看模型本身：
+
+```python
+def gpt(token_id, pos_id, keys, values):
+    tok_emb = state_dict['wte'][token_id] # token embedding
+    pos_emb = state_dict['wpe'][pos_id] # position embedding
+    x = [t + p for t, p in zip(tok_emb, pos_emb)] # joint token and position embedding
+    x = rmsnorm(x)
+
+    for li in range(n_layer):
+        # 1) Multi-head attention block
+        x_residual = x
+        x = rmsnorm(x)
+        q = linear(x, state_dict[f'layer{li}.attn_wq'])
+        k = linear(x, state_dict[f'layer{li}.attn_wk'])
+        v = linear(x, state_dict[f'layer{li}.attn_wv'])
+        keys[li].append(k)
+        values[li].append(v)
+        x_attn = []
+        for h in range(n_head):
+            hs = h * head_dim
+            q_h = q[hs:hs+head_dim]
+            k_h = [ki[hs:hs+head_dim] for ki in keys[li]]
+            v_h = [vi[hs:hs+head_dim] for vi in values[li]]
+            attn_logits = [sum(q_h[j] * k_h[t][j] for j in range(head_dim)) / head_dim**0.5 for t in range(len(k_h))]
+            attn_weights = softmax(attn_logits)
+            head_out = [sum(attn_weights[t] * v_h[t][j] for t in range(len(v_h))) for j in range(head_dim)]
+            x_attn.extend(head_out)
+        x = linear(x_attn, state_dict[f'layer{li}.attn_wo'])
+        x = [a + b for a, b in zip(x, x_residual)]
+        # 2) MLP block
+        x_residual = x
+        x = rmsnorm(x)
+        x = linear(x, state_dict[f'layer{li}.mlp_fc1'])
+        x = [xi.relu() for xi in x]
+        x = linear(x, state_dict[f'layer{li}.mlp_fc2'])
+        x = [a + b for a, b in zip(x, x_residual)]
+
+    logits = linear(x, state_dict['lm_head'])
+    return logits
+```
+
+该函数在时间上的特定位置（`pos_id`）处理一个token（ID为`token_id`），并结合前几次迭代中由`keys`和`values`的激活值总结的上下文信息（即KV Cache）。以下是逐步执行过程：
+
+嵌入（Embedding）。神经网络无法直接处理像5这样的原始token ID，它只能处理向量（数字列表）。因此，我们为每个可能的token关联一个学习到的向量，并将其作为神经特征输入。token ID和位置 ID分别从各自的嵌入表中查找对应行（`wte`和`wpe`）。这两个向量相加后，为模型提供同时编码令牌内容及其在序列中位置的表示。现代 LLM 通常跳过位置嵌入，转而采用其他基于相对位置的方案，例如`RoPE`。
+
+注意力模块。当前词元被投影为三个向量：查询（Q）、键（K）和值（V）。直观理解，查询表示"我在寻找什么？"，键表示"我包含什么？"，值表示"如果被选中，我能提供什么？"。例如在名字"emma"中，当模型处理第二个"m"并试图预测下一个字符时，它可能会学习到类似"最近出现了哪些元音？"的查询。较早的"e"会生成与这个查询高度匹配的键，从而获得较高的注意力权重，其值（关于元音的信息）就会流向当前位置。键和值会被追加到 KV Cache中，以便后续位置可以访问。每个注意力头会计算其查询与所有缓存键的点积（经$sqrt(d_"head")$缩放），通过`softmax`函数得到注意力权重，再对缓存值进行加权求和。所有注意力头的输出被拼接后通过`attn_wo`进行投影。值得强调的是，注意力模块是位置`t`的词元能够"查看"过去`0..t-1`词元的唯一精确位置。注意力是一种词元通信机制。
+
+MLP块。MLP是"多层感知机"的缩写，它是一个两层前馈网络：先投影到嵌入维度的 4 倍大小，应用 ReLU 激活函数，再投影回原维度。这是模型在每个位置上进行大部分"思考"的地方。与注意力机制不同，这个计算在时间维度上完全局部化 t 。Transformer 将通信（注意力机制）与计算（MLP）交替进行。
+
+残差连接。注意力模块和 MLP 模块都将输出加回到输入中（`x = [a + b for ...]`）。这使得梯度可以直接在网络中流动，从而让更深的模型变得可训练。
+
+输出。最终的隐藏状态通过 `lm_head` 投影到词汇表大小，为词汇表中的每个词元生成一个分数（logit）。在我们的案例中，这仅仅是 27 个数字。分数越高，表示模型认为对应的词元更有可能出现在下一个位置。
+
+你可能会注意到，我们在训练过程中使用了 KV 缓存，这并不常见。人们通常认为 KV 缓存仅用于推理阶段。但从概念上讲，KV 缓存始终存在，即使在训练期间也是如此。在生产实现中，它只是被隐藏在处理序列所有位置的高度向量化注意力计算内部。由于 microgpt 每次只处理一个 token（没有批次维度，也没有并行时间步长），我们显式地构建了 KV 缓存。与典型的推理场景（KV 缓存保存分离的张量）不同，这里的缓存键和值是计算图中活跃的 Value 节点，因此我们实际上会通过它们进行反向传播。
+
+== 训练循环
+
+现在我们将所有部分串联起来。训练循环会重复执行以下步骤：(1) 选取一个文档，(2) 对文档中的词元进行模型前向传播，(3) 计算损失值，(4) 通过反向传播获取梯度，(5) 更新参数。
+
+```python
+# Let there be Adam, the blessed optimizer and its buffers
+learning_rate, beta1, beta2, eps_adam = 0.01, 0.85, 0.99, 1e-8
+m = [0.0] * len(params) # first moment buffer
+v = [0.0] * len(params) # second moment buffer
+
+# Repeat in sequence
+num_steps = 1000 # number of training steps
+for step in range(num_steps):
+
+    # Take single document, tokenize it, surround it with BOS special token on both sides
+    doc = docs[step % len(docs)]
+    tokens = [BOS] + [uchars.index(ch) for ch in doc] + [BOS]
+    n = min(block_size, len(tokens) - 1)
+
+    # Forward the token sequence through the model, building up the computation graph all the way to the loss.
+    keys, values = [[] for _ in range(n_layer)], [[] for _ in range(n_layer)]
+    losses = []
+    for pos_id in range(n):
+        token_id, target_id = tokens[pos_id], tokens[pos_id + 1]
+        logits = gpt(token_id, pos_id, keys, values)
+        probs = softmax(logits)
+        loss_t = -probs[target_id].log()
+        losses.append(loss_t)
+    loss = (1 / n) * sum(losses) # final average loss over the document sequence. May yours be low.
+
+    # Backward the loss, calculating the gradients with respect to all model parameters.
+    loss.backward()
+
+    # Adam optimizer update: update the model parameters based on the corresponding gradients.
+    lr_t = learning_rate * (1 - step / num_steps) # linear learning rate decay
+    for i, p in enumerate(params):
+        m[i] = beta1 * m[i] + (1 - beta1) * p.grad
+        v[i] = beta2 * v[i] + (1 - beta2) * p.grad ** 2
+        m_hat = m[i] / (1 - beta1 ** (step + 1))
+        v_hat = v[i] / (1 - beta2 ** (step + 1))
+        p.data -= lr_t * m_hat / (v_hat ** 0.5 + eps_adam)
+        p.grad = 0
+
+    print(f"step {step+1:4d} / {num_steps:4d} | loss {loss.data:.4f}")
+```
+
+让我们逐一解析每个部分：
+
+分词。每个训练步骤会选取一个文档，并在其两侧添加 BOS ：例如，名称"emma"会变成 `[BOS, e, m, m, a, BOS]` 。模型的任务是根据前面的词元预测下一个词元。
+
+前向传播与损失计算。我们逐个将词元输入模型，在过程中逐步构建 KV 缓存。在每个位置上，模型输出 27 个 logits 值，通过 softmax 函数将其转换为概率。该位置的损失即为正确下一个词元的负对数概率：$-log P("target")$这被称为交叉熵损失。直观而言，损失衡量的是预测偏差程度：模型对实际出现的后续内容感到"惊讶"的程度。若模型对正确词元赋予 1.0 的概率，则完全不会感到惊讶，损失为 0；若赋予接近 0 的概率，则模型会非常惊讶，损失趋近于$+infinity$。我们将文档中每个位置的损失取平均值，得到单一的标量损失值。
+
+反向传播。对`loss.backward()`的一次调用会通过整个计算图运行反向传播，从损失函数一路回溯经过`softmax`、模型，直至每个参数。此后，每个参数的`.grad`会告诉我们如何调整它以降低损失。
+
+Adam 优化器。我们本可以只使用 `p.data -= lr * p.grad` （梯度下降法），但 Adam 更智能。它为每个参数维护两个运行平均值： m 追踪近期梯度的均值（动量，类似滚动的球）， v 则追踪近期梯度平方的均值（为每个参数自适应调整学习率）。 `m_hat` 和 `v_hat` 是偏差修正项，用于补偿 m 和 v 初始化为零而需要的预热过程。学习率在训练过程中线性衰减。更新完成后，我们将 `.grad = 0` 重置为下一步做好准备。
+
+经过 1000 步训练，损失从约 3.3（在 27 个 token 中随机猜测：$-log(1/27) approx 3.3$，降至约`2.37`。数值越低越好，最低可达 0（完美预测），因此仍有改进空间，但模型显然正在学习名字的统计规律。
+
+== 推理
+
+训练完成后，我们可以从模型中采样生成新名称。此时参数已冻结，只需循环执行前向传播，将每次生成的词元作为下一个输入重新传入：
+
+```python
+temperature = 0.5 # in (0, 1], control the "creativity" of generated text, low to high
+print("\n--- inference (new, hallucinated names) ---")
+for sample_idx in range(20):
+    keys, values = [[] for _ in range(n_layer)], [[] for _ in range(n_layer)]
+    token_id = BOS
+    sample = []
+    for pos_id in range(block_size):
+        logits = gpt(token_id, pos_id, keys, values)
+        probs = softmax([l / temperature for l in logits])
+        token_id = random.choices(range(vocab_size), weights=[p.data for p in probs])[0]
+        if token_id == BOS:
+            break
+        sample.append(uchars[token_id])
+    print(f"sample {sample_idx+1:2d}: {''.join(sample)}")
+```
+
+我们以 `BOS` 词元作为每个样本的起始标记，告知模型"开始生成新名称"。模型输出 27 个 logits 值，我们将其转换为概率分布，并根据这些概率随机采样一个词元。该词元会作为下一个输入重新传入，重复此过程直到模型输出 `BOS` （表示"生成完毕"）或达到最大序列长度。
+
+temperature 参数控制随机性。在 softmax 之前，我们将 logits 值除以温度系数。温度为 1.0 时直接根据模型学习到的分布进行采样。较低的温度（如这里的 0.5）会使分布更加尖锐，让模型更保守，倾向于选择概率最高的选项。当温度趋近于 0 时，模型将始终选择最可能的单个词元（贪婪解码）。较高的温度则会使分布更平坦，生成更多样化但可能连贯性较差的输出。
+
+== 运行
+
+```bash
+python train.py
+
+train.py
+num docs: 32033
+vocab size: 27
+num params: 4192
+step    1 / 1000 | loss 3.3660
+step    2 / 1000 | loss 3.4243
+step    3 / 1000 | loss 3.1778
+step    4 / 1000 | loss 3.0664
+step    5 / 1000 | loss 3.2209
+step    6 / 1000 | loss 2.9452
+step    7 / 1000 | loss 3.2894
+step    8 / 1000 | loss 3.3245
+step    9 / 1000 | loss 2.8990
+step   10 / 1000 | loss 3.2229
+step   11 / 1000 | loss 2.7964
+step   12 / 1000 | loss 2.9345
+step   13 / 1000 | loss 3.0544
+...
+```
+
+观察它从~3.3（随机）下降到~2.37。这个数值越低，说明网络对序列中下一个 token 的预测能力越强。训练结束时，训练 token 序列的统计模式知识被提炼到模型参数中。固定这些参数后，我们现在可以生成全新的、虚构的名称。你将再次看到：
+
+```
+sample  1: kamon
+sample  2: ann
+sample  3: karai
+sample  4: jaire
+sample  5: vialan
+sample  6: karia
+sample  7: yeran
+sample  8: anna
+sample  9: areli
+sample 10: kaina
+sample 11: konna
+sample 12: keylen
+sample 13: liole
+sample 14: alerin
+sample 15: earan
+sample 16: lenne
+sample 17: kana
+sample 18: lara
+sample 19: alela
+sample 20: anton
+```
+
+== 真实世界
+
+microgpt 包含了训练和运行 GPT 的完整算法精髓。但在它和 ChatGPT 这样的生产级 LLM 之间，存在着一长串需要改变的东西。这些改变都不会影响核心算法和整体架构，但正是它们让模型能够真正大规模运行。按顺序逐一说明：
+
+数据。生产级模型不再使用 3.2 万个短名称，而是在数万亿个互联网文本 token 上进行训练：网页、书籍、代码等。这些数据会经过去重、质量过滤，并在不同领域间精心混合。
+
+分词器。生产级模型不再使用单个字符，而是采用 BPE（字节对编码）等子词分词器，这些分词器会学习将频繁共现的字符序列合并为单个 token。像 "the" 这样的常见词会成为一个 token，而罕见词则会被拆分成多个片段。这样能形成约 10 万 token 的词汇表，并且效率更高，因为模型在每个位置上能处理更多内容。
+
+Autograd。microgpt 在纯 Python 中操作标量 Value 对象。生产系统使用张量（大型多维数字数组），并在每秒执行数十亿次浮点运算的 GPU/TPU 上运行。像 PyTorch 这样的库处理张量上的自动微分，而像 FlashAttention 这样的 CUDA 内核则融合多个运算以提升速度。数学原理完全相同，只是相当于并行处理大量标量。
+
+架构。microgpt 拥有 4,192 个参数。GPT-4 类模型则有数千亿个参数。总体而言，它看起来是一个非常相似的 Transformer 神经网络，只是更宽（嵌入维度超过 10,000）且更深（超过 100 层）。现代 LLM 还加入了更多类型的积木块，并调整了它们的顺序：例如使用 RoPE（旋转位置嵌入）替代学习位置嵌入，使用 GQA（分组查询注意力）来减少 KV 缓存大小，使用门控线性激活替代 ReLU，以及混合专家（MoE）层等。但注意力（通信）和 MLP（计算）在残差流上交替的核心结构得到了很好的保留。
+
+训练。生产环境中的训练并非每步处理一个文档，而是采用大批量（每步处理数百万个 token）、梯度累积、混合精度（float16/bfloat16）以及精细的超参数调优。训练一个前沿模型需要数千块 GPU 连续运行数月。
+
+优化。microgpt 使用 Adam 优化器配合简单的线性学习率衰减，仅此而已。在大规模场景下，优化本身已成为一门独立学科。模型采用低精度训练（bfloat16 甚至 fp8），并跨大型 GPU 集群运行以提升效率，这又带来了新的数值计算挑战。优化器参数（学习率、权重衰减、beta 参数、预热策略、衰减策略）必须精确调优，而最佳取值取决于模型规模、批次大小和数据集构成。缩放定律（如 Chinchilla 法则）指导如何在模型参数量和训练 token 数量之间分配固定计算预算。在大规模场景下，任何细节失误都可能导致数百万美元的计算资源浪费，因此团队会在启动完整训练前，通过大量小规模实验来预测最佳参数配置。
+
+后训练。训练完成后得到的基础模型（称为"预训练"模型）是一个文档补全器，而非聊天机器人。将其转化为 ChatGPT 需要两个阶段。首先，SFT（监督微调）：只需将文档替换为精心策划的对话，并继续训练。从算法层面看，没有任何变化。其次，RL（强化学习）：模型生成回复，这些回复会获得评分（由人类、另一个"评判"模型或算法完成），模型则从反馈中学习。本质上，模型仍在训练文档，但这些文档现在由模型自身生成的 token 组成。
+
+推理。为数百万用户提供模型服务需要专门的工程架构：批量处理请求、KV 缓存管理与分页（如 vLLM 等）、通过推测解码提升速度、量化处理（使用 int8/int4 而非 float16 以降低内存占用），以及将模型分布到多个 GPU 上。从根本上说，我们仍在预测序列中的下一个 token，但投入了大量工程优化来提升速度。
+
+这些都是重要的工程和研究贡献，但如果你理解了 microgpt，你就掌握了算法的精髓。
+
+== FAQ
+
+模型是否"理解"任何东西？这是个哲学问题，但从机械层面看：并没有魔法发生。模型本质上是一个大型数学函数，它将输入词元映射到下一个词元的概率分布上。在训练过程中，参数会被调整，使得正确的下一个词元概率更高。这算不算"理解"取决于你的定义，但其机制完全包含在上述 200 行代码中。
+
+为什么它能工作？模型拥有数千个可调参数，优化器在每一步都会对它们进行微调以降低损失值。经过大量步骤后，参数会稳定在能够捕捉数据统计规律的值上。以名字为例，这意味着：名字常以辅音开头，"qu"倾向于同时出现，名字很少连续出现三个辅音等。模型并非学习显式规则，而是学习一个恰好能反映这些规律的的概率分布。
+
+这和 ChatGPT 有什么关系？ChatGPT 本质上就是同一个核心循环（预测下一个词元、采样、重复）的巨量扩展版本，再加上后期训练使其具备对话能力。当你与它对话时，系统提示、你的消息和它的回复都只是序列中的词元。模型每次生成一个词元来完成文档，就像 microgpt 完成一个名字那样。
+
+"幻觉"是怎么回事？模型通过从概率分布中采样来生成词元。它没有真实性的概念，只知道哪些序列在训练数据中具有统计合理性。microgpt"幻觉"出像"karia"这样的名字，与 ChatGPT 自信地陈述虚假事实是同一现象。两者都是听起来合理但实际不存在的补全结果。
+
+为什么这么慢？microgpt 在纯 Python 环境中逐个处理标量。单次训练步骤需要数秒。同样的数学运算在 GPU 上可以并行处理数百万个标量，运行速度快出数个数量级。
+
+我能让它生成更好的名字吗？可以。延长训练时间（增加`num_steps`）、扩大模型规模（`n_embd`、`n_layer`、`n_head`），或使用更大的数据集。这些正是大规模应用中同样重要的调节参数。
+
+如果我更换数据集会怎样？模型会学习数据中的任何模式。只要换成城市名称、宝可梦名字、英语单词或短诗的文件，模型就会学习生成这些内容。代码的其他部分无需改动。
+
+
 
 #chapter("LLM简介", image: image("./orange2.jpg"), l: "llm-introduction")
 
@@ -4944,6 +5419,52 @@ $
 $
 
 这说明：如果KL很小，那么TV一定很小。
+
+=== 误差上界的推导
+
+将性能差分展开得到
+
+$
+  J(theta) - J(theta_"old") = sum_(t=0)^T sum_s d_(pi_theta)^t (s) sum_a pi_theta (a|s) A_(pi_(theta_"old"))^t
+$
+
+而CPI surrogate是：
+
+$
+  J_(pi_(theta_"old"))^"CPI" (theta) = sum_(t=0)^T sum_s d_(pi_(theta_"old"))^t (s) sum_a pi_theta (a|s) A_(pi_(theta_"old"))^t
+$
+
+所以误差定义为：
+
+$
+  Delta & = (J(theta) - J(theta_"old")) - J_(pi_(theta_"old"))^"CPI" (theta) \
+  & = sum_(t=0)^T sum_s (d_(pi_theta)^t (s) - d_(pi_(theta_"old"))^t (s)) sum_a pi_theta (a|s) A^(pi_(theta_"old"))_t \
+  & = sum_(t=0)^T sum_s (d_(pi_theta)^t (s) - d_(pi_(theta_"old"))^t (s)) EE_(a tilde pi(dot.c|s)) [A^(pi_(theta_"old"))_t]
+$
+
+我们定义：
+
+$
+  g_(pi_theta) (s) := EE_(a tilde pi(dot.c|s)) [A^(pi_(theta_"old"))_t]
+$
+
+利用一般不等式：若$P,Q$是两个分布，$f$有界，则
+
+$
+  abs(EE_(x tilde P) [f(x)] - EE_(x tilde Q) [f(x)]) <= 2 norm(f)_infinity D_"TV" (P, Q)
+$
+
+因此对于每个时间步t，
+
+$
+  abs(sum_s (d_(pi_theta)^t (s) - d_(pi_(theta_"old"))^t (s)) g_(pi_theta) (s)) <= 2 norm(g_(pi_theta))_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+$
+
+也就是
+
+$
+  abs(Delta) <= 2 norm(g_(pi_theta))_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+$
 
 #chapter("组相对策略优化（GRPO）", image: image("./orange2.jpg"), l: "rl-grpo")
 
