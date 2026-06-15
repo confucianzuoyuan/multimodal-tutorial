@@ -74,6 +74,26 @@
 
 #chapter("microgpt", image: image("./orange2.jpg"), l: "microgpt")
 
+"此文件包含了完整算法，其余一切不过是效率优化。"——Andrej Karpathy
+
+这 200 行代码中运行的数学运算，与 ChatGPT、Claude、Gemini 乃至所有基于 Transformer 架构的语言模型所执行的运算完全一致。区别仅在于规模与速度——而非算法本身。
+
+以下是整个程序的功能：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. DATASET: Load 32,000 human names ("emma", ...)  │
+│  2. TOKENIZER: Map each character → integer ID      │
+│  3. MODEL: Build a tiny GPT (4,192 parameters)      │
+│  4. TRAIN: Show it names, adjust parameters         │
+│  5. GENERATE: Ask it to invent new names            │
+└─────────────────────────────────────────────────────┘
+```
+
+训练完成后，模型能生成从未见过的、听起来合理的名字，比如"Aalina"或"Relyn"。它纯粹通过示例学会了英文名字的统计规律——哪些字母会跟在哪些字母后面，名字如何开头和结尾。
+
+
+
 == 数据集
 
 大语言模型的燃料是文本数据流，这些数据可选择性地划分为一组文档。在生产级应用中，每个文档可能是一个互联网网页，但对于microgpt，我们使用一个更简单的示例：32,000个名字，每行一个：
@@ -133,6 +153,8 @@ sample 20: anton
 
 == 分词器
 
+神经网络并不理解文本，它们只理解数字。首要任务就是将字符转换为整数。
+
 在底层，神经网络处理的是数字而非字符，因此我们需要一种方法将文本转换为整数标记ID序列，并能反向还原。像 tiktoken（GPT-4 使用的）这样的生产级分词器会按字符块处理以提高效率，但最简单的分词器只需为数据集中的每个唯一字符分配一个整数即可。
 
 ```python
@@ -145,7 +167,133 @@ print(f"vocab size: {vocab_size}")
 
 在上述代码中，我们收集了数据集中所有不重复的字符（即所有小写字母a-z），将其排序后，每个字母根据其索引获得一个ID。请注意，这些整数值本身没有任何实际意义；每个标记只是一个独立的离散符号。它们完全可以被替换为不同的表情符号，而非0、1、2。此外，我们创建了一个名为`BOS`（序列起始符）的特殊标记，它作为分隔符使用：告诉模型"新文档在此开始/结束"。在后续训练中，每个文档两侧都会包裹`BOS`：`[BOS, e, m, m, a, BOS]`。模型会学习到`BOS`标志着一个新名称的开始，而另一个`BOS`则标志着其结束。因此，我们最终得到包含 27 个标记的词汇表（26 个可能的小写字母 a-z，加上 1 个序列起始符标记）。
 
+数据集包含 32,000 个名字。`uchars`收集所有名字中的每个独特字符并进行排序，从而得到字符到整数的映射：
+
+```
+Character:  a  b  c  d  e ... x  y  z
+Token ID:   0  1  2  3  4 ... 23 24 25
+BOS token:  26
+```
+
+`BOS`（序列起始）是一个特殊token，用于标识"名称从此处开始"和"名称在此处结束"。像"emma"这样的名称会转化为token序列`[26, 4, 12, 12, 0, 26]`——先是 BOS，接着是 e-m-m-a，最后再次出现 BOS。第二个 BOS 充当结束token：
+
+```
+ BOS   e    m    m    a   BOS
+[26]  [4]  [12] [12] [0] [26]
+  ↑                        ↑
+start                    end
+```
+
+这是一个字符级分词器。像 GPT-4 这样的生产模型使用子词分词器（BPE），词汇量约为~200,000 个词元，其中像"the"这样的常见词是一个单独的词元，而罕见词则会被拆分成多个部分。其原理是相同的：将文本映射为整数序列。
+
 == 自动微分（Autograd）
+
+这是代码中最优雅的部分。`Value` 类实现了自动微分——即通过任意数学运算链计算导数的能力。这正是神经网络训练得以实现的关键。
+
+导数为什么这么重要？
+
+训练神经网络意味着寻找能使损失函数最小化的参数值。损失函数衡量的是模型预测的偏差程度。为了降低损失，我们需要了解：对于每个参数，如果对其进行微小调整，损失会增加还是减少？这就是损失函数对每个参数的导数（梯度）。
+
+```
+Parameter: 0.5
+                        ┌─────────────┐
+  nudge right → 0.501 ──┤             ├── loss = 2.38   ← went up
+  original  →   0.500 ──┤    model    ├── loss = 2.37
+  nudge left →  0.499 ──┤             ├── loss = 2.36   ← went down
+                        └─────────────┘
+
+  Gradient is positive → move the parameter left (decrease it)
+```
+
+由于有 4,192 个参数，我们需要 4,192 个梯度。如果通过逐个微调每个参数来计算这些梯度，则需要进行 4,192 次正向传播。而反向传播只需一次反向传播即可计算出所有梯度。这就是自动梯度的魔力。
+
+```python
+class Value:
+    def __init__(self, data, children=(), local_grads=()):
+        self.data = data
+        self.grad = 0
+        self._children = children
+        self._local_grads = local_grads
+```
+
+每个`Value`存储三项内容：计算结果（`data`）、其梯度（`grad`，在反向传播过程中填充）以及生成方式（`_children`和`_local_grads`）。这些内容共同构成一个计算图——即每项数学运算的记录。
+
+当你写下`c = a + b`时，生成的`Value`会记住它是通过加法从`a`和`b`得出的：
+
+```
+  a (data=3.0) ──┐
+                 ├──(+)──→ c (data=5.0)
+  b (data=2.0) ──┘
+
+  children: (a, b)
+  local_grads: (1, 1)     ← derivative of (a+b) w.r.t. a is 1,
+                              derivative of (a+b) w.r.t. b is 1
+```
+
+对于乘法，局部梯度有所不同：
+
+```python
+def __mul__(self, other):
+    return Value(self.data * other.data, (self, other), (other.data, self.data))
+```
+
+```
+  a (data=3.0) ──┐
+                 ├──(×)──→ c (data=6.0)
+  b (data=2.0) ──┘
+
+  children: (a, b)
+  local_grads: (2.0, 3.0)  ← d(a×b)/da = b = 2.0
+                               d(a×b)/db = a = 3.0
+```
+
+这是微积分中的乘法法则：$a times b$对$a$的导数是$b$，反之亦然。`Value`类中的每项运算都包含其自身的导数规则。
+
+`backward()`方法以反向顺序遍历计算图，并利用链式求导法则累计梯度：如果$z$依赖于$y$，而$y$又依赖于$x$，则$(d z)/(d x) = (d z)/(d y) dot.c (d y)/(d x)$。
+
+```python
+def backward(self):
+    topo = []
+    visited = set()
+    def build_topo(v):
+        if v not in visited:
+            visited.add(v)
+            for child in v._children:
+                build_topo(child)
+            topo.append(v)
+    build_topo(self)
+    self.grad = 1
+    for v in reversed(topo):
+        for child, local_grad in zip(v._children, v._local_grads):
+            child.grad += local_grad * v.grad
+```
+
+首先， `build_topo`执行拓扑排序——它排列所有节点，使得每个节点都出现在其子节点之后。然后，梯度从损失（其梯度按定义为 1）反向流经每个操作，最终到达每个参数。
+
+#pagebreak()
+
+```
+Forward pass (left to right):  compute values
+─────────────────────────────────────────────────────────────→
+
+  a=3.0 ──(×)──→ d=6.0 ──(+)──→ f=7.0 ──(-log)──→ loss=−1.95
+  b=2.0 ──┘      e=1.0 ──┘
+
+←─────────────────────────────────────────────────────────────
+Backward pass (right to left): compute gradients
+
+  loss.grad = 1.0
+
+  f.grad = 1.0 × (−1/f.data) = −0.143        ← chain rule through -log
+  d.grad = f.grad × 1 = −0.143                 ← chain rule through +
+  e.grad = f.grad × 1 = −0.143                 ← chain rule through +
+  a.grad = d.grad × b.data = −0.143 × 2 = −0.286  ← chain rule through ×
+  b.grad = d.grad × a.data = −0.143 × 3 = −0.429  ← chain rule through ×
+```
+
+`+=`中的`child.grad += local_grad * v.grad`很重要——当一个值在多个操作中被使用时，其梯度会累积来自所有操作的贡献。这处理了一个参数通过多条路径影响损失的情况。
+
+这正是 PyTorch、TensorFlow 和 JAX 所实现的反向传播算法。区别在于这些框架基于张量（多维数值数组）运行，并可在 GPU 上执行。而 microGPT 则对单个标量值进行操作，这使得其速度慢约~1,000,000 倍，但在概念上完全一致。
 
 训练神经网络需要梯度：对于模型中的每个参数，我们需要知道"如果我将这个数值稍微调高一点，损失值会上升还是下降？变化幅度是多少？"计算图有许多输入（模型参数和输入词元），但最终汇聚成一个标量输出：损失值（我们将在下文准确定义损失值）。反向传播从该单一输出开始，沿计算图逆向推进，计算损失值相对于每个输入的梯度。这依赖于微积分中的链式法则。在实际应用中，PyTorch等库会自动处理这一过程。在此，我们通过一个名为`Value`的类从头实现该功能：
 
@@ -254,6 +402,8 @@ print(b.grad)   # tensor(2.)
 
 让我们解读一下上面`.backward()`给出的结果。自动微分计算得出，如果`L = a*b + a`、`a=2`和`b=3`成立，那么`a.grad = 4.0`反映的是`a`对`L`的局部影响程度。当你微调输入`a`时，`L`会朝哪个方向变化？这里，`L`对`a`的导数为`4.0`，意味着若将`a`增加微小量（如`0.001`），`L`将增加约4倍于此的值（0.004）。同理，`b.grad = 2.0`表示对`b`施加相同幅度的调整，会使 L 增加约 2 倍于此的值（0.002）。换言之，这些梯度既指明了每个输入对最终输出（损失值）的影响方向（正负取决于符号），也揭示了影响陡峭程度（梯度幅值）。这使我们能够通过迭代微调神经网络参数来降低损失值，从而提升其预测性能。
 
+有了自动求导机制，我们就可以定义 Transformer 模型了。microGPT 遵循 GPT-2 架构，并做了少量简化。
+
 == 参数
 
 参数是模型的知识。它们是一大堆浮点数（包裹在`Value`中用于自动求导），初始时是随机的，并在训练过程中通过迭代进行优化。每个参数的具体作用将在下面定义模型架构时更加清晰，但目前我们只需要对它们进行初始化。
@@ -278,6 +428,42 @@ print(f"num params: {len(params)}")
 ```
 
 每个参数都初始化为从高斯分布中抽取的小随机数。 `state_dict` 将它们组织成命名矩阵（借用 PyTorch 的术语）：嵌入表、注意力权重、MLP 权重以及最终输出投影。我们还将所有参数展平为单个列表 params ，以便优化器后续可以遍历它们。在我们这个微型模型中，参数总数为 4,192 个。GPT-2 拥有 16 亿参数，而现代 LLM 则拥有数千亿参数。
+
+模型对token做的第一件事就是查找其嵌入向量——一个在模型内部空间中代表该标记的、经过学习的数字向量：
+
+```python
+tok_emb = state_dict['wte'][token_id] # token embedding
+pos_emb = state_dict['wpe'][pos_id] # position embedding
+x = [t + p for t, p in zip(tok_emb, pos_emb)]
+```
+
+```
+Token "e" (id=4)                Position 1
+        │                              │
+        ▼                              ▼
+ ┌─────────────┐               ┌─────────────┐
+ │  wte[4]     │               │  wpe[1]     │
+ │  (lookup    │               │  (lookup    │
+ │   row 4)    │               │   row 1)    │
+ └──────┬──────┘               └──────┬──────┘
+        │                              │
+        ▼                              ▼
+ [0.02, -0.05, 0.11, ...]      [0.08, 0.01, -0.03, ...]
+        │                              │
+        └──────────┬───────────────────┘
+                   ▼
+              element-wise add
+                   │
+                   ▼
+         [0.10, -0.04, 0.08, ...]
+              16 numbers
+```
+
+词元嵌入表（`wte`）是一个每行对应一个词条（27 行×16 列）的表格。每行是一个 16 维向量，模型将学习将该向量与该字符的含义关联起来。初始时这些是随机数；在训练过程中，模型会调整它们，使得具有相似角色（如元音）的字符在这个 16 维空间中彼此靠近。
+
+位置嵌入（`wpe`）是一个独立的表格（16 行×16 列），用于编码序列中token出现的位置。模型需要这个信息，因为 Transformer 是并行处理标记的——如果没有位置信息，它就无法区分"ab"和"ba"。将位置嵌入添加到标记嵌入中，使得每个标记的表示既能编码其内容，也能编码其位置。
+
+
 
 == 架构
 
@@ -3346,22 +3532,22 @@ $
 考虑条件期望：
 
 $
-  EE[G_(<t) nabla_theta pi_theta (A_t|S_t)|H_t]
+  EE[G_(<t) nabla_theta log pi_theta (A_t|S_t)|H_t]
 $
 
 因为$G_(<t)$对于$H_t$已知，可以将$G_(<t)$提到外面。得到
 
 $
-  G_(<t)EE[nabla_theta pi_theta (A_t|S_t)|H_t]
+  G_(<t)EE[nabla_theta log pi_theta (A_t|S_t)|H_t]
 $
 
-而给定$H_t$之后，只有$A_t$由策略$pi_theta(dot.c | S_t)$采样，因此
+而给定$H_t$之后，只有$A_t$由策略$pi_theta (dot.c | S_t)$采样，因此
 
 $
   EE[nabla_theta log pi_theta (A_t|S_t) | H_t] = sum_a pi_theta (a|S_t) nabla_theta log pi_theta (a | S_t)
 $
 
-利用log梯度技巧
+利用$log$梯度技巧
 
 $
   pi_theta (a|S_t)nabla_theta log pi_theta (a|S_t) = nabla_theta pi_theta (a|S_t)
