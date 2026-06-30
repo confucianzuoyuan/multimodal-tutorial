@@ -350,15 +350,15 @@ class Value:
 #figure(
   table(
     columns: 3,
-    [运算],[前向传播],[梯度],
-    [`a + b`],[$a+b$],[$(partial)/(partial a)=1,(partial)/(partial b)=1$],
-    [`a * b`],[$a dot.c b$],[$(partial)/(partial a)=b,(partial)/(partial b)=a$],
-    [`a ** n`],[$a^n$],[$(partial)/(partial a)=n dot.c a^(n-1)$],
-    [`log(a)`],[$ln(a)$],[$(partial)/(partial a)=1/a$],
-    [`exp(a)`],[$e^a$],[$(partial)/(partial a)=e^a$],
-    [`relu(a)`],[$max(0,a)$],[$(partial)/(partial a)=bold(1)_(a>0)$],
+    [运算], [前向传播], [梯度],
+    [`a + b`], [$a+b$], [$(partial)/(partial a)=1,(partial)/(partial b)=1$],
+    [`a * b`], [$a dot.c b$], [$(partial)/(partial a)=b,(partial)/(partial b)=a$],
+    [`a ** n`], [$a^n$], [$(partial)/(partial a)=n dot.c a^(n-1)$],
+    [`log(a)`], [$ln(a)$], [$(partial)/(partial a)=1/a$],
+    [`exp(a)`], [$e^a$], [$(partial)/(partial a)=e^a$],
+    [`relu(a)`], [$max(0, a)$], [$(partial)/(partial a)=bold(1)_(a>0)$],
   ),
-  caption: [运算，前向传播，梯度]
+  caption: [运算，前向传播，梯度],
 )
 
 `backward()`方法以逆拓扑顺序遍历该图（从损失开始，到参数结束），在每一步应用链式法则。如果损失为$L$，且节点$v$有一个子节点$c$，其局部梯度为$(partial v)/(partial c)$，则：
@@ -1873,38 +1873,19 @@ print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
 *强化学习*（reinforcement learning，RL）讨论的问题是智能体（agent）怎么在复杂、不确定的环境（environment）中最大化它能获得的奖励。
 
 #figure(
-  fletcher.diagram(
-    node-stroke: 1pt,
-    fletcher.node((0, 0), [智能体], corner-radius: 2pt, extrude: (0, 3), name: <agent>, fill: gradient.radial(
-      blue.lighten(80%),
-      blue,
-      center: (30%, 20%),
-      radius: 80%,
-    )),
-    fletcher.node((0, 3), [环境], corner-radius: 2pt, extrude: (0, 3), name: <env>, fill: gradient.radial(
-      orange.lighten(80%),
-      orange,
-      center: (30%, 20%),
-      radius: 80%,
-    )),
-    fletcher.edge((0, 0), (2, 0), (2, 3), (0, 3), [动作$A_t$], "-|>"),
-    fletcher.edge((0, 3), (-2, 3), [$S_(t+1)$], "-|>"),
-    fletcher.edge((-2, 2), (-2, 4), "--"),
-    fletcher.edge((-2, 3), (-4, 3), (-4, 0), (0, 0), [状态$S_t$], "-|>"),
-    fletcher.edge(<env>, <agent>, [奖励$R_t$], "-|>"),
-  ),
+  image("rl-figures/智能体和环境的交互循环.png"),
   caption: [强化学习交互循环],
 ) <fig-rl-loop>
 
 #tip(title: [名词])[
-  - Agent：智能体，代理，智能代理
+  - Agent：智能体
   - Environment：环境
-  - State：状态
-  - Reward：奖励
-  - Action：动作，行动
+  - State：环境的状态
+  - Reward：即时奖励
+  - Action：动作
 ]
 
-强化学习由两部分组成：*智能体*和*环境*。在强化学习过程中，智能体与环境一直在交互。智能体在环境中获取某个状态后，它会利用该状态输出一个动作（action）。然后这个动作会在环境中被执行，环境会根据智能体采取的动作，输出下一个状态以及当前这个动作带来的奖励。智能体的目的就是尽可能多地从环境中获取奖励。
+强化学习由两部分组成：*智能体*和*环境*。在强化学习过程中，智能体与环境一直在交互。智能体在环境中获取到环境的状态后，会根据环境的状态采取一个动作（action）。然后这个动作会在环境中被执行，环境会根据智能体采取的动作，转移到下一个状态，环境还会反馈给智能体当前这个动作带来的即时奖励。智能体的目的就是尽可能多地从环境中获取奖励。
 
 下图就是一个倒立摆环境。
 
@@ -1921,7 +1902,7 @@ print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
   - 推车的速度
   - 木杆的角度
   - 木杆的角速度
-- 奖励：推车采取向左推或者向右推的动作之后，只要木杆不倒下，奖励就是1。
+- 即时奖励：推车采取向左推或者向右推的动作之后，只要木杆不倒下，奖励就是1。
 
 游戏的结束条件：
 
@@ -1970,7 +1951,7 @@ print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
 
 策略是智能体的动作模型，它决定了智能体的动作。它其实是一个函数，用于把输入的状态变成动作。
 
-策略的数学符号是 $pi$ ，所以策略也就是 $pi$ 函数。即 $pi(a|s)=p(a_t=a|s_t=s)$ 。输入一个状态 $s$ ，输出一个概率分布。用条件概率来看，就是在条件：状态为 $s$ 的情况下，策略采取动作 $a$ 的概率是多少。这个概率是智能体所有动作的概率，然后对这个概率分布进行采样，可得到智能体将采取的动作。比如可能是有 0.7 的概率往左，0.3 的概率往右，那么通过采样就可以得到智能体将采取的动作。
+策略的数学符号是$pi$，所以策略也就是$pi$函数。即$pi(a|s)=p(a_t=a|s_t=s)$。输入一个状态$s$，输出一个概率分布。用条件概率来看，就是在条件：状态为$s$的情况下，策略采取动作$a$的概率是多少。这个概率是智能体所有动作的概率，然后对这个概率分布进行采样，可得到智能体将采取的动作。比如可能是有0.7的概率往左，0.3的概率往右，那么通过采样就可以得到智能体将采取的动作。
 
 #figure(
   $
@@ -1996,9 +1977,13 @@ $
   pi (a=a_"向右推"|s) = 0.3
 $
 
-如果这个 $pi$ 函数是一个神经网络，那么这就是*深度学习 + 强化学习 = 深度强化学习*。当今 AI 界最热门的话题。
+如果这个$pi$函数是一个神经网络，那么这就是*深度学习 + 强化学习 = 深度强化学习*。当今AI界最热门的话题，被认为是*唯一有可能*实现AGI的路线。
 
-所以玩倒立摆游戏的一个*回合*（episode）就是环境的状态为 $S_0$ ，推车采取动作 $A_0$ ，然后获得奖励 $R_0$ ，然后环境的状态转移到了 $S_1$ ，推车接着采取动作 $A_1$ ，然后获得奖励 $R_1$ ，...。下标是时刻，或者时间步。把它们写到一起，就是一个*轨迹*（trajectory）。轨迹用数学符号 $tau$ 表示，读作*掏*。
+#tip[
+  我们在对策略函数$pi(a_t|s_t)$进行建模时，策略函数的含义是智能体只会根据#underline[环境的当前状态]$s_t$来决定采取动作$a_t$的概率分布，也就是说智能体做决策时，不考虑历史状态（$s_(t-1), s_(t-2), dots.c$）。
+]
+
+所以玩倒立摆游戏的一个*回合*（episode）就是环境的状态为$S_0$，推车采取动作$A_0$，然后获得即时奖励$R_0$，然后环境的状态转移到了$S_1$，推车接着采取动作$A_1$，然后获得奖励$R_1$，...。下标是时刻，或者时间步。把它们写到一起，就是一条*轨迹*（trajectory）。轨迹用数学符号$tau$表示，读作*掏*。
 
 $
   tau = (S_0,A_0,R_0,S_1,A_1,R_1,S_2,A_2,R_2, dots.c)
@@ -2037,11 +2022,57 @@ $
   caption: [无数条轨迹],
 )
 
+接下来我们对环境的状态转移进行数学建模：
+
+假设智能体现在处于状态$s$并执行了动作$a$，那么转移到下一个状态$s'$的概率可以用如下方式表示。
+
+$
+  p(s'|s,a)
+$
+
+竖杠$|$的右侧是表示"条件"的概率变量。对于当前问题，条件对应于在状态$s$选择了动作$a$。在给定这两个条件的情况下，转移到$s'$的概率可以表示为$p(s'|s,a)$。像$p(s'|s,a)$这样的概率叫作状态转移概率（state transition probability）。
+
+给定当前状态$s$和采取的动作$a$的情况下，*不一定*会确定性的跳转到某个状态$s'$，所以是状态转移概率。
+
+例如：对于下棋环境来说，棋盘是状态，当AlphaGo下了一个棋子之后，棋盘的状态取决于AlphaGo的对手将棋下在哪里，所以状态转移是不确定的。
+
+$p(s'|s,a)$决定了下一个状态$s'$只取决于当前状态$s$和动作$a$。
+
+$
+  p(s_t|s_(t-1),a_(t-1)) = p(s_t|s_(t-1),a_(t-1),s_(t-2),a_(t-2),dots.c,s_0,a_0)
+$
+
+换句话说，状态转移不需要过去的信息——此前处于什么状态以及执行了哪些动作。这个特性被称为*马尔可夫性质*（Markov property）。
+
+#tip(title: [马尔可夫性质是我们为了方便而做的假设])[
+  强化学习通过#underline[假设]马尔可夫性质的存在来模拟状态转移和奖励。引入马尔可夫性质主要是为了使问题更容易解决。如果不假定马尔可夫性质，那么就必须考虑之前的所有状态和行动，而且组合的数量会呈指数级增长。
+]
+
+环境的状态转移概率我们是无法确切知道的。换句话说，环境的状态转移是智能体无法控制的。毕竟，大自然环境变幻莫测。
+
+我们还需要对即时奖励进行数学建模：
+
+当环境处于状态$s$，智能体执行动作$a$，并且环境转移到下一个状态$s'$时，奖励函数建模如下：
+
+$
+  r(s,a,s')
+$
+
+或者也可以写作
+
+$
+  R_t = r(s_t=s, a_t=a, s_(t+1)=s')
+$
+
+#tip(title: [奖励函数也是智能体无法控制的])[
+  智能体无法控制环境如何给奖励。所以对奖励函数的建模是强化学习中最困难的一个问题。奖励太容易拿会导致#underline[奖励黑客]（reward hacking），奖励太难拿会导致智能体无法学到东西，这叫做#underline[奖励稀疏性问题]。
+]
+
 == 价值函数（Value Function）
 
-当位于时刻 $t$ 时，环境此时处于状态 $S_t$ ，然后我们根据策略函数开始采取动作，那么未来我们一共能获得多少奖励呢？环境处于状态 $S_t$ ，我们采取的动作是 $A_t$ ，获取的奖励是 $R_t$ ，然后环境的状态从 $S_t$ 转移到了 $S_(t+1)$ ，然后采取动作 $A_(t+1)$ ，然后获得即时奖励 $R_(t+1)$ ，然后环境的状态从 $S_(t+1)$ 转移到了 $S_(t+2)$ ，然后环境会给我们即时奖励 $R_(t+2)$ ，......。
+当位于时刻$t$时，环境此时处于状态$S_t$，然后我们根据策略函数开始采取动作，那么未来我们一共能获得多少奖励呢？环境处于状态$S_t$，我们采取的动作是$A_t$，获取的奖励是$R_t$，然后环境的状态从$S_t$转移到了$S_(t+1)$，然后采取动作$A_(t+1)$，然后获得即时奖励$R_(t+1)$，然后环境的状态从$S_(t+1)$转移到了$S_(t+2)$，然后环境会给我们即时奖励$R_(t+2)$，......。
 
-但是未来的奖励不如现在的奖励有吸引力，所以需要*打折*。那么，从 $t$ 时刻起，未来一共获得的奖励叫做*回报*（或者收益，Return）。
+但是未来的奖励不如现在的奖励有吸引力，所以需要*打折*。那么，从$t$时刻起，未来一共获得的奖励叫做*回报*（或者收益，Return）。
 
 $
   G_t = R_t + gamma R_(t+1) + gamma^2 R_(t+2) + dots.c
@@ -2053,15 +2084,15 @@ $
   G_t = R_t + gamma G_(t+1)
 $
 
-$gamma$ 叫做折扣因子。随着时间的推移，奖励会被 $gamma$ 指数级削弱。这个 $gamma$ 被称为折扣因子（discount rate），其被设定为 $0.0$ 和 $1.0$ 之间的实数。如果折扣因子是 $0.9$，那么有以下式子成立。
+$gamma$叫做折扣因子。随着时间的推移，奖励会被$gamma$指数级削弱。这个$gamma$被称为折扣因子（discount rate），其被设定为$0.0$和$1.0$之间的实数。如果折扣因子是$0.9$，那么有以下式子成立。
 
 $
   G_t = R_t + 0.9 R_(t+1) + 0.81 R_(t+2) + dots.c
 $
 
-引入折扣因子主要是为了防止连续性任务的收益变得无穷大。在连续性任务中，如果没有折扣因子（或 $gamma=1$ ），那么收益就会发散到无穷大。因此，设置折扣因子可以防止收益的发散。
+引入折扣因子主要是为了防止连续性任务的收益变得无穷大。在连续性任务中，如果没有折扣因子（或$gamma=1$），那么收益就会发散到无穷大。因此，设置折扣因子可以防止收益的发散。
 
-折扣因子也使近期的奖励显得更加重要。这解释了人类乃至生物的许多行动原理。例如，你会选择今天拿到 10000 元还是一年后拿到 20000 元？如果折扣因子使未来的回报呈指数级下降，那么眼前的回报就会更有吸引力。
+折扣因子也使近期的奖励显得更加重要。这解释了人类乃至生物的许多行动原理。例如，你会选择今天拿到10000元还是一年后拿到20000元？如果折扣因子使未来的回报呈指数级下降，那么眼前的回报就会更有吸引力。
 
 如果我们用倒立摆作为例子，然后我们运行两个时间步。得到下图。
 
@@ -2089,7 +2120,7 @@ $
   caption: [倒立摆环境运行2个时间步],
 )
 
-可以看到，一共有 4 条轨迹。每条轨迹都有一个总的回报。而每条轨迹也都有一个产生的概率。那么我们如何评估在环境处于状态 $S_t$ 时，一直采取策略 $pi$ 未来会获得多少回报呢？也就是未来的预期回报（回报的期望值）是多少呢？那就是*状态价值函数*（State Value Function）。
+可以看到，一共有4条轨迹。每条轨迹都有一个总的回报。而每条轨迹也都有一个产生的概率。那么我们如何评估在环境处于状态$S_t$时，一直采取策略$pi$未来会获得多少回报呢？也就是未来的预期回报（回报的期望值）是多少呢？那就是*状态价值函数*（State Value Function）。
 
 $
   V_pi (s) & = EE_pi [G_t|S_t=s] \
@@ -2097,7 +2128,7 @@ $
 $
 
 #tip[
-  状态价值函数，衡量的是在环境处于状态 $s$ 时，一直按照策略 $pi$ 来采取动作，最终的预期回报。
+  状态价值函数，衡量的是在环境处于状态$s$时，一直按照策略$pi$来采取动作，最终的预期回报。
 ]
 
 状态价值函数的另一种重要的表示形式如下：
@@ -2287,136 +2318,6 @@ show_animation(frames)
 
 由于我们使用的是*随机策略*，所以倒立摆游戏很快就结束了。
 
-== 马尔可夫决策过程
-
-=== 基本概念
-
-马尔可夫决策过程（MDP，Markov Decision Process）。决策过程是智能体通过与环境互动决定其行动的过程。
-
-智能体所处的环境根据其行动而发生改变。在强化学习中，这种情况被称为环境的"状态"（state）。在MDP中，状态的变化取决于智能体的行动，智能体在环境的状态转移后执行新的行动。
-
-在MDP中，我们需要"时间"的概念。在某一时刻，智能体会采取行动并因此转移到一个新的状态。此时的时间单位叫作"时间步"。由于时间步是智能体做出决定的间隔时间，因此它的实际单位取决于问题。
-
-智能体要考虑的是将来获得的奖励总和，而不是眼前的奖励。换句话说，智能体的目标是实现奖励总和最大化。
-
-在MDP中，智能体与环境之间会进行互动。要点在于当智能体采取行动时，状态会发生转移，随之获得的奖励也会相应改变。
-
-参见@fig-rl-loop 。
-
-假设在时刻$t$的状态是$S_t$。基于这个状态$S_t$，智能体执行行动$A_t$，获得奖励$R_t$并转移到下一个状态$S_(t+1)$。智能体与环境之间的这种实际的互动产生了以下转移。
-
-$
-  S_0,A_0,R_0,S_1,A_1,R_1,S_2,A_2,R_2,dots.c
-$
-
-这个时间序列数据从第一个状态$S_0$开始。在状态$S_0$，智能体执行动作$A_0$并获得奖励$R_0$。时刻变为$1$，状态变为$S_1$。接下来，基于状态$S_1$，智能体执行动作$A_1$并获得奖励$R_1$，然后进入下一个状态$S_2 dots.c dots.c$这个流程不断持续下去。
-
-MDP通过数学式来表示智能体、环境以及二者之间的互动。要做到这一点，需要用数学式来表达以下3个要素。
-
-- 状态转移：状态如何转移。
-- 奖励：如何给予奖励。
-- 策略：智能体如何决定行动。
-
-=== 状态转移
-
-假设智能体现在处于状态$s$并执行了动作$a$，那么转移到下一个状态$s'$的概率可以用如下方式表示。
-
-$
-  p(s'|s,a)
-$
-
-#tip(title: [状态和观察])[
-  - 状态（state）：如果能观察到整个环境完整的信息，就叫做状态
-  - 观察（observation）：只能观察到环境的部分状态（信息）
-]
-
-竖杠$|$的右侧是表示"条件"的概率变量。对于当前问题，条件对应于在状态$s$选择了行动$a$。在给定这两个条件的情况下，转移到 $s'$ 的概率可以表示为 $p(s'|s,a)$ 。像 $p(s'|s,a)$ 这样的概率叫作状态转移概率（state transition probability）。
-
-给定当前状态$s$和采取的动作$a$的情况下，*不一定*会确定性的跳转到某个状态$s'$，所以是状态转移概率。
-
-对于倒立摆环境而言，给定当前状态，采取向左推的动作，一定会确定性的跳转到某个状态。
-
-但对于下棋环境来说，棋盘是状态，当Agent下了一个子儿后，棋盘的状态取决于Agent的对手将棋下在哪里，所以状态转移是不确定的。
-
-$p(s'|s,a)$决定了下一个状态$s'$只取决于当前状态$s$和行动$a$。
-
-$
-  p(s_t|s_(t-1),a_(t-1)) = p(s_t|s_(t-1),a_(t-1),s_(t-2),a_(t-2),dots.c,s_0,a_0)
-$
-
-换句话说，状态转移不需要过去的信息——此前处于什么状态以及执行了哪些行动。这个特性被称为*马尔可夫性质*（Markov property）。
-
-#tip[
-  MDP通过假设马尔可夫性质的存在来模拟状态转移和奖励。引入马尔可夫性质主要是为了使问题更容易解决。如果不假定马尔可夫性质，那么就必须考虑之前的所有状态和行动，而且组合的数量会呈指数级增长。
-]
-
-=== 奖励函数
-
-当智能体处于状态 $s$ ，执行行动 $a$，下一个状态是 $s'$ 时，得到的奖励由函数 $r(s,a,s')$ 定义。$r(s,a,s')$ 叫做*奖励函数*。
-
-#tip(title: [倒立摆环境中的奖励函数])[
-  倒立摆环境中的奖励是确定性的，只要木杆不倒下，就给奖励1。
-]
-
-奖励函数的建模是一个非常困难的问题，例如：我们的机器人Agent，它的任务是将插头正确的插入插座，如果只有正确的插入插头才会给奖励1，其它情况都给奖励0，那么机器人可能一辈子也拿不到奖励了。这叫做*奖励稀疏性问题*。
-
-=== 策略
-
-策略表示智能体如何决定其行动。策略的关键在于它使得智能体仅根据当前状态来决定其行动。之所以说只基于当前状态就足够了，是因为环境的转移是符合马尔可夫性质的。
-
-环境的状态转移只以当前状态$s$和动作$a$为条件来决定下一个状态$s'$，而不需要先前的信息。同样，奖励也是基于当前状态$s$、动作$a$和转移后的状态$s'$来决定的。这意味着关于环境的所有必要信息都在当前状态中。因此，智能体只需基于当前状态即可决定其行动。
-
-#tip[
-  MDP的马尔可夫性质可以被看作是对环境而不是对智能体的约束。这意味着为了满足马尔可夫性质，环境需要保持某个"状态"。从智能体的角度来看，在当前状态下有足够的信息来做出最佳选择，所以它可以在此基础上采取行动。
-]
-
-智能体的行动是由随机性策略决定的，数学式如下所示。
-
-$
-  pi(a|s)
-$
-
-$pi(a|s)$ 表示在状态 $s$ 下采取行动 $a$ 的概率。
-
-我们已经成功地用数学式来表示状态转移、奖励函数和策略。接下来让我们使用这三者来定义MDP的目标。
-
-=== MDP的目标
-
-到目前为止，我们已经用数学式描述了环境和智能体的行动。简要回顾一下，智能体根据策略 $pi(a|s)$ 采取行动。首先，它根据它的行动和状态转移概率$p(s'|s,a)$转移到下一个状态。然后，它根据奖励函数$r(s,a,s')$获得奖励。在这个框架内，MDP的目标是找到*最优策略*（optimal policy）。最优策略是使收益最大化的策略。
-
-=== 收益
-
-为了定义收益，我们思考这样一个场景：设时刻为$t$，状态为$S_t$（其中$t$是任意值）。然后，智能体根据策略$pi$执行动作$A_t$，获得奖励$R_t$，之后转移到新状态$S_(t+1)$，这个过程不断重复进行。在这种情况下，收益$G_t$的定义如下所示。
-
-$
-  G_t = R_t + gamma R_(t+1) + gamma^2 R_(t+2) + dots.c
-$
-
-$gamma$为折扣因子。
-
-=== 状态价值函数
-
-我们已经重新定义了"收益"。智能体的目标是使这种收益最大化。这里有一点需要注意，那就是智能体和环境的行动可能是"随机性"的。智能体可能随机地决定行动，状态也可能随机转移。在这种情况下，获得的收益将呈现随机的特点。即使从相同的状态开始，不同回合的收益也随机变化。例如，某个回合的收益为$10.4$，另一个回合的收益为$8.7$。
-
-为了处理这种随机行动，需要使用期望值或"收益的期望值"作为衡量标准。收益的期望值的数学式如下所示。
-
-$
-  v_pi (s) = EE[G_t|S_t=s,pi]
-$ <vpis1>
-
-我们指定的条件是状态 $S_t$ 为 $s$ 智能体的策略为 $pi$ （其中时刻 $t$ 是任意值）。在这些条件下，智能体获得的收益的期望值为上面的公式。在这里，我们用特殊符号 $v_pi (s)$ 来表示收益的期望值。就是*状态价值函数*（state-value function）。
-
-在公式的右侧，智能体的策略$pi$被作为条件给出。这是因为如果策略$pi$发生变化，那么智能体获得的奖励也会发生变化，而这些奖励的总和，即收益也会发生变化。为了明确这一点，状态价值函数通常会写作$v_pi (s)$，将$pi$写在$v$的右下角。此外，上面的公式也可以写成下面的形式。
-
-$
-  v_pi (s) = EE_pi [G_t|S_t=s]
-$ <vpis2>
-
-在上面的式子中，记载 $pi$ 的位置是 $EE_pi$ 。与@vpis1 一样，这么写的含义是策略 $pi$ 是作为条件给出的。从现在起，本教程将采取式@vpis2 的风格来书写式子。
-
-在强化学习中，我们的目标是获得最优策略。
-
-最优策略的状态价值函数叫作*最优状态价值函数*（optimal state-value function）。可以使用 $v_*$ 来表示最优状态价值函数。
 
 == 贝尔曼方程
 
@@ -2435,40 +2336,9 @@ $
   $
         EE[x] & = sum_x x p(x) \
      EE[f(x)] & = sum_x f(x)p(x) \
-    EE[X|Y=y] & = sum_x x P(X=x|Y=y) = sum_x x P(X=x,Y=y)/P(Y=y) \
-        EE[X] & = EE[EE[X|Y]]                                    && "（全期望公式）" \
-      EE[X|Y] & = EE[EE[X|Y,Z]|Y]                                && "（条件期望的迭代公式）"
+    EE[X|Y=y] & = sum_x x dot.c P(X=x|Y=y) space space colblue("（条件期望）")
   $
 ]
-
-#tip(title: [全期望公式的证明])[
-  $
-    EE[EE[X|Y]] & = sum_y EE(X|Y=y) dot.c P(Y=y) \
-                & = sum_y (sum_x x dot.c P(X=x|Y=y)) dot.c P(Y=y) \
-                & = sum_y (sum_x x dot.c P(X=x|Y=y) dot.c P(Y=y)) \
-                & = sum_y (sum_x x dot.c P(X=x,Y=y)) \
-                & = sum_x x dot.c P(X=x) \
-                & = EE[X]
-  $
-]
-
-#tip(title: [条件期望迭代公式的证明])[
-  对任意给定的 $Y=y$，有：
-  $
-    EE[EE[X|Y,Z]|Y=y] & = sum_z EE[X|Y=y,Z=z] dot.c P(Z=z|Y=y) \
-                      & = sum_z (sum_x x dot.c P(X=x|Y=y,Z=z)) dot.c P(Z=z|Y=y) \
-                      & = sum_x x dot.c sum_z P(X=x|Y=y,Z=z) dot.c P(Z=z|Y=y) \
-                      & = sum_x x dot.c sum_z P(X=x,Z=z|Y=y) \
-                      & = sum_x x dot.c P(X=x|Y=y) \
-                      & = EE[X|Y=y]
-  $
-
-  因此：
-  $
-    EE[EE[X|Y,Z]|Y] = EE[X|Y]
-  $
-]
-
 
 另外，$x$和$y$同时发生的概率（这叫作"联合概率"）如所示。
 
@@ -2533,28 +2403,27 @@ $ <bellman-left>
 
 如上面的数学式所示，将智能体行动的概率$pi(a|s)$、要转移的状态的概率$p(s'|s,a)$和奖励函数$r(s,a,s')$相乘。对所有候选项都进行上述计算，得到它们的总和。
 
-#tip[
-  @bellman-left 中只有$s$是确定的，假设可选择的动作只有两个${a_1,a_2}$，环境状态只有两种${s_1,s_2}$。那么状态转移和概率如下：
-  #math.equation(
-    $
-      s arrow a_1 arrow s_1: pi(a=a_1|s) = 0.2, p(s'=s_1|s,a=a_1) = 0.3, r(s,a=a_1,s'=s_1)=10 \
-      s arrow a_1 arrow s_2: pi(a=a_1|s) = 0.2, p(s'=s_2|s,a=a_1) = 0.7, r(s,a=a_1,s'=s_2)=20 \
-      s arrow a_2 arrow s_1: pi(a=a_2|s) = 0.8, p(s'=s_1|s,a=a_2) = 0.5, r(s,a=a_2,s'=s_1)=30 \
-      s arrow a_2 arrow s_2: pi(a=a_2|s) = 0.8, p(s'=s_2|s,a=a_2) = 0.5, r(s,a=a_2,s'=s_2)=40
-    $,
-    block: true,
-    numbering: none,
-  )
-  那么即时奖励的期望是：
-  #math.equation(
-    $
-      EE & = 0.2 times 0.3 times 10 + 0.2 times 0.7 times 20 + 0.8 times 0.5 times 30 + 0.8 times 0.5 times 40 \
-         & = 0.6 + 2.8 + 12.0 + 16.0 \
-         & = 31.4
-    $,
-    block: true,
-    numbering: none,
-  )
+#tip(title: [$s arrow s'$的转移概率])[
+  由于$s$是确定的，所以$p(s,a)=pi(a|s)$。
+  $
+    p(s'|s) = sum_a p(s',a|s) = sum_a p(s'|s,a)p(a,s)=sum_a p(s'|s,a)pi(a|s)
+  $
+]
+
+#tip(title: [证明])[
+  $
+    EE_pi [R_t|S_t=s] & = EE_pi [R_t=r(s,a,s')|S_t=s] \
+  $
+  上面的期望，计算的是随机变量$R_t$的期望。而$S_t=s$是确定好的条件。由于$r(s,a,s')$在$s,a,s'$确定的情况下，计算出来的确定的值。所以$R_t=r(s,a,s')$发生的概率是$p(s,a,s')$。所以有如下：
+  $
+    EE_pi [R_t|S_t=s] & = EE_pi [R_t=r(s,a,s')|S_t=s] \
+                      & = sum_a sum_s' r(s,a,s') p(s,a,s') \
+                      & = sum_a sum_s' r(s,a,s') p(s'|s,a) p(s,a) \
+                      & = sum_a sum_s' r(s,a,s') p(s'|s,a) pi(a|s) \
+                      & = sum_(a,s') r(s,a,s') p(s'|s,a) pi(a|s)
+  $
+
+  要注意的是：$S_t=s$是确定的，所以随机变量为$a,s'$。所以需要遍历所有可能的$a,s'$事件。
 ]
 
 第一项推导完毕，接下来推导第二项。
@@ -2597,47 +2466,23 @@ $
                         & = sum_(a,s') pi(a|s)p(s'|s,a)v_pi (s')
 $
 
-#tip(title: [用条件期望迭代公式证明未来回报展开])[
-  由条件期望迭代公式，对更细的信息 $A_t, S_(t+1)$ 展开：
-
+#tip(title: [证明])[
+  思路就是将$s arrow s'$的所有路径都遍历计算一遍。
   #math.equation(
     $
-      EE_pi [G_(t+1)|S_t=s] & = EE_pi [
-                                EE_pi [G_(t+1)|S_t=s,A_t,S_(t+1)]
-                                | S_t=s
-                              ] \
-                            & = sum_(a,s')
-                              p(A_t=a,S_(t+1)=s'|S_t=s)
-                              EE_pi [G_(t+1)|S_t=s,A_t=a,S_(t+1)=s'] \
-                            \
-                            \
+      EE_pi [G_(t+1)|S_t=s] & = sum_(G_(t+1)) p(G_(t+1)|S_t=s) dot.c G_(t+1) \
+      & = sum_(G_(t+1)) { sum_s' p(G_(t+1), S_(t+1) = s' | S_t=s) } dot.c G_(t+1) \
+      & =sum_(G_(t+1)) { sum_s' p(G_(t+1)|S_(t+1)=s',S_t=s)p(S_(t+1)=s'|S_t=s) } dot.c G_(t+1) \
+      & = sum_(G_(t+1)) { sum_s' p(G_(t+1)|S_(t+1)=s')p(S_(t+1)=s'|S_t=s) } dot.c G_(t+1) space space colblue("（马尔可夫性质）")\
+      & = sum_s' p(S_(t+1) = s'|S_t=s) {sum_(G_(t+1)) p(G_(t+1)|S_(t+1)=s') dot.c G_(t+1)} \
+      & = sum_s' p(S_(t+1) = s'|S_t=s) EE_pi [G_(t+1)|S_(t+1)=s'] \
+      & = sum_(a,s')pi(a|s)p(s'|s,a)v_pi (s') \
+      & = EE_pi [v_pi (s')|S_t=s] space space colblue("（期望形式）")
     $,
     block: true,
     number-align: bottom,
   )
-
-  又因为：
-  $
-    p(A_t=a,S_(t+1)=s'|S_t=s) & = p(A_t=a|S_t=s) dot.c
-                                p(S_(t+1)=s'|S_t=s,A_t=a) \
-                              & = pi(a|s)p(s'|s,a)
-  $
-
-  并且由马尔可夫性，给定 $S_(t+1)=s'$ 后，未来回报 $G_(t+1)$
-  与过去的 $S_t=s,A_t=a$ 无关：
-  $
-    EE_pi [G_(t+1)|S_t=s,A_t=a,S_(t+1)=s'] & = EE_pi [G_(t+1)|S_(t+1)=s'] \
-                                           & = v_pi (s')
-  $
-
-  因此：
-  $
-    EE_pi [G_(t+1)|S_t=s] & = sum_(a,s')
-                            pi(a|s)p(s'|s,a)
-                            EE_pi [G_(t+1)|S_(t+1)=s'] \
-                          & = sum_(a,s')
-                            pi(a|s)p(s'|s,a)v_pi (s')
-  $
+  在$S_(t+1)$确定下来之后，$G_(t+1)$不再依赖$S_t$。因为$G_(t+1) = R_(t+1) + gamma G_(t+2) = r(S_(t+1)=s', a, S_(t+2)=s'') + gamma G_(t+2)$。
 ]
 
 
@@ -2651,7 +2496,7 @@ $
   $
 ]
 
-上面的式子就是大名鼎鼎的*贝尔曼方程*。贝尔曼方程是表示状态$s$的价值函数和下一个可能的状态$s'$的价值函数之间关系的式子。这个贝尔曼方程对所有状态$s$和所有策略 $pi$ 都成立。
+上面的式子就是大名鼎鼎的*贝尔曼方程*。贝尔曼方程是表示状态$s$的价值函数和下一个可能的状态$s'$的价值函数之间关系的式子。这个贝尔曼方程对所有状态$s$和所有策略$pi$都成立。
 
 状态价值函数的贝尔曼方程的另一种重要的表示形式：*贝尔曼期望方程*。
 
@@ -2664,14 +2509,9 @@ $
 贝尔曼期望方程的推导过程如下：
 
 $
-  V_pi (S_t) & = EE_pi [G_t|S_t] \
-             & = EE_pi [sum_(k=0)^infinity gamma^k R_(t+k) | S_t] \
-             & = EE_pi [R_t+gamma sum_(k=0)^infinity gamma^k R_(t+k+1) | S_t] \
-             & = EE_pi [R_t+gamma G_(t+1)|S_t] \
-             & = EE_pi [R_t|S_t]+gamma EE_pi [G_(t+1)|S_t] \
-             & = EE_pi [R_t|S_t]+gamma EE_pi [EE_pi [G_(t+1)|S_(t+1)]|S_t] \
-             & = EE_pi [R_t|S_t]+gamma EE_pi [V_pi (S_(t+1))|S_t] \
-             & = EE_pi [R_t+gamma V_pi (S_(t+1))|S_t] \
+  V_pi (S_t) & = EE_pi [R_t|S_t=s] + gamma EE_pi [G_(t+1)|S_t=s] \
+             & = EE_pi [R_t|S_t=s] + gamma EE_pi [V_pi (s')|S_t=s] \
+             & = EE_pi [R_t + gamma V_pi (s')|S_t=s]
 $
 
 == 下一步
@@ -2795,7 +2635,7 @@ $
   #annot(<p4>, pos: top + right, dy: -1.5em, leader-connect: "elbow")[当前状态$s$]
 $
 
-还是倒立摆环境，每当倒立摆环境处于某个状态 $s$ 时，我们就会使用神经网络 $pi_theta$ 来决定要采取什么动作。
+还是倒立摆环境，每当倒立摆环境处于某个状态$s$时，我们就会使用神经网络$pi_theta$来决定要采取什么动作。
 
 那么，问题是：策略神经网络怎么训练？
 
@@ -3105,7 +2945,7 @@ $
 
 我们讲一些实现细节。我们可以把强化学习想成一个分类问题，这个分类问题就是输入倒立摆的状态，输出某个类。在解决分类问题时，我们要收集一些训练数据，数据中要有输入与输出的对。在实现的时候，我们把倒立摆的状态当作分类器的输入，就像在解决图像分类的问题，只是现在的类不是图像里面的东西，而是看到倒立摆的状态我们要采取什么样的动作，每一个动作就是一个类。比如第一个类是向左，第二个类是向右。
 
-在解决分类问题时，我们要有输入和正确的输出，要有训练数据。但在强化学习中，我们通过采样来获得训练数据。假设在采样的过程中，在某个状态下，我们采样到要采取动作 $A$， 那么就把动作 $A$ 当作标准答案（ground truth）。比如，我们在某个状态下，采样到要向左。因为是采样，所以向左这个动作不一定概率最高。假设我们采样到向左，在训练的时候，让智能体调整网络的参数，如果看到某个状态，我们就向左。在一般的分类问题里面，我们在实现分类的时候，目标函数都会写成最小化交叉熵（cross entropy），最小化交叉熵就是最大化对数似然（log likelihood）。
+在解决分类问题时，我们要有输入和正确的输出，要有训练数据。但在强化学习中，我们通过采样来获得训练数据。假设在采样的过程中，在某个状态下，我们采样到要采取动作$A$， 那么就把动作$A$当作标准答案（ground truth）。比如，我们在某个状态下，采样到要向左。因为是采样，所以向左这个动作不一定概率最高。假设我们采样到向左，在训练的时候，让智能体调整网络的参数，如果看到某个状态，我们就向左。在一般的分类问题里面，我们在实现分类的时候，目标函数都会写成最小化交叉熵（cross entropy），最小化交叉熵就是最大化对数似然（log likelihood）。
 
 #tip(title: [从极大似然估计的角度看策略梯度])[
   $
@@ -3465,191 +3305,6 @@ test_agent(agent, env)
   image("rl-figures/reinforce-pg-loss.svg"),
   caption: [REINFORCE策略梯度算法获得的奖励],
 )
-
-=== REINFORCE证明
-
-可以证明：把整条轨迹回报$G(tau)$换成从时刻$t$开始的回报$G(t)$，本质上是利用了*因果性*：时刻$t$的动作不会影响时刻$t$之前已经发生的奖励。因此，过去奖励那部分在期望下对梯度贡献为$0$。
-
-将$G(tau)$拆成过去和未来两部分
-
-对某个时刻$t$，可以把整条轨迹回报拆成：
-
-$
-  G(tau)
-  =
-  sum_(k=0)^(t-1) gamma^k R_k
-  +
-  sum_(k=t)^(T-1) gamma^k R_k
-$
-
-记过去回报为
-
-$
-  G_(<t)
-  =
-  sum_(k=0)^(t-1) gamma^k R_k
-$
-
-未来回报为
-
-$
-  G_(>= t)
-  =
-  sum_(k=t)^(T-1) gamma^k R_k
-$
-
-于是有
-
-$
-  G(tau)=G_(<t)+G_(>= t)
-$
-
-代入梯度中的第$t$项：
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t) G(tau)]
-$
-
-得到
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t) G_(<t)] +
-  EE[nabla_theta log pi_theta (A_t|S_t) G_(>=t)]
-$
-
-关键是证明第一项为0。
-
-证明过去奖励项的期望为0。
-
-注意$G_(<t)$只依赖于时刻$t$之前发生的事情，也就是历史信息：
-
-$
-  H_t = (S_0, A_0, R_0, ..., S_t)
-$
-
-因此$G_(<t)$在给定$H_t$后是确定的。
-
-考虑条件期望：
-
-$
-  EE[G_(<t) nabla_theta log pi_theta (A_t|S_t)|H_t]
-$
-
-因为$G_(<t)$对于$H_t$已知，可以将$G_(<t)$提到外面。得到
-
-$
-  G_(<t)EE[nabla_theta log pi_theta (A_t|S_t)|H_t]
-$
-
-而给定$H_t$之后，只有$A_t$由策略$pi_theta (dot.c | S_t)$采样，因此
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t) | H_t] = sum_a pi_theta (a|S_t) nabla_theta log pi_theta (a | S_t)
-$
-
-利用$log$梯度技巧
-
-$
-  pi_theta (a|S_t)nabla_theta log pi_theta (a|S_t) = nabla_theta pi_theta (a|S_t)
-$
-
-得到
-
-$
-  sum_a pi_theta (a|S_t)nabla_theta log pi_theta (a|S_t) = sum_a nabla_theta pi_theta (a|S_t)
-$
-
-而
-
-$
-  sum_a pi_theta (a|S_t) = 1
-$
-
-所以
-
-$
-  sum_a nabla_theta pi_theta (a|S_t) = nabla_theta sum_a pi_theta (a|S_t) = nabla_theta 1 = 0
-$
-
-因此
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t)|H_t] = 0
-$
-
-从而
-
-$
-  EE[G_(<t) nabla_theta log pi_theta (A_t|S_t)] = 0
-$
-
-这说明：时刻$t$之前的奖励可以从第$t$项的回报中删掉，不改变期望梯度。
-
-因此可以替换为"reward-to-go"
-
-所以：
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t)G(tau)] = EE[nabla_theta log pi_theta (A_t|S_t) G_(>=t)]
-$
-
-于是整体梯度可以写成：
-
-$
-  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) nabla_theta log pi_theta (A_t|S_t) sum_(k=t)^(T-1) gamma^k R_k]
-$
-
-如果定义从时刻$t$开始的"reward-to-go"为
-
-$
-  G_t = sum_(k=t)^(T-1) gamma^(k-t) R_k
-$
-
-那么上式也常写为
-
-$
-  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) gamma^t nabla_theta log pi_theta (A_t|S_t) G_t]
-$
-
-很多教材会把折扣因子的位置简化或吸收到$G_t$的定义中，因此也常见写法：
-
-$
-  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) nabla_theta log pi_theta (A_t|S_t) G_t]
-$
-
-直观解释
-
-原始形式中，第$t$个策略梯度项是：
-
-$
-  nabla_theta log pi_theta (A_t|S_t)G(tau)
-$
-
-但$A_t$只会影响：
-
-- 当前奖励；
-- 未来状态；
-- 未来奖励。
-
-它不可能影响已经发生的过去奖励。因此把过去奖励乘到
-
-$
-  nabla_theta log pi_theta (A_t|S_t)
-$
-
-上，只会增加噪声，不会改变期望值。
-
-所以用$G_t$代替$G(tau)$不会改变梯度的无偏性，但可以降低方差。
-
-结论
-
-REINFORCE中将整条轨迹回报$G(tau)$替换为从当前时刻开始的回报$G(t)$是成立的，因为对于任意时刻$t$，过去奖励部分满足
-
-$
-  EE[nabla_theta log pi_theta (A_t|S_t) sum_(k=0)^(t-1) gamma^k R_k] = 0
-$
-
-因此删掉过去奖励不会引入偏差，只是减少了方差。这就是所谓的"reward-to-go trick"或"因果性改进"。
 
 
 
@@ -4300,7 +3955,7 @@ $
   &= nabla_theta sum_(t=0)^T log pi_theta (A_t|S_t)
 $
 
-$nabla_theta$是对$theta$的梯度。与$theta$无关的元素的梯度$nabla_theta log p(S_0)$和$nabla_theta sum_(t=0)^T log p(S_(t+1)|S_t,A_t)}$为0。因此，从上面的式子可以得到下列式子。
+$nabla_theta$是对$theta$的梯度。与$theta$无关的元素的梯度$nabla_theta log p(S_0)$和$nabla_theta sum_(t=0)^T log p(S_(t+1)|S_t,A_t)$为0。因此，从上面的式子可以得到下列式子。
 
 $
   nabla_theta J(theta) & =EE_(tau tilde pi_theta) [G(tau) nabla_theta log"Pr"(tau|theta)] \
@@ -4384,6 +4039,117 @@ $
 
 所以基线证明完毕。
 
+
+=== REINFORCE证明
+
+可以证明：把整条轨迹回报$G(tau)$换成从时刻$t$开始的回报$G(t)$，本质上是利用了*因果性*：时刻$t$的动作不会影响时刻$t$之前已经发生的奖励。因此，过去奖励那部分在期望下对梯度贡献为$0$。
+
+将$G(tau)$拆成过去和未来两部分
+
+对某个时刻$t$，可以把整条轨迹回报拆成：
+
+$
+  G(tau)
+  =
+  sum_(k=0)^(t-1) gamma^k R_k
+  +
+  sum_(k=t)^(T-1) gamma^k R_k
+$
+
+记过去回报为
+
+$
+  G_(<t)
+  =
+  sum_(k=0)^(t-1) gamma^k R_k
+$
+
+未来回报为
+
+$
+  G_(>= t)
+  =
+  sum_(k=t)^(T-1) gamma^k R_k
+$
+
+于是有
+
+$
+  G(tau)=G_(<t)+G_(>= t)
+$
+
+代入梯度中的第$t$项：
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) G(tau)]
+$
+
+得到
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) G_(<t)] +
+  EE[nabla_theta log pi_theta (A_t|S_t) G_(>=t)]
+$
+
+关键是证明第一项为0。
+
+在上一节中，我们证明过：由于$G_(<t)$不依赖于$A_t$变化，所以相当于是常数。
+
+所以第一项为0。
+
+如果定义从时刻$t$开始的"reward-to-go"为
+
+$
+  G_t = sum_(k=t)^(T-1) gamma^(k-t) R_k
+$
+
+那么上式也常写为
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) gamma^t nabla_theta log pi_theta (A_t|S_t) G_t]
+$
+
+很多教材会把折扣因子的位置简化或吸收到$G_t$的定义中，因此也常见写法：
+
+$
+  nabla_theta J(theta) = EE_(tau tilde pi_theta) [sum_(t=0)^(T-1) nabla_theta log pi_theta (A_t|S_t) G_t]
+$
+
+直观解释
+
+原始形式中，第$t$个策略梯度项是：
+
+$
+  nabla_theta log pi_theta (A_t|S_t)G(tau)
+$
+
+但$A_t$只会影响：
+
+- 当前奖励；
+- 未来状态；
+- 未来奖励。
+
+它不可能影响已经发生的过去奖励。因此把过去奖励乘到
+
+$
+  nabla_theta log pi_theta (A_t|S_t)
+$
+
+上，只会增加噪声，不会改变期望值。
+
+所以用$G_t$代替$G(tau)$不会改变梯度的无偏性，但可以降低方差。
+
+结论
+
+REINFORCE中将整条轨迹回报$G(tau)$替换为从当前时刻开始的回报$G(t)$是成立的，因为对于任意时刻$t$，过去奖励部分满足
+
+$
+  EE[nabla_theta log pi_theta (A_t|S_t) sum_(k=0)^(t-1) gamma^k R_k] = 0
+$
+
+因此删掉过去奖励不会引入偏差，只是减少了方差（噪声）。这就是所谓的"reward-to-go trick"或"因果性改进"。
+
+
 == 总结
 
 在本章中，我们学习了基于策略的方法——策略梯度法。具体来说，我们学习了几种策略梯度法的算法。它们的统一的数学式如下所示。
@@ -4445,6 +4211,14 @@ $
   深度学习中，使用的训练数据集是固定不变的。换句话说，不管神经网络的参数怎么变，训练数据集是不会变的。也就是说，神经网络的参数和训练数据集没关系。
 
   而强化学习中，训练数据是每一轮根据策略来采样的新的轨迹。而采样的轨迹的质量好坏无法控制。也就是说训练数据集和策略神经网络的参数是有关系的。这就麻烦了。
+
+  我们真正应该优化的目标是$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$。但在蒙特卡洛采样法只采样一条轨迹的情况下，我们优化的目标成了：
+  $
+    J(theta) approx sum_(t=0)^T G(tau) log pi_theta (a_t|s_t)
+  $
+  所以每次优化的目标函数其实是不一样的！也就是说在山里走，每次走一步，山的形状就变了。
+
+  而在深度学习中，在山里走，山的形状是不变的。
 ]
 
 在强化学习中很难找到合适的学习率。假设学习率是专门针对上图黄点调整的。该区域相对平坦，因此为了获得良好的学习速度，学习率应该高于平均值。但是，一步走错，我们就会从悬崖上掉到红点。红点处的梯度很高，当前的学习率会触发爆炸式策略更新。由于学习率对地形不敏感，策略梯度算法的收敛问题非常严重。
@@ -4483,7 +4257,13 @@ $
 
 也就是，我们在梯度上升的时候，先周围看一圈，然后找一个安全的步长，然后进行梯度上升。
 
-为了实现这个目的，我们的梯度公式$nabla_theta J(theta)$就要改变了。
+为了实现这个目的，我们的目标函数$J(theta)$就要改变了。
+
+#tip(title: [原始目标函数不好优化，转而去优化一个替代目标函数，这种方法很常见吗？])[
+  是的，非常常见，而且几乎是现代机器学习、优化、统计推断和强化学习里的"基本套路"之一。很多时候，原始目标函数要么不可导、不可直接计算、方差太大、非凸、约束复杂，要么优化起来不稳定，所以我们会构造一个更容易优化的替代目标函数，也常叫surrogate objective/surrogate loss/proxy objective。
+]
+
+
 
 PPO算法是Actor-Critic架构的，也就是演员-评论家架构。
 
@@ -4574,10 +4354,10 @@ $
 
 实际上，如果策略发生重大变化超出了我们的舒适区，那么这将阻碍策略的实现。
 
-我们假设比率
+我们假设比值（重要性权重）
 
 $
-  p_t (theta) = (pi_theta (a_t|s_t)) / (pi_(theta_"old") (a_t|s_t))
+  rho_t (theta) = (pi_theta (a_t|s_t)) / (pi_(theta_"old") (a_t|s_t))
 $
 
 #figure(
@@ -4604,12 +4384,12 @@ $
     table.cell(
       fill: red.lighten(60%),
     )[梯度],
-    [1], [$p_t (theta) in [1-epsilon,1+epsilon]$], [+], [$p_t (theta) A_t$], [否], [+], [$checkmark$],
-    [2], [$p_t (theta) in [1-epsilon,1+epsilon]$], [-], [$p_t (theta) A_t$], [否], [-], [$checkmark$],
-    [3], [$p_t (theta) < 1-epsilon$], [+], [$p_t (theta) A_t$], [否], [+], [$checkmark$],
-    [4], [$p_t (theta) < 1-epsilon$], [-], [$(1-epsilon)A_t$], [是], [-], [$0$],
-    [5], [$p_t (theta) > 1+epsilon$], [+], [$(1+epsilon)A_t$], [是], [+], [$0$],
-    [6], [$p_t (theta) > 1+epsilon$], [-], [$p_t (theta) A_t$], [否], [-], [$checkmark$],
+    [1], [$rho_t (theta) in [1-epsilon,1+epsilon]$], [+], [$rho_t (theta) A_t$], [否], [+], [$checkmark$],
+    [2], [$rho_t (theta) in [1-epsilon,1+epsilon]$], [-], [$rho_t (theta) A_t$], [否], [-], [$checkmark$],
+    [3], [$rho_t (theta) < 1-epsilon$], [+], [$rho_t (theta) A_t$], [否], [+], [$checkmark$],
+    [4], [$rho_t (theta) < 1-epsilon$], [-], [$(1-epsilon)A_t$], [是], [-], [$0$],
+    [5], [$rho_t (theta) > 1+epsilon$], [+], [$(1+epsilon)A_t$], [是], [+], [$0$],
+    [6], [$rho_t (theta) > 1+epsilon$], [-], [$rho_t (theta) A_t$], [否], [-], [$checkmark$],
   ),
   caption: [对PPO目标函数根据比值的不同进行分情况讨论],
 )
@@ -4617,19 +4397,19 @@ $
 
 我们有6种不同的情况，见上面的表。首先记住，我们取裁剪目标和非裁剪目标中的最小值。
 
-- *情况1和2：比率介于裁剪范围之内*
+- *情况1和2：比值介于裁剪范围之内*
 
 在情况1和2中，由于比例介于范围$[1-epsilon,1+epsilon]$之间，因此目标函数不会被裁剪。
 
 在情况1中，我们具有正优势：该动作优于该状态下所有动作的平均值。因此，我们应该鼓励当前策略提高在该状态下采取该动作的概率。
 
-由于该比率是在区间之间的，因此我们可以增加我们的策略在该状态下采取该行动的概率。
+由于该比值是在区间之间的，因此我们可以增加我们的策略在该状态下采取该行动的概率。
 
 在情况2中，我们有一个负优势：该动作比该状态下所有动作的平均值更差。因此，我们应该阻止当前策略在该状态下采取该动作。
 
-由于该比率是在区间之间的，因此我们可以降低我们的策略在该状态下采取该行动的概率。
+由于该比值是在区间之间的，因此我们可以降低我们的策略在该状态下采取该行动的概率。
 
-- *情况3和4：比率小于$1-epsilon$*
+- *情况3和4：比值小于$1-epsilon$*
 
 如果概率比低于$1-epsilon$，则当前策略在该状态下采取该行动的概率比旧策略低得多。
 
@@ -4637,30 +4417,30 @@ $
 
 但是，如果像情况4那样，优势估计为负，我们不想进一步降低在该状态下采取该行动的概率。因此，$"梯度"=0$（因为我们在一条平线上），所以我们不会更新权重。
 
-- *情况5和6：比率大于$1+epsilon$*
+- *情况5和6：比值大于$1+epsilon$*
 
 如果概率比高于$1+epsilon$，则当前策略中该状态下采取该行动的概率远高于前一策略。
 
-如果像情况 5 那样，优势为正，我们不应该太贪心。因为在当前状态下，我们采取该行动的概率已经比之前的策略更高了。因此，梯度 = 0（因为我们在一条平线上），所以我们不会更新权重。
+如果像情况5那样，优势为正，我们不应该太贪心。因为在当前状态下，我们采取该行动的概率已经比之前的策略更高了。因此，梯度等于0（因为我们在一条平线上），所以我们不会更新权重。
 
-如果像情况 6 中那样，优势是负的，我们希望降低在该状态下采取该行动的概率。
+如果像情况6中那样，优势是负的，我们希望降低在该状态下采取该行动的概率。
 
 总结一下，我们只用未裁剪的目标函数部分来更新策略。当最小值是裁剪后的目标函数部分时，我们不会更新策略权重，因为梯度将等于0。
 
 因此，我们仅在以下情况下更新我们的策略：
 
-- 比率在 $(1-epsilon,1+epsilon)$ 之内
-- 比率不在 $(1-epsilon,1+epsilon)$ 范围内，但优势使我们更接近这个范围。
-  - 比率小于 $1-epsilon$ ，但优势 > 0 。
-  - 比率大于 $1+epsilon$ ，但优势 < 0 。
+- 比值在 $(1-epsilon,1+epsilon)$ 之内
+- 比值不在 $(1-epsilon,1+epsilon)$ 范围内，但优势使我们更接近这个范围。
+  - 比值小于 $1-epsilon$ ，但优势 > 0 。
+  - 比值大于 $1+epsilon$ ，但优势 < 0 。
 
-你可能会想，为什么当最小值是截断比率时，梯度为0。当比率被截断时，在这种情况下的导数将不是 $p_t (theta) A_t$ 的导数。而是 $(1-epsilon)A_t$ 或者 $(1+epsilon)A_t$ 的导数，而两者的导数都是0。
+你可能会想，为什么当最小值是截断比值时，梯度为0。当比值被截断时，在这种情况下的导数将不是 $rho_t (theta) A_t$ 的导数。而是 $(1-epsilon)A_t$ 或者 $(1+epsilon)A_t$ 的导数，而两者的导数都是0。
 
 #tip[
   $A_t$不是$theta$的函数。所以对$theta$求导为0。
 ]
 
-总而言之，得益于这个裁剪的替代目标函数（替换了原来的简单优美的目标函数（$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$），我们限制了当前策略与旧策略之间的差异范围。因为我们消除了比率超出区间的诱因，因为裁剪会对梯度产生影响。如果比率为$>1+epsilon$或$<1-epsilon$，则梯度将等于$0$。
+总而言之，得益于这个裁剪的替代目标函数（替换了原来的简单优美的目标函数（$J(theta)=EE_(tau tilde pi_theta) [G(tau)]$），我们限制了当前策略与旧策略之间的差异范围。因为我们消除了比值超出区间的诱因，因为裁剪会对梯度产生影响。如果比值为$>1+epsilon$或$<1-epsilon$，则梯度将等于$0$。
 
 PPO增加了一个软约束（裁剪机制），可以通过一阶优化器（求一阶导数）进行优化。我们偶尔可能会做出一些错误的决策，但它在优化速度上取得了良好的平衡。实验结果证明，这种平衡能够以最简单的方式实现最佳性能。
 
@@ -4680,9 +4460,9 @@ PPO增加了一个软约束（裁剪机制），可以通过一阶优化器（�
     更新策略 #comment[执行N步的梯度下降] \
     $theta'_1=theta_k$ #comment[将$theta_k$作为梯度更新的起点]\
     *for* $i=1,2,dots.c,N$ *do* #comment[更新N次梯度] #i\
-    $p=(pi_(theta'_i) (a_t|s_t))/(pi_(theta_k) (a_t|s_t))$ #comment[计算比值]\
-    $"clipped"="clip"(p,1-epsilon,1+epsilon)$ #comment[裁剪比值]\
-    $J(theta'_i)=sum_(t=0)^T [min (p dot.c A_t^(pi_(theta_k)), "clipped" dot.c A_t^(pi_(theta_k)))]$ #comment[累加所有时间步的最小值]\
+    $rho=(pi_(theta'_i) (a_t|s_t))/(pi_(theta_k) (a_t|s_t))$ #comment[计算比值]\
+    $"clipped"="clip"(rho,1-epsilon,1+epsilon)$ #comment[裁剪比值]\
+    $J(theta'_i)=sum_(t=0)^T [min (rho dot.c A_t^(pi_(theta_k)), "clipped" dot.c A_t^(pi_(theta_k)))]$ #comment[累加所有时间步的最小值]\
     $theta'_(i+1)=theta'_i+alpha nabla_(theta'_i) J(theta'_i)$ #d #comment[更新梯度]\
     $theta_(k+1)=theta'_N$ #comment[将$theta'_N$作为下一次更新的起点]\
   ],
@@ -4824,7 +4604,7 @@ class Agent:
             # 新策略采取动作的对数概率：$log pi_theta (a_t|s_t)$
             # $[log pi_theta (a_0|s_0),log pi_theta (a_1|s_1),dots,log pi_theta (a_(T-1)|s_(T-1))]$
             log_probs = torch.log(self.pi(states).gather(1, actions))
-            # 计算比率：$p_t (theta)=(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$
+            # 计算比值：$p_t (theta)=(pi_theta (a_t|s_t))/(pi_(theta_"old") (a_t|s_t))$
             ratio = torch.exp(log_probs - old_log_probs)
             # $p_t (theta)A^(pi_(theta_"old"))_t$
             # $[p_0 A^(pi_(theta_"old"))_0,p_1 A^(pi_(theta_"old"))_1,dots,p_(T-1) A^(pi_(theta_"old"))_(T-1)]$
@@ -4911,7 +4691,7 @@ if __name__ == "__main__":
 
 在使用策略梯度算法训练智能体时，一个挑战是它们容易出现性能崩溃：智能体会突然表现很差。这种情况很难恢复，因为智能体会开始生成质量较差的轨迹，而这些轨迹又被用于进一步训练策略。我们还看到，on-policy（同策略）算法的样本效率较低，因为它们无法重用数据。
 
-Schulman等人提出的近端策略优化（Proximal Policy Optimization, PPO）是一类优化算法，用来解决这两个问题。PPO的核心思想是在目标函数中引入一个代理（surrogate）目标，它通过保证策略的单调改进来避免性能崩溃。该目标还有一个好处，就是可以在训练过程中重用离策略（off-policy）数据。
+Schulman等人提出的近端策略优化（Proximal Policy Optimization, PPO）是一类优化算法，用来解决这两个问题。PPO的核心思想是在目标函数中引入一个替代（surrogate）目标，它通过保证策略的单调改进来避免性能崩溃。该目标还有一个好处，就是可以在训练过程中重用离策略（off-policy）数据。
 
 PPO可以通过将原始的目标函数$J(theta)$替换为修改后的PPO目标，来扩展REINFORCE或者Actor-Critic。此修改带来了更稳定、且样本效率更高的训练过程。
 
@@ -5595,7 +5375,7 @@ $
 那么全变差距离为：
 
 $
-  D_"TV" (P, Q) = 1/2 (abs(0.7-0.4)+abs(0.3-0.6)) = 0.3
+  D_"TV" (P, Q) = 1/2 (abs(0.3-0.4)+abs(0.7-0.6)) = 0.1
 $
 
 TV距离和KL散度之间有一个重要的关系，叫做#underline[Pinsker不等式]。
@@ -5631,7 +5411,7 @@ $
 我们定义：
 
 $
-  g_(pi_theta) (s) := EE_(a tilde pi(dot.c|s)) [A^(pi_(theta_"old"))_t]
+  g_(pi_theta)^t (s) := EE_(a tilde pi(dot.c|s)) [A^(pi_(theta_"old"))_t]
 $
 
 利用一般不等式：若$P,Q$是两个分布，$f$有界，则
@@ -5640,16 +5420,22 @@ $
   abs(EE_(x tilde P) [f(x)] - EE_(x tilde Q) [f(x)]) <= 2 norm(f)_infinity D_"TV" (P, Q)
 $
 
+#tip(title: [$norm(f)_infinity$])[
+  在所有可能输入$x$上，$f(x)$的绝对值最大是多少。
+
+  例子：如果$f=(2,-5,3)$，那么$norm(f)_infinity = 5$
+]
+
 因此对于每个时间步t，
 
 $
-  abs(sum_s (d_(pi_theta)^t (s) - d_(pi_(theta_"old"))^t (s)) g_(pi_theta) (s)) <= 2 norm(g_(pi_theta))_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+  abs(sum_s (d_(pi_theta)^t (s) - d_(pi_(theta_"old"))^t (s)) g_(pi_theta)^t (s)) <= 2 norm(g_(pi_theta)^t)_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
 $
 
 也就是
 
 $
-  abs(Delta) <= 2 norm(g_(pi_theta))_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+  abs(Delta) <= sum_(t=0)^T 2 norm(g_(pi_theta)^t)_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
 $
 
 #chapter("组相对策略优化（GRPO）", image: image("./orange2.jpg"), l: "rl-grpo")
@@ -5662,8 +5448,8 @@ $
 
 #theorem(name: [GRPO的目标函数])[
   $
-    J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ p A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] - beta D_"KL" [pi_theta parallel pi_"ref"] \
-    "其中比值" space space p = (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t)))
+    J(theta)^"GRPO" = 1/G sum_(i=1)^G 1/abs(tau_i) sum_(t=1)^abs(tau_i) min [ rho A_(tau_i,t), "clip"(p, 1-epsilon,1+epsilon) A_(tau_i,t)] \
+    "其中比值（重要性权重）" space space rho = (pi_theta (a_(tau_i,t)|s_(tau_i,t)))/(pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t)))
   $
 ]
 
@@ -5671,14 +5457,12 @@ $
 
 - $pi_theta$表示正在更新的策略。
 - $pi_(theta_"old")$表示上一轮训练好的旧策略。
-- $pi_"ref"$表示冻结的参考模型。
 - $G$表示使用旧策略$pi_(theta_"old")$采样的一组轨迹的数量，也就是如果我们使用旧策略采样了10条轨迹，那么$G=10$。
 - $tau_i$表示第$i$条轨迹。
 - $abs(tau_i)$表示第$i$条轨迹的动作数量。
 - $pi_theta (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_theta$采取动作$a_(tau_i,t)$的概率。
 - $pi_(theta_"old") (a_(tau_i,t)|s_(tau_i,t))$表示第$i$条轨迹的第$t$个时刻的状态为$s_(tau_i,t)$，以及在这个状态下正在更新的策略$pi_(theta_"old")$采取动作$a_(tau_i,t)$的概率。
 - $A_(tau_i,t)$表示第$i$条轨迹的第$t$个时刻的动作的优势。
-- $beta$是超参数。$D_"KL" [pi_theta|pi_"ref"]$表示$pi_theta$和$pi_"ref"$而偏离程度，也就是KL散度。
 
 == 使用GRPO玩倒立摆游戏
 
@@ -5974,7 +5758,7 @@ $
 通过观察上面的目标函数，我们发现，如果SFT训练的轮数很多，那么会过拟合监督微调数据。模型会发生灾难性遗忘，因为在目标函数中没有约束新旧模型的偏差（KL散度）。
 
 #danger[
-  SFT一般不会训练很多轮！
+  SFT一般不会训练很多轮！否则会出现灾难性遗忘。
 ]
 
 监督微调（Supervised Fine-Tuning，SFT）通常也是采用"预测下一个词"（predict next token）的训练方式。
@@ -5995,14 +5779,6 @@ $
   caption: [预训练和监督微调],
 )
 
-所以通过SFT微调基础模型，可以让大模型输出我们喜欢的回答。
-
-#danger[
-  但是SFT无法让大模型*不输出我们不喜欢的回答*。
-]
-
-因为SFT的训练目标是"预测下一个token"，它本质上是拟合训练数据中的分布。如果训练数据中存在不理想的回答，模型可能仍然学到这些模式。
-
 所以我们要使用"强化学习"来对大语言模型进行微调，这就是"基于人类反馈的强化学习"。
 
 #tip(title: [RLHF])[
@@ -6019,7 +5795,7 @@ $
 + 我们的数据来自人类的判断，而不是环境互动
 + 我们需要在奖励最大化与保持接近原始预训练行为之间取得平衡
 
-这种平衡行为使得 LLM 强化学习特别棘手，但也特别令人着迷！
+这种平衡行为使得LLM强化学习特别棘手，但也特别令人着迷！
 
 == RLHF的关键技术
 
@@ -9778,8 +9554,60 @@ def get_datasets(split="train") -> Dataset:
     data_qa = data_qa.remove_columns(
         ['pubid', 'question', 'context', 'long_answer', 'final_decision'])
 
-    categories = ['Lab_Medicine', 'Wearables', 'Dermatology', 'Gastroenterology', 'Internal_Medicine', 'Oncology', 'Orthopedics', 'General_Surgery', 'Ophthalmology', 'Audiology', 'Head_Neck_Surgery', 'Elderly_Care', 'Pediatrics', 'Allergy_Immunology', 'Rheumatology', 'Pharmacy', 'Obstetrics_Gynecology', 'Microbiology', 'Dentistry', 'Physical_Medicine_and_Rehabilitation', 'Neurology', 'Psychiatry', 'Pathology', 'Genetics', 'Rare_Diseases', 'Hematology',
-                  'Emergency', 'Endocrinology', 'Radiology', 'Cardiology', 'Pulmonology', 'Infectious_Diseases', 'Critical_Care', 'Pediatric_Surgery', 'Neuroscience', 'Epidemiology', 'Fitness_Sports', 'Health_Education', 'Health_Economics', 'Health_Entrepreneurship', 'Hospital_Management', 'Mental_Health', 'Nutrition', 'Palliative_Care', 'Preventive_Medicine', 'Public_Health', 'Social_Media_Addiction', 'Sleep', 'Supplements', 'Vaccination', 'Work_Health', 'Wellbeing']
+    categories = [
+      'Lab_Medicine',
+      'Wearables',
+      'Dermatology',
+      'Gastroenterology',
+      'Internal_Medicine',
+      'Oncology',
+      'Orthopedics',
+      'General_Surgery',
+      'Ophthalmology',
+      'Audiology',
+      'Head_Neck_Surgery',
+      'Elderly_Care',
+      'Pediatrics',
+      'Allergy_Immunology',
+      'Rheumatology',
+      'Pharmacy',
+      'Obstetrics_Gynecology',
+      'Microbiology',
+      'Dentistry',
+      'Physical_Medicine_and_Rehabilitation',
+      'Neurology',
+      'Psychiatry',
+      'Pathology',
+      'Genetics',
+      'Rare_Diseases',
+      'Hematology',
+      'Emergency',
+      'Endocrinology',
+      'Radiology',
+      'Cardiology',
+      'Pulmonology',
+      'Infectious_Diseases',
+      'Critical_Care',
+      'Pediatric_Surgery',
+      'Neuroscience',
+      'Epidemiology',
+      'Fitness_Sports',
+      'Health_Education',
+      'Health_Economics',
+      'Health_Entrepreneurship',
+      'Hospital_Management',
+      'Mental_Health',
+      'Nutrition',
+      'Palliative_Care',
+      'Preventive_Medicine',
+      'Public_Health',
+      'Social_Media_Addiction',
+      'Sleep',
+      'Supplements',
+      'Vaccination',
+      'Work_Health',
+      'Wellbeing'
+    ]
     data_mc = concatenate_datasets(
         [load_dataset("Health_Benchmarks", i)[i] for i in categories])
     data_mc = data_mc.map(lambda x: {  # type: ignore
@@ -9924,7 +9752,7 @@ trainer.train()
 - 输入：请帮我写一段SQL，要求查询出部门35岁以上的程序员
 - 输出：`SELECT * FROM database WHERE ...`
 
-该模型展现出强大的整体性能，SQL 生成准确率高（44/5 分，得分 4 或 5 分），推理质量优异（48/50 分，得分 4 或 5 分），格式遵循近乎完美（49/50 分，得分 5 分），且具有明确的教育价值。总体而言，88% 的输出得分达到 4.0 分或更高，反映出模型结果的一致性、结构良好且易于解释。
+该模型展现出强大的整体性能，SQL 生成准确率高（44/50 分，得分 4 或 5 分），推理质量优异（48/50 分，得分 4 或 5 分），格式遵循近乎完美（49/50 分，得分 5 分），且具有明确的教育价值。总体而言，88% 的输出得分达到 4.0 分或更高，反映出模型结果的一致性、结构良好且易于解释。
 
 #tip(title: [奖励函数编写要点])[
   1. 使用正则表达式来实现格式奖励
@@ -11401,7 +11229,7 @@ mask = mask.repeat(
 ).reshape(len(mask),len(mask[0]),len(mask[0])).to(device)
 
 idx = 1000
-# 去测试数据集中的第1000张图片
+# 取出测试数据集中的第1000张图片
 img = test_set[idx]["image"][None,:]
 plt.imshow(img[0].permute(1, 2, 0), cmap="gray")
 # 将图片的标题文本展示，例如"An Image Of Nine"
@@ -15672,7 +15500,7 @@ self.in_conv = nn.Conv2d(
 x = self.in_conv(x)
 ```
 
-现在，含噪图像已达到所需的通道数，它们可以与条件信息一起通过UNet层。UNet将包含四个编码器层和解码器层，中间有一个瓶颈层。对于每层的通道数，我们将使用`[1, 2, 4, 8]`作为层通道数与模型通道数的比率。UNet的编码器、解码器和瓶颈层都将包含两个残差块。在瓶颈残差块之间以及编码器和解码器内层的每个残差块之后，放置了注意力块。跳跃连接连接位于编码器和解码器的残差块之间。
+现在，含噪图像已达到所需的通道数，它们可以与条件信息一起通过UNet层。UNet将包含四个编码器层和解码器层，中间有一个瓶颈层。对于每层的通道数，我们将使用`[1, 2, 4, 8]`作为层通道数与模型通道数的比值。UNet的编码器、解码器和瓶颈层都将包含两个残差块。在瓶颈残差块之间以及编码器和解码器内层的每个残差块之后，放置了注意力块。跳跃连接连接位于编码器和解码器的残差块之间。
 
 ```python
 # Config
@@ -16406,97 +16234,6 @@ for i in range(len(sample_captions)):
 
 #show: appendices.with("Appendices", hide-parent: false)
 
-#chapter("反向传播算法", image: image("./orange2.jpg"))
-
-== 损失函数
-
-$
-  sigma(x) = 1/(1+e^(-x))
-$
-
-$
-  sigma'(x) = sigma(x)(1-sigma(x))
-$
-
-$
-  y = sigma(w x+b)
-$
-
-$
-  cal(L) = (y - hat(y))^2
-$
-
-求导
-
-$
-  (partial cal(L))/(partial w) = ?
-$
-
-$
-  (partial cal(L))/(partial b) = ?
-$
-
-\
-
-训练数据：$(1,2)$和$(2,3)$
-
-初始化了一个神经网络参数$w=2.0,b=3.0$
-
-== 前向传播
-
-- 中间结果：$m_0 = w x = 2.0 times 1.0 = 2.0$
-- 中间结果：$m_1 = m_0 + b = 2.0 + 3.0 = 5.0$
-- 中间结果：$m_2 = sigma (m_1) = 0.9933071490757268$
-- 中间结果：$m_3 = m_2 - 2.0 = 0.9933071490757268-2.0 = -1.0066928509242732$
-- 最终结果：$cal(L)=m_3^2$
-
-== 反向传播
-
-$
-  (partial cal(L))/(partial w) &= (partial cal(L))/(partial m_3) dot.c (partial m_3)/(partial m_2) dot.c (partial m_2)/(partial m_1) dot.c (partial m_1)/(partial m_0) \
-  &=2 dot.c m_3 dot.c 1 dot.c m_2 dot.c (1-m_2) dot.c 1 dot.c x \
-  &=2 times (-1.0066928509242732) times 0.9933071490757268 times (1-0.9933071490757268) times 1.0 \
-  &= -0.013385102246024565
-$
-
-$ alpha = 50 $
-
-$ w = 2.0 - 50 * -0.013385102246024565 $
-
-== 代码实现
-
-```python
-import torch
-import torch.nn as nn
-
-x = torch.tensor([1.0])            # 形状 [N, 1]，每行一个标量输入
-# w = torch.randn(1, 1, requires_grad=True)  # 标量权重（等价于单个参数）
-w = torch.tensor([2.0], requires_grad=True)
-# b = torch.randn(1, requires_grad=True)     # 标量偏置
-b = torch.tensor([3.0], requires_grad=True)
-
-# 前向：y = sigmoid(w*x + b)
-y = torch.sigmoid(x @ w + b)     # 结果形状 [N, 1]
-# 构造标量损失以便反向传播
-target = torch.tensor([2.0])
-loss = nn.MSELoss()(y, target)
-
-# 反向传播
-loss.backward()
-
-print("loss:", loss.item())
-print("w:", w.item(), "b:", b.item())
-print("w.grad:", w.grad.item(), "b.grad:", b.grad.item())
-
-# 可选：一步手动更新
-lr = 0.1
-with torch.no_grad():
-    w -= lr * w.grad
-    b -= lr * b.grad
-    w.grad.zero_()
-    b.grad.zero_()
-```
-
 #chapter("uv教程", image: image("./orange2.jpg"))
 
 
@@ -16535,375 +16272,4 @@ $ uv pip install datasets==2.21.0
 $ uv pip install transformers[serving]
 
 $ modelscope download --model Qwen/Qwen3-0.6B-Base --local_dir ./
-```
-
-#chapter("KV Cache", image: image("./orange2.jpg"))
-
-```python
-import time
-import tiktoken
-import torch
-import torch.nn as nn
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
-        super().__init__()
-        assert d_out % num_heads == 0, "d_out must be divisible by num_heads"
-
-        self.d_out = d_out
-        self.num_heads = num_heads
-        self.head_dim = d_out // num_heads  # Reduce the projection dim to match desired output dim
-
-        self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)
-        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
-        self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)
-        self.out_proj = nn.Linear(d_out, d_out)  # Linear layer to combine head outputs
-        self.dropout = nn.Dropout(dropout)
-        self.register_buffer(
-            "mask",
-            torch.triu(torch.ones(context_length, context_length), diagonal=1),
-            persistent=False
-        )
-
-        ####################################################
-        # NEW
-        self.register_buffer("cache_k", None, persistent=False)
-        self.register_buffer("cache_v", None, persistent=False)
-        self.ptr_current_pos = 0
-        ####################################################
-
-    def forward(self, x, use_cache=False):
-        b, num_tokens, d_in = x.shape
-
-        keys_new = self.W_key(x)  # Shape: (b, num_tokens, d_out)
-        values_new = self.W_value(x)
-        queries = self.W_query(x)
-
-        # We implicitly split the matrix by adding a `num_heads` dimension
-        # Unroll last dim: (b, num_tokens, d_out) -> (b, num_tokens, num_heads, head_dim)
-        keys_new = keys_new.view(b, num_tokens, self.num_heads, self.head_dim)
-        values_new = values_new.view(b, num_tokens, self.num_heads, self.head_dim)
-        queries = queries.view(b, num_tokens, self.num_heads, self.head_dim)
-
-        ####################################################
-        # NEW
-        if use_cache:
-            if self.cache_k is None:
-                self.cache_k, self.cache_v = keys_new, values_new
-            else:
-                self.cache_k = torch.cat([self.cache_k, keys_new], dim=1)
-                self.cache_v = torch.cat([self.cache_v, values_new], dim=1)
-            keys, values = self.cache_k, self.cache_v
-        else:
-            keys, values = keys_new, values_new
-        ####################################################
-
-        # Transpose: (b, num_tokens, num_heads, head_dim) -> (b, num_heads, num_tokens, head_dim)
-        keys = keys.transpose(1, 2)
-        queries = queries.transpose(1, 2)
-        values = values.transpose(1, 2)
-
-        # Compute scaled dot-product attention (aka self-attention) with a causal mask
-        attn_scores = queries @ keys.transpose(2, 3)  # Dot product for each head
-
-        ####################################################
-        # NEW
-        num_tokens_Q = queries.shape[-2]
-        num_tokens_K = keys.shape[-2]
-        if use_cache:
-            mask_bool = self.mask.bool()[
-                self.ptr_current_pos:self.ptr_current_pos + num_tokens_Q, :num_tokens_K
-            ]
-            self.ptr_current_pos += num_tokens_Q
-        ####################################################
-        # Original mask truncated to the number of tokens and converted to boolean
-        else:
-            mask_bool = self.mask.bool()[:num_tokens_Q, :num_tokens_K]
-
-        # Use the mask to fill attention scores
-        attn_scores.masked_fill_(mask_bool, -torch.inf)
-
-        attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
-        attn_weights = self.dropout(attn_weights)
-
-        # Shape: (b, num_tokens, num_heads, head_dim)
-        context_vec = (attn_weights @ values).transpose(1, 2)
-
-        # Combine heads, where self.d_out = self.num_heads * self.head_dim
-        context_vec = context_vec.contiguous().view(b, num_tokens, self.d_out)
-        context_vec = self.out_proj(context_vec)  # optional projection
-
-        return context_vec
-
-    ####################################################
-    # NEW
-    def reset_cache(self):
-        self.cache_k, self.cache_v = None, None
-        self.ptr_current_pos = 0
-    ####################################################
-
-
-class LayerNorm(nn.Module):
-    def __init__(self, emb_dim):
-        super().__init__()
-        self.eps = 1e-5
-        self.scale = nn.Parameter(torch.ones(emb_dim))
-        self.shift = nn.Parameter(torch.zeros(emb_dim))
-
-    def forward(self, x):
-        mean = x.mean(dim=-1, keepdim=True)
-        var = x.var(dim=-1, keepdim=True, unbiased=False)
-        norm_x = (x - mean) / torch.sqrt(var + self.eps)
-        return self.scale * norm_x + self.shift
-
-
-class GELU(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return 0.5 * x * (1 + torch.tanh(
-            torch.sqrt(torch.tensor(2.0 / torch.pi)) *
-            (x + 0.044715 * torch.pow(x, 3))
-        ))
-
-
-class FeedForward(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(cfg["emb_dim"], 4 * cfg["emb_dim"]),
-            GELU(),
-            nn.Linear(4 * cfg["emb_dim"], cfg["emb_dim"]),
-        )
-
-    def forward(self, x):
-        return self.layers(x)
-
-
-class TransformerBlock(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-        self.att = MultiHeadAttention(
-            d_in=cfg["emb_dim"],
-            d_out=cfg["emb_dim"],
-            context_length=cfg["context_length"],
-            num_heads=cfg["n_heads"],
-            dropout=cfg["drop_rate"],
-            qkv_bias=cfg["qkv_bias"])
-        self.ff = FeedForward(cfg)
-        self.norm1 = LayerNorm(cfg["emb_dim"])
-        self.norm2 = LayerNorm(cfg["emb_dim"])
-        self.drop_shortcut = nn.Dropout(cfg["drop_rate"])
-
-    def forward(self, x, use_cache=False):
-        # Shortcut connection for attention block
-        shortcut = x
-        x = self.norm1(x)
-
-        # x = self.att(x)   # Shape [batch_size, num_tokens, emb_size]
-        ####################################################
-        # NEW
-        x = self.att(x, use_cache=use_cache)
-        ####################################################
-
-        x = self.drop_shortcut(x)
-        x = x + shortcut  # Add the original input back
-
-        # Shortcut connection for feed-forward block
-        shortcut = x
-        x = self.norm2(x)
-        x = self.ff(x)
-        x = self.drop_shortcut(x)
-        x = x + shortcut  # Add the original input back
-
-        return x
-
-
-class GPTModel(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-        self.tok_emb = nn.Embedding(cfg["vocab_size"], cfg["emb_dim"])
-        self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
-        self.drop_emb = nn.Dropout(cfg["drop_rate"])
-
-        # self.trf_blocks = nn.Sequential(
-        #    *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
-        ####################################################
-        # NEW
-        self.trf_blocks = nn.ModuleList(
-            [TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
-
-        self.current_pos = 0
-        ####################################################
-
-        self.final_norm = LayerNorm(cfg["emb_dim"])
-        self.out_head = nn.Linear(cfg["emb_dim"], cfg["vocab_size"], bias=False)
-
-    def forward(self, in_idx, use_cache=False):
-        batch_size, seq_len = in_idx.shape
-        tok_embeds = self.tok_emb(in_idx)
-
-        # pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
-
-        ####################################################
-        # NEW
-
-        if use_cache:
-            pos_ids = torch.arange(self.current_pos, self.current_pos + seq_len, device=in_idx.device, dtype=torch.long)
-            self.current_pos += seq_len
-        else:
-            pos_ids = torch.arange(0, seq_len, device=in_idx.device, dtype=torch.long)
-        pos_embeds = self.pos_emb(pos_ids).unsqueeze(0)
-        ####################################################
-
-        x = tok_embeds + pos_embeds  # Shape [batch_size, num_tokens, emb_size]
-        x = self.drop_emb(x)
-
-        # x = self.trf_blocks(x)
-        ####################################################
-        # NEW
-        for blk in self.trf_blocks:
-            x = blk(x, use_cache=use_cache)
-        ####################################################
-
-        x = self.final_norm(x)
-        logits = self.out_head(x)
-        return logits
-
-    ####################################################
-    # NEW
-    def reset_kv_cache(self):
-        for blk in self.trf_blocks:
-            blk.att.reset_cache()
-        self.current_pos = 0
-    ####################################################
-
-
-def generate_text_simple(model, idx, max_new_tokens, context_size):
-    # idx is (B, T) array of indices in the current context
-    for _ in range(max_new_tokens):
-
-        # Crop current context if it exceeds the supported context size
-        # E.g., if LLM supports only 5 tokens, and the context size is 10
-        # then only the last 5 tokens are used as context
-        idx_cond = idx[:, -context_size:]
-
-        # Get the predictions
-        with torch.no_grad():
-            logits = model(idx_cond)
-
-        # Focus only on the last time step
-        # (batch, n_token, vocab_size) becomes (batch, vocab_size)
-        logits = logits[:, -1, :]
-
-        # Get the idx of the vocab entry with the highest logits value
-        idx_next = torch.argmax(logits, dim=-1, keepdim=True)  # (batch, 1)
-
-        # Append sampled index to the running sequence
-        idx = torch.cat((idx, idx_next), dim=1)  # (batch, n_tokens+1)
-
-    return idx
-
-
-####################################################
-# NEW
-def generate_text_simple_cached(model, idx, max_new_tokens,
-                                context_size=None, use_cache=True):
-    model.eval()
-    ctx_len = context_size or model.pos_emb.num_embeddings
-
-    with torch.no_grad():
-        if use_cache:
-            # Init cache with full prompt
-            model.reset_kv_cache()
-            logits = model(idx[:, -ctx_len:], use_cache=True)
-
-            for _ in range(max_new_tokens):
-                # a) pick the token with the highest log-probability (greedy sampling)
-                next_idx = logits[:, -1].argmax(dim=-1, keepdim=True)
-                # b) append it to the running sequence
-                idx = torch.cat([idx, next_idx], dim=1)
-                # c) feed model only the new token
-                logits = model(next_idx, use_cache=True)
-        else:
-            for _ in range(max_new_tokens):
-                logits = model(idx[:, -ctx_len:], use_cache=False)
-                next_idx = logits[:, -1].argmax(dim=-1, keepdim=True)
-                idx = torch.cat([idx, next_idx], dim=1)
-
-    return idx
-####################################################
-
-
-def main():
-    GPT_CONFIG_124M = {
-        "vocab_size": 50257,     # Vocabulary size
-        "context_length": 1024,  # Context length
-        "emb_dim": 768,          # Embedding dimension
-        "n_heads": 12,           # Number of attention heads
-        "n_layers": 12,          # Number of layers
-        "drop_rate": 0.1,        # Dropout rate
-        "qkv_bias": False        # Query-Key-Value bias
-    }
-
-    torch.manual_seed(123)
-    model = GPTModel(GPT_CONFIG_124M)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()  # disable dropout
-
-    start_context = "Hello, I am"
-
-    tokenizer = tiktoken.get_encoding("gpt2")
-    encoded = tokenizer.encode(start_context)
-    encoded_tensor = torch.tensor(encoded, device=device).unsqueeze(0)
-
-    print(f"\n{50*'='}\n{22*' '}IN\n{50*'='}")
-    print("\nInput text:", start_context)
-    print("Encoded input text:", encoded)
-    print("encoded_tensor.shape:", encoded_tensor.shape)
-
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    start = time.time()
-
-    # token_ids = generate_text_simple(
-    #     model=model,
-    #     idx=encoded_tensor,
-    #     max_new_tokens=200,
-    #     context_size=GPT_CONFIG_124M["context_length"]
-    # )
-
-    ####################################################
-    # NEW
-    token_ids = generate_text_simple_cached(
-        model=model,
-        idx=encoded_tensor,
-        max_new_tokens=200,
-    )
-    ####################################################
-
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    total_time = time.time() - start
-
-    decoded_text = tokenizer.decode(token_ids.squeeze(0).tolist())
-
-    print(f"\n\n{50*'='}\n{22*' '}OUT\n{50*'='}")
-    print("\nOutput:", token_ids)
-    print("Output length:", len(token_ids[0]))
-    print("Output text:", decoded_text)
-
-    print(f"\nTime: {total_time:.2f} sec")
-    print(f"{int(len(token_ids[0])/total_time)} tokens/sec")
-    if torch.cuda.is_available():
-        max_mem_bytes = torch.cuda.max_memory_allocated()
-        max_mem_gb = max_mem_bytes / (1024 ** 3)
-        print(f"Max memory allocated: {max_mem_gb:.2f} GB")
-
-
-if __name__ == "__main__":
-    main()
 ```
