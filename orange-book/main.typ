@@ -5,12 +5,11 @@
 #import "@preview/gentle-clues:1.2.0": *
 #import "@preview/codly:1.3.0": *
 #import "@preview/codly-languages:0.1.1": *
-#import "@preview/mannot:0.3.1": *
+#import "@preview/mannot:0.4.0": *
 #import "@preview/cetz:0.4.2"
 #import "@preview/algo:0.3.6": algo, code, comment, d, i
 #import "@preview/fletcher:0.5.8" as fletcher
 #import "@preview/suiji:0.5.0" as suiji
-#import "@preview/neural-netz:0.2.0": draw-network
 #show: codly-init.with()
 
 #codly(languages: codly-languages)
@@ -2068,6 +2067,8 @@ $
   智能体无法控制环境如何给奖励。所以对奖励函数的建模是强化学习中最困难的一个问题。奖励太容易拿会导致#underline[奖励黑客]（reward hacking），奖励太难拿会导致智能体无法学到东西，这叫做#underline[奖励稀疏性问题]。
 ]
 
+以上对强化学习的数学建模称为"马尔可夫决策过程"（Markov Decision Process，MDP）。
+
 == 价值函数（Value Function）
 
 当位于时刻$t$时，环境此时处于状态$S_t$，然后我们根据策略函数开始采取动作，那么未来我们一共能获得多少奖励呢？环境处于状态$S_t$，我们采取的动作是$A_t$，获取的奖励是$R_t$，然后环境的状态从$S_t$转移到了$S_(t+1)$，然后采取动作$A_(t+1)$，然后获得即时奖励$R_(t+1)$，然后环境的状态从$S_(t+1)$转移到了$S_(t+2)$，然后环境会给我们即时奖励$R_(t+2)$，......。
@@ -2097,26 +2098,7 @@ $
 如果我们用倒立摆作为例子，然后我们运行两个时间步。得到下图。
 
 #figure(
-  fletcher.diagram(
-    node-stroke: 0.1em,
-    node-fill: gradient.radial(blue.lighten(80%), blue, center: (30%, 20%), radius: 80%),
-    spacing: 2em,
-    fletcher.node((-1, 0), text(size: 4pt)[起始状态], radius: 1em),
-    fletcher.node((1, 1), text(size: 4pt)[状态$1'$], radius: 1em),
-    fletcher.node((1, -1), text(size: 4pt)[状态$1$], radius: 1em),
-    fletcher.node((4, -0.5), text(size: 4pt)[状态$2'$], radius: 1em),
-    fletcher.node((4, -1.5), text(size: 4pt)[状态$2$], radius: 1em),
-    fletcher.node((4, 0.5), text(size: 4pt)[状态$2''$], radius: 1em),
-    fletcher.node((4, 1.5), text(size: 4pt)[状态$2'''$], radius: 1em),
-    fletcher.edge((-1, 0), (1, -1), "--|>", text(size: 4pt)[向左推0.7], label-side: center),
-    fletcher.edge((-1, 0), (1, 1), "--|>", text(size: 4pt)[向右推0.3], label-side: center),
-
-    fletcher.edge((1, -1), (4, -1.5), "--|>", text(size: 4pt)[向左推0.5], label-side: center),
-    fletcher.edge((1, -1), (4, -0.5), "--|>", text(size: 4pt)[向右推0.5], label-side: center),
-
-    fletcher.edge((1, 1), (4, 0.5), "--|>", text(size: 4pt)[向左推0.2], label-side: center),
-    fletcher.edge((1, 1), (4, 1.5), "--|>", text(size: 4pt)[向右推0.8], label-side: center),
-  ),
+  image("rl-figures/倒立摆环境运行两个时间步.png", width: 50%),
   caption: [倒立摆环境运行2个时间步],
 )
 
@@ -2321,7 +2303,7 @@ show_animation(frames)
 
 == 贝尔曼方程
 
-贝尔曼方程是在MDP中成立的最重要的方程，为许多强化学习算法提供了重要基础。
+贝尔曼方程是在强化学习中成立的最重要的方程，为许多强化学习算法提供了重要基础。
 
 这里使用骰子作为例子。我们使用的骰子是理想的六面体，每一面的数字出现的概率都是$1/6$。在数学式中，我们用随机变量$x$表示掷骰子出现的数字，$x$是$1$和$6$之间的整数。那么每个数字出现的概率就是$1/6$。 我们用$p(x)=1/6$表示骰子的数字出现的概率。现在来计算掷骰子的期望值。计算式如下所示。
 
@@ -2381,7 +2363,7 @@ $
   v_pi (s) = EE_pi [G_t|S_t=s]
 $
 
-如上面的公式所示，状态 $s$ 的价值函数被表示为 $v_pi (s)$ 。将递推公式带入上面的式子的 $G_t$ 中，得到下面的式子：
+如上面的公式所示，状态$s$的价值函数被表示为$v_pi (s)$。将递推公式带入上面的式子的$G_t$中，得到下面的式子：
 
 $
   v_pi (s) & = EE_pi [G_t|S_t=s] \
@@ -2393,9 +2375,9 @@ $
   $EE[a X+b Y] = a EE[X] + b EE[Y]$
 ]
 
-先来推导上面公式中的第一项 $EE_pi [R_t|S_t=s]$ 。
+先来推导上面公式中的第一项$EE_pi [R_t|S_t=s]$。
 
-$EE_pi [R_t|S_t=s]$ 的含义是在 $t$ 时刻，环境的状态是 $s$ ，那么在 $t$ 时刻，获得的即时奖励的期望是多少呢？那么需要考虑所有的情况，然后加起来就可以了。
+$EE_pi [R_t|S_t=s]$的含义是在$t$时刻，环境的状态是$s$，那么在$t$时刻，获得的即时奖励的期望是多少呢？那么需要考虑所有的情况，然后加起来就可以了。
 
 $
   EE_pi [R_t|S_t=s]=sum_a sum_s' pi(a|s)p(s'|s,a)r(s,a,s')
@@ -2551,53 +2533,7 @@ $
 现在通行的做法就是策略函数是一个神经网络。输入是环境的状态，输出是动作的概率分布。
 
 #figure(
-  fletcher.diagram(
-    let blob(pos, label, tint: white, ..args) = fletcher.node(
-      pos,
-      align(center, label),
-      width: 28mm,
-      fill: tint.lighten(60%),
-      stroke: 1pt + tint.darken(20%),
-      corner-radius: 5pt,
-      ..args,
-    ),
-    blob((-3, 1), [推车的位置], tint: green, shape: fletcher.shapes.rect),
-    blob((-3, 1.5), [推车的速度], tint: green, shape: fletcher.shapes.rect),
-    blob((-3, 2), [木杆的角度], tint: green, shape: fletcher.shapes.rect),
-    blob((-3, 2.5), [木杆的角速度], tint: green, shape: fletcher.shapes.rect),
-
-    blob((-1, 1), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <A>),
-    blob((-1, 1.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <B>),
-    blob((-1, 2), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <C>),
-    blob((-1, 2.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <D>),
-
-    blob((0, 1.25), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <AA>),
-    blob((0, 1.75), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <BB>),
-    blob((0, 2.25), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <CC>),
-
-    blob((1, 1.5), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <AAA>),
-    blob((1, 2), [], tint: white, shape: fletcher.shapes.circle, width: 6mm, name: <BBB>),
-
-    blob((3, 1.5), [向左推0.7], tint: purple, shape: fletcher.shapes.rect, name: <AAAA>),
-    blob((3, 2), [向右推0.3], tint: purple, shape: fletcher.shapes.rect, name: <BBBB>),
-
-    fletcher.edge((-3, 1), (-1, 1), "-|>", stroke: 0.1em),
-    fletcher.edge((-3, 1.5), (-1, 1.5), "-|>", stroke: 0.1em),
-    fletcher.edge((-3, 2), (-1, 2), "-|>", stroke: 0.1em),
-    fletcher.edge((-3, 2.5), (-1, 2.5), "-|>", stroke: 0.1em),
-
-    for i in (<A>, <B>, <C>, <D>) {
-      for j in (<AA>, <BB>, <CC>) {
-        fletcher.edge(i, j, "->")
-        for k in (<AAA>, <BBB>) {
-          fletcher.edge(j, k, "->")
-        }
-      }
-    },
-
-    fletcher.edge(<AAA>, <AAAA>, "-|>", stroke: 0.1em),
-    fletcher.edge(<BBB>, <BBBB>, "-|>", stroke: 0.1em),
-  ),
+  image("rl-figures/输出的动作是概率分布.png"),
   caption: [输出的动作是概率],
 )
 
@@ -2645,127 +2581,10 @@ $
   当然，还得有*损失函数*，例如交叉熵损失函数或者均方误差损失函数，等等。
 ]
 
-#let layers = (
-  (
-    type: "input",
-    image: "default",
-    height: 8,
-    depth: 8,
-    label: "input",
-    channels: (3, 224),
-  ),
-  (
-    type: "conv",
-    widths: (0.3, 0.3),
-    height: 8,
-    depth: 8,
-    label: "conv1",
-    channels: (64, 64, 224),
-    offset: 1.9,
-  ),
-  (
-    type: "pool",
-    height: 6,
-    depth: 6,
-    label: "pool1",
-  ),
-  (
-    type: "convres",
-    widths: (0.4, 0.4),
-    height: 6,
-    depth: 6,
-    label: "res2",
-    channels: (128, 128, 112),
-  ),
-  (
-    type: "pool",
-    height: 4,
-    depth: 4,
-    label: "pool2",
-  ),
-  (
-    type: "convres",
-    widths: (0.5, 0.5, 0.5),
-    height: 4,
-    depth: 4,
-    label: "res3",
-    channels: (256, 256, 256, 56),
-  ),
-  (
-    type: "pool",
-    height: 2,
-    depth: 2,
-    label: "pool3",
-  ),
-  (
-    type: "convres",
-    widths: (0.6, 0.6, 0.6),
-    height: 2,
-    depth: 2,
-    label: "res4",
-    channels: (512, 512, 512, 28),
-    offset: 1,
-  ),
-  (
-    type: "pool",
-    height: 1,
-    depth: 1,
-    label: "pool4",
-  ),
-  (
-    type: "convres",
-    widths: (0.6, 0.8, 0.8),
-    height: 1,
-    depth: 1,
-    label: "res5",
-    channels: (512, 512, 512, 14),
-    offset: 0.8,
-  ),
-  (
-    type: "pool",
-    height: 0.5,
-    depth: 0.5,
-    label: "pool4",
-  ),
-  (
-    type: "fc",
-    label: "fc",
-    channels: (4096,),
-    height: 5,
-    depth: 0.3,
-    offset: 0.8,
-  ),
-  (
-    type: "fc",
-    label: "fc",
-    channels: (4096,),
-    height: 5,
-    depth: 0.3,
-    offset: 0.5,
-  ),
-  (
-    type: "fc",
-    label: "fc",
-    channels: (1000,),
-    height: 4,
-    depth: 0.3,
-    offset: 0.5,
-  ),
-  (
-    type: "softmax",
-    label: "softmax",
-    height: 4,
-    depth: 0.3,
-    offset: 0.9,
-  ),
-)
 
 #figure(
-  draw-network(
-    layers,
-    show-relu: true,
-  ),
-  caption: [ResNet18],
+  image("rl-figures/手写数字识别分类网络.png"),
+  caption: [手写数字识别分类网络],
 )
 
 但是对于倒立摆环境，想要训练推车的策略神经网络，输入是什么，输出是什么？以及损失函数又是什么？
@@ -3072,7 +2891,8 @@ $
   class Agent:
       ...
 
-      def collect_trajectory(self, env):
+      def rollout(self, env):
+          """采集轨迹"""
           state = env.reset()
           states, actions, rewards = [], [], []
           done = False
@@ -3143,7 +2963,7 @@ return_list = []
 episode_list = []
 
 for episode in range(3000):
-    trajectory = agent.collect_trajectory(env)
+    trajectory = agent.rollout(env)
     reward_list = trajectory[2]
     return_list.append(sum(reward_list))
     episode_list.append(episode)
@@ -3651,7 +3471,7 @@ class Agent:
         action = m.sample().item()
         return action, probs
 
-    def collect_trajectory(self, env):
+    def rollout(self, env):
         """采样一条轨迹"""
         state = env.reset()
         states, next_states, actions, rewards, dones = [], [], [], [], []
@@ -3730,7 +3550,7 @@ episode_list = []
 for episode in range(3000):
     state = env.reset()  # $S_0$
 
-    trajectory = agent.collect_trajectory(env)
+    trajectory = agent.rollout(env)
     # 采样一条轨迹，更新一次策略网络和价值网络
     agent.update(trajectory)
 
@@ -4525,7 +4345,7 @@ class Agent:
         action = m.sample().item()
         return action, probs
 
-    def collect_trajectory(self, env):
+    def rollout(self, env):
         """采集一条轨迹"""
         state = env.reset()
         states, next_states, actions, action_probs, rewards, dones = [], [], [], [], [], []
@@ -4655,7 +4475,7 @@ def train(env, agent):
     return_list = []
     episode_list = []
     for episode in range(500):
-        trajectory = agent.collect_trajectory(env)
+        trajectory = agent.rollout(env)
         agent.update(trajectory)
         # 统计信息
         episode_reward = sum(trajectory[4])
@@ -5438,6 +5258,141 @@ $
   abs(Delta) <= sum_(t=0)^T 2 norm(g_(pi_theta)^t)_infinity D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
 $
 
+接下来要把状态访问分布的TV距离，进一步写成新旧策略之间的距离。
+
+为了简化记号，定义
+
+$
+  P_pi (s'|s) := sum_a pi(a|s) P(s'|s,a)
+$
+
+它表示：在状态$s$下按照策略$pi$选动作之后，转移到$s'$的概率。于是状态分布满足递推关系：
+
+$
+  d_pi^(t+1)(s') = sum_s d_pi^t(s) P_pi (s'|s)
+$
+
+所以新旧策略在第$t+1$步的状态访问分布差异为：
+
+$
+  D_"TV" (d_(pi_theta)^(t+1), d_(pi_(theta_"old"))^(t+1))
+  & = D_"TV" (d_(pi_theta)^t P_(pi_theta), d_(pi_(theta_"old"))^t P_(pi_(theta_"old"))) \
+  & <= D_"TV" (d_(pi_theta)^t P_(pi_theta), d_(pi_(theta_"old"))^t P_(pi_theta))
+  + D_"TV" (d_(pi_(theta_"old"))^t P_(pi_theta), d_(pi_(theta_"old"))^t P_(pi_(theta_"old")))
+$
+
+第一项只改变了初始状态分布，后面的转移核相同。对同一个转移核做变换不会放大TV距离，所以
+
+$
+  D_"TV" (d_(pi_theta)^t P_(pi_theta), d_(pi_(theta_"old"))^t P_(pi_theta))
+  <= D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+$
+
+直觉是：转移核只是把原来的概率质量重新"混合"到下一批状态上。混合会平滑差异，不会凭空制造出更大的差异。就像两个颜色比例略有不同的颜料，经过同一种稀释和搅拌后，区别不会被放大。
+
+第二项初始状态分布相同，差异只来自新旧策略导致的动作分布不同。由于环境转移$P(s'|s,a)$只是把动作分布再映射成下一状态分布，因此这个映射同样不会放大TV距离：
+
+$
+  D_"TV" (d_(pi_(theta_"old"))^t P_(pi_theta), d_(pi_(theta_"old"))^t P_(pi_(theta_"old")))
+  <= EE_(s tilde d_(pi_(theta_"old"))^t)
+  [D_"TV" (pi_theta (dot.c|s), pi_(theta_"old") (dot.c|s))]
+$
+
+令
+
+$
+  alpha_t := EE_(s tilde d_(pi_(theta_"old"))^t)
+  [D_"TV" (pi_theta (dot.c|s), pi_(theta_"old") (dot.c|s))]
+$
+
+于是得到递推式：
+
+$
+  D_"TV" (d_(pi_theta)^(t+1), d_(pi_(theta_"old"))^(t+1))
+  <= D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t) + alpha_t
+$
+
+因为初始状态分布通常由环境给定，和策略无关，所以
+
+$
+  D_"TV" (d_(pi_theta)^0, d_(pi_(theta_"old"))^0) = 0
+$
+
+不断展开上面的递推式，可以得到：
+
+$
+  D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t)
+  <= sum_(k=0)^(t-1) alpha_k
+$
+
+如果用一个统一上界$alpha$控制所有时间步的策略差异，即
+
+$
+  alpha := max_(0 <= k <= T) alpha_k
+$
+
+那么有
+
+$
+  D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t) <= t alpha
+$
+
+再假设优势函数有界，即存在常数$B$，使得
+
+$
+  norm(g_(pi_theta)^t)_infinity <= B
+$
+
+代回前面的误差式：
+
+$
+  abs(Delta) & <= sum_(t=0)^T 2 B D_"TV" (d_(pi_theta)^t, d_(pi_(theta_"old"))^t) \
+             & <= sum_(t=0)^T 2 B t alpha \
+             & = B T(T+1) alpha
+$
+
+最后使用Pinsker不等式把TV距离换成KL散度。对每个状态$s$，
+
+$
+  D_"TV" (pi_theta (dot.c|s), pi_(theta_"old") (dot.c|s))
+  <= sqrt(1/2 "KL"(pi_theta(dot.c|s) parallel pi_(theta_"old")(dot.c|s)))
+$
+
+因此
+
+$
+  alpha_t & <= EE_(s tilde d_(pi_(theta_"old"))^t)
+            [sqrt(1/2 "KL"(pi_theta (dot.c|s) parallel pi_(theta_"old")(dot.c|s)))] \
+          & <= sqrt(
+              1/2 EE_(s tilde d_(pi_(theta_"old"))^t)
+              ["KL"(pi_theta (dot.c|s) parallel pi_(theta_"old") (dot.c|s))]
+            )
+$
+
+第二个不等式用到了平方根函数的凹性，也就是Jensen不等式。
+
+如果把沿轨迹采样到的状态$s_t$代入，上式可以写成经验估计的形式：
+
+$
+  alpha <= sqrt(1/2 dot 1/T sum_(t=0)^T "KL"(pi_theta (dot.c|s_t) parallel pi_(theta_"old") (dot.c|s_t)))
+$
+
+代回误差上界：
+
+$
+  abs(Delta)
+  <= B T(T+1) sqrt(1/2 dot 1/T sum_(t=0)^T "KL"(pi_theta (dot.c|s_t) parallel pi_(theta_"old") (dot.c|s_t)))
+$
+
+由于$B$、$T$以及$1/2$都是和当前优化变量无关的常数，可以统一吸收到常数$C$里，于是得到前文使用的误差上界形式：
+
+$
+  abs((J(theta)-J(theta_"old")) - J_(pi_(theta_"old"))^"CPI" (theta))
+  <= C sqrt(1/T sum_(t=0)^T "KL"(pi_theta (dot.c|s_t) parallel pi_(theta_"old") (dot.c|s_t)))
+$
+
+这就是为什么只要限制新旧策略之间的KL散度，就能控制CPI surrogate和真实性能差分之间的误差。
+
 #chapter("组相对策略优化（GRPO）", image: image("./orange2.jpg"), l: "rl-grpo")
 
 == GRPO原理
@@ -5504,7 +5459,7 @@ class Agent:
 class Agent:
     ...
 
-    def collect_trajectory(self, env):
+    def rollout(self, env):
         """采样一条轨迹"""
         state = env.reset()
         states, log_probs, actions = [], [], []
@@ -5523,40 +5478,35 @@ class Agent:
             state = next_state
             episode_reward += reward
 
-        # 归一化奖励
-        normalized_reward = episode_reward / 200.0
-
-        return states, log_probs, actions, normalized_reward
+        return states, log_probs, actions, episode_reward
 ```
-
-这里的归一化奖励需要说一下，我们已经知道木杆坚持200步不倒下，游戏就成功结束了。那么如果木杆坚持了3步就倒下，这条轨迹的奖励应该如何计算呢？这里我们选择$3/200=0.015$。这就是我们给这条轨迹的奖励。
 
 GRPO的优势计算是和PPO的优势计算有区别的地方。PPO使用了价值函数网络评估每个动作的价值，并且使用了广义优势估计（GAE）。而GRPO创造性的提出了组相对优势。
 
 也就是轨迹$tau_i$相对于*组内*其它轨迹的优势是多少？也就是如下
 
-轨迹$tau_i$的归一化奖励是：
+轨迹$tau_i$的奖励是：
 
 $
-  R_(tau_i)^"normalized" = G(tau_i)/200
+  r_i = G(tau_i)
 $
 
 而一组轨迹的平均奖励是
 
 $
-  "reward"_"mean" = 1/G sum_(i=0)^G R_(tau_i)^"normalized"
+  r_"mean" = 1/G sum_(i=0)^G r_i
 $
 
 那么轨迹$tau_i$相对于组内其它轨迹的优势为：
 
 $
-  A_(tau_i) = (R_(tau_i)^"normalized" - "reward"_"mean")/("reward"_"std")
+  A_i = (r_i - r_"mean")/(r_"std")
 $
 
 轨迹中每一个动作的优势就等于这个动作所在轨迹的优势，也就是：
 
 $
-  A_(tau_i,t) = A_(tau_i)
+  A_(i,t) = A_i
 $
 
 #figure(
@@ -5570,8 +5520,8 @@ class Agent:
 
     def calc_advantages_with_grpo(self, trajectories):
         """使用一组轨迹计算某条轨迹的组内优势"""
-        # [轨迹0的归一化奖励，轨迹1的归一化奖励，...]
-        rewards = [r for o, l, a, r in trajectories]
+        # [轨迹0的奖励，轨迹1的奖励，...]
+        rewards = [r for _, _, _, r in trajectories]
         mean_reward = sum(rewards) / len(rewards)
         std_reward = np.std(rewards) + 1e-8
         # [轨迹0的组相对优势，轨迹1的组相对优势，...]
@@ -5617,28 +5567,26 @@ class Agent:
 
 ```python
 def train(agent, env):
-    G = 5  # 一组轨迹有5条
-    trial_num = 0
-    while True:
-        for episode in range(20):
-            trajectories, episode_rewards = [], []
-            for _ in range(G):
-                states, log_probs, actions, normalized_reward = agent.collect_trajectory(
-                    env)
-                trajectories.append(
-                    (states, log_probs, actions, normalized_reward))
-                episode_rewards.append(normalized_reward * 200)
-            agent.update(trajectories)
+    G = 8  # 一组轨迹有8条
+    returns = []
+    for _ in range(50):
+        trajectories = []
+        for _ in range(G):
+            states, log_probs, actions, normalized_reward = agent.rollout(env)
+            trajectories.append(
+                (states, log_probs, actions, normalized_reward)
+            )
+            returns.append(normalized_reward * 200)
+        agent.update(trajectories)
 
-        # 一组轨迹的平均奖励
-        avg_reward = sum(episode_rewards) / len(episode_rewards)
-        trial_num += 1
+env = gym.make("CartPole-v0")
+agent = Agent()
+returns = []
 
-        if avg_reward > 195:
-            print("训练结束，训练回合数：", trial_num)
-            return
-        else:
-            print(f"训练回合数：{trial_num}，平均奖励：{avg_reward}")
+train(agent, env)
+
+episodes = [i for i in range(len(returns))]
+plot_loss(len(returns), returns, "grpo-loss.pdf")
 ```
 
 #part("基于人类反馈的强化学习")
@@ -5948,17 +5896,17 @@ DPO的目标是让$(pi_theta (y_w|x))/(pi_theta (y_l|x))$越大越好！
   caption: [GRPO替代损失函数],
 )
 
-现在，如果我们能将 PPO 的可靠性与更高的效率以及对推理能力提升的专注结合起来，会怎么样呢？GRPO 应运而生，它是强化学习领域的最新成果之一，由 DeepSeek 开发，并用于训练其令人印象深刻的 DeepSeek-Math 和 DeepSeek-R1 模型。
+现在，如果我们能将PPO的可靠性与更高的效率以及对推理能力提升的专注结合起来，会怎么样呢？GRPO应运而生，它是强化学习领域的最新成果之一，由DeepSeek开发，并用于训练其令人印象深刻的DeepSeek-Math和DeepSeek-R1模型。
 
-GRPO 建立在 PPO 的基础上，但引入了几项巧妙的修改：
+GRPO建立在PPO的基础上，但引入了几项巧妙的修改：
 
 - GRPO去掉了价值函数模型，减少了内存开销。
 - GRPO评估输出的一组回答而不是单个token。
 - GRPO直接将KL散度纳入损失函数。
 
-这种基于组（Group）的方法尤其巧妙。GRPO 不是单独评估每个token，而是将完整的答案作为一个整体来看待 #sym.arrow.double.long 这是一种评估推理能力更自然的方式，其中整个解答过程都很重要，而不仅仅是单个步骤。
+这种基于组（Group）的方法尤其巧妙。GRPO不是单独评估每个token，而是将完整的答案作为一个整体来看待 #sym.arrow.double.long 这是一种评估推理能力更自然的方式，其中整个解答过程都很重要，而不仅仅是单个步骤。
 
-用 AWS 社区文章的话来说，"GRPO 用于计算优势的组相对方式与奖励模型的比较性质非常吻合，因为奖励模型通常是在同一问题的输出比较数据集上进行训练的。"
+用AWS社区文章的话来说，"GRPO用于计算优势的组相对方式与奖励模型的比较性质非常吻合，因为奖励模型通常是在同一问题的输出比较数据集上进行训练的。"
 
 #chapter("使用DPO微调大语言模型", image: image("./orange2.jpg"), l: "rlhf-dpo")
 
@@ -8839,7 +8787,7 @@ def reward_function(
 
 ==== GRPO（DAPO）算法的实现
 
-创建文件 `grpo.py` ，内容如下：
+创建文件`grpo.py`，内容如下：
 
 ```python
 import dataclasses
